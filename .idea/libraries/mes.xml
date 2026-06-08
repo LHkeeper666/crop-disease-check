@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="mes">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/老师给的资料/mes.zip!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
