@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import * as echarts from 'echarts'
+import * as XLSX from 'xlsx'
 import GlassCard from '../components/GlassCard.vue'
 import GlowButton from '../components/GlowButton.vue'
 import { mockStatsOverview, mockDailyReports } from '../mock/data'
@@ -22,8 +23,25 @@ function handleResize() {
   trendChart?.resize()
 }
 
+function exportToExcel() {
+  const headers = ['日期', '巡检数', '识别数', '病害数', '虫害数', '处理率', '状态']
+  const rows = reports.value.map(rpt => [
+    rpt.date,
+    rpt.inspections,
+    rpt.detections,
+    rpt.disease,
+    rpt.pest,
+    `${(rpt.handledRate * 100).toFixed(0)}%`,
+    rpt.emailSent ? '已发送' : '待发送'
+  ])
+  const sheetData = [headers, ...rows]
+  const ws = XLSX.utils.aoa_to_sheet(sheetData)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, '每日报告')
+  XLSX.writeFile(wb, `农情报表_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`)
+}
+
 onMounted(() => {
-  // Disease pie chart
   if (diseaseChartRef.value) {
     diseaseChart = echarts.init(diseaseChartRef.value)
     diseaseChart.setOption({
@@ -61,7 +79,6 @@ onMounted(() => {
     })
   }
 
-  // Pest pie chart
   if (pestChartRef.value) {
     pestChart = echarts.init(pestChartRef.value)
     pestChart.setOption({
@@ -99,7 +116,6 @@ onMounted(() => {
     })
   }
 
-  // Trend chart
   if (trendChartRef.value) {
     trendChart = echarts.init(trendChartRef.value)
     trendChart.setOption({
@@ -185,7 +201,7 @@ onBeforeUnmount(() => {
         <p class="text-xs text-slate-500 font-mono">离线农情复盘与高级分析</p>
       </div>
       <div class="flex gap-2">
-        <GlowButton label="导出 Excel" />
+        <GlowButton label="导出 Excel" @click="exportToExcel" />
         <GlowButton label="生成日报" />
       </div>
     </div>
