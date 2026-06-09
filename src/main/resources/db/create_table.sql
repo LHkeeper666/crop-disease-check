@@ -1,0 +1,344 @@
+-- ========================================
+-- 智慧农业病虫害监测系统 - 建表脚本
+-- 版本: V2.0 (匹配接口文档)
+-- ========================================
+
+CREATE DATABASE IF NOT EXISTS agriculture_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE agriculture_db;
+
+-- ========================================
+-- 1. 用户模块
+-- ========================================
+
+-- 用户表
+DROP TABLE IF EXISTS sys_user;
+CREATE TABLE sys_user (
+    id            VARCHAR(36) PRIMARY KEY COMMENT '用户UUID',
+    username      VARCHAR(64) NOT NULL UNIQUE COMMENT '用户名',
+    password      VARCHAR(128) NOT NULL COMMENT '密码(BCrypt)',
+    name          VARCHAR(64) COMMENT '真实姓名',
+    role          VARCHAR(20) NOT NULL DEFAULT 'VISITOR' COMMENT '角色: ADMIN/EXPERT/MANAGER/VISITOR',
+    phone         VARCHAR(20) COMMENT '手机号',
+    email         VARCHAR(128) COMMENT '邮箱',
+    status        VARCHAR(20) DEFAULT 'ACTIVE' COMMENT '状态: ACTIVE/DISABLED',
+    last_login_at DATETIME COMMENT '最后登录时间',
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted       TINYINT DEFAULT 0 COMMENT '逻辑删除',
+    INDEX idx_role (role),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
+
+
+-- ========================================
+-- 2. 摄像头模块
+-- ========================================
+
+-- 摄像头表
+DROP TABLE IF EXISTS camera;
+CREATE TABLE camera (
+    id            VARCHAR(36) PRIMARY KEY COMMENT '摄像头UUID',
+    name          VARCHAR(128) NOT NULL COMMENT '摄像头名称',
+    rtsp_url      VARCHAR(512) COMMENT 'RTSP流地址',
+    location_x    DECIMAL(10,6) COMMENT '经度',
+    location_y    DECIMAL(10,6) COMMENT '纬度',
+    direction     DECIMAL(5,1) COMMENT '朝向角度',
+    status        VARCHAR(20) DEFAULT 'OFFLINE' COMMENT '状态: ONLINE/OFFLINE/FAULT',
+    last_frame_at DATETIME COMMENT '最后抓拍时间',
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted       TINYINT DEFAULT 0 COMMENT '逻辑删除'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='摄像头表';
+
+
+-- ========================================
+-- 3. 网格区域模块
+-- ========================================
+
+-- 网格/地块表
+DROP TABLE IF EXISTS grid;
+CREATE TABLE grid (
+    id              VARCHAR(36) PRIMARY KEY COMMENT '网格UUID',
+    label           VARCHAR(32) NOT NULL COMMENT '网格编号(A1/B3等)',
+    greenhouse_id   VARCHAR(36) COMMENT '大棚ID',
+    polygon_coords  JSON COMMENT '多边形坐标点',
+    area_m2         DECIMAL(10,2) COMMENT '面积(平方米)',
+    crop_type       VARCHAR(64) COMMENT '作物类型',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted         TINYINT DEFAULT 0 COMMENT '逻辑删除',
+    INDEX idx_label (label)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='网格区域表';
+
+
+-- 摄像头覆盖网格关联表
+DROP TABLE IF EXISTS camera_grid;
+CREATE TABLE camera_grid (
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    camera_id   VARCHAR(36) NOT NULL COMMENT '摄像头ID',
+    grid_id     VARCHAR(36) NOT NULL COMMENT '网格ID',
+    UNIQUE KEY uk_camera_grid (camera_id, grid_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='摄像头覆盖网格关联';
+
+
+-- ========================================
+-- 4. 病虫害知识库
+-- ========================================
+
+-- 病虫害信息表
+DROP TABLE IF EXISTS pest_info;
+CREATE TABLE pest_info (
+    id          VARCHAR(36) PRIMARY KEY COMMENT '病虫害UUID',
+    pest_name   VARCHAR(128) NOT NULL COMMENT '病虫害名称',
+    pest_type   VARCHAR(20) NOT NULL COMMENT '类型: DISEASE/PEST/WEED',
+    description TEXT COMMENT '描述',
+    conditions  TEXT COMMENT '发生条件',
+    prevention  TEXT COMMENT '防治方法',
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted     TINYINT DEFAULT 0 COMMENT '逻辑删除'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='病虫害知识库';
+
+
+-- ========================================
+-- 5. 上报与识别模块
+-- ========================================
+
+-- 图像上报记录表
+DROP TABLE IF EXISTS report;
+CREATE TABLE report (
+    id            VARCHAR(36) PRIMARY KEY COMMENT '上报UUID',
+    user_id       VARCHAR(36) NOT NULL COMMENT '上报用户ID',
+    grid_id       VARCHAR(36) NOT NULL COMMENT '网格/地块ID',
+    crop_type     VARCHAR(64) COMMENT '农作物品种',
+    image_urls    JSON COMMENT '图片URL数组',
+    found_at      DATETIME NOT NULL COMMENT '发现时间',
+    description   VARCHAR(500) COMMENT '补充描述',
+    status        VARCHAR(30) DEFAULT 'PENDING_RECOGNITION' COMMENT '状态: PENDING_RECOGNITION/PENDING/AUDITED/REJECTED',
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted       TINYINT DEFAULT 0 COMMENT '逻辑删除',
+    INDEX idx_user (user_id),
+    INDEX idx_grid (grid_id),
+    INDEX idx_status (status),
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='图像上报记录表';
+
+
+-- 识别结果表
+DROP TABLE IF EXISTS inference;
+CREATE TABLE inference (
+    id                VARCHAR(36) PRIMARY KEY COMMENT '识别UUID',
+    report_id         VARCHAR(36) NOT NULL COMMENT '关联上报ID',
+    pest_id           VARCHAR(36) COMMENT '关联病虫害ID',
+    pest_name         VARCHAR(128) COMMENT '识别的病虫害名称',
+    confidence        DECIMAL(5,4) COMMENT '置信度(0-1)',
+    is_low_confidence TINYINT DEFAULT 0 COMMENT '是否低置信度(<0.6)',
+    pipeline          VARCHAR(20) COMMENT '识别管道: DISEASE/PEST',
+    bbox              JSON COMMENT '检测框坐标',
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_report (report_id),
+    INDEX idx_confidence (confidence)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='识别结果表';
+
+
+-- 审核记录表
+DROP TABLE IF EXISTS audit_record;
+CREATE TABLE audit_record (
+    id            VARCHAR(36) PRIMARY KEY COMMENT '审核UUID',
+    report_id     VARCHAR(36) NOT NULL COMMENT '关联上报ID',
+    auditor_id    VARCHAR(36) NOT NULL COMMENT '审核人ID',
+    audit_result  VARCHAR(20) NOT NULL COMMENT '审核结果: APPROVED/REJECTED',
+    comment       VARCHAR(500) COMMENT '审核意见',
+    audited_at    DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '审核时间',
+    INDEX idx_report (report_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审核记录表';
+
+
+-- ========================================
+-- 6. 防治方案模块
+-- ========================================
+
+-- 防治方案表
+DROP TABLE IF EXISTS prevention_plan;
+CREATE TABLE prevention_plan (
+    id            VARCHAR(36) PRIMARY KEY COMMENT '方案UUID',
+    report_id     VARCHAR(36) NOT NULL COMMENT '关联上报ID',
+    content       TEXT NOT NULL COMMENT '方案内容',
+    suggest_time  DATE COMMENT '建议执行时间',
+    author_id     VARCHAR(36) COMMENT '制定人ID',
+    version       INT DEFAULT 1 COMMENT '版本号',
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_report (report_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='防治方案表';
+
+
+-- 防治方案版本历史表
+DROP TABLE IF EXISTS prevention_plan_version;
+CREATE TABLE prevention_plan_version (
+    id            BIGINT PRIMARY KEY AUTO_INCREMENT,
+    plan_id       VARCHAR(36) NOT NULL COMMENT '方案ID',
+    content       TEXT NOT NULL COMMENT '方案内容',
+    suggest_time  DATE COMMENT '建议执行时间',
+    version       INT NOT NULL COMMENT '版本号',
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_plan (plan_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='防治方案版本历史';
+
+
+-- ========================================
+-- 7. 工单模块
+-- ========================================
+
+-- 工单表
+DROP TABLE IF EXISTS work_order;
+CREATE TABLE work_order (
+    id              VARCHAR(36) PRIMARY KEY COMMENT '工单UUID',
+    title           VARCHAR(256) NOT NULL COMMENT '工单标题',
+    severity        VARCHAR(20) NOT NULL COMMENT '严重程度: LOW/MEDIUM/HIGH/CRITICAL',
+    status          VARCHAR(20) DEFAULT 'PENDING' COMMENT '状态: PENDING/PROCESSING/DONE/IGNORED/ESCALATED',
+    inference_id    VARCHAR(36) COMMENT '关联识别ID',
+    assigned_to     VARCHAR(36) COMMENT '指派给用户ID',
+    expert_comment  VARCHAR(500) COMMENT '专家备注',
+    callback_token  VARCHAR(128) COMMENT '回调Token',
+    token_expire_at DATETIME COMMENT 'Token过期时间',
+    token_used      TINYINT DEFAULT 0 COMMENT 'Token是否已使用',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_status (status),
+    INDEX idx_severity (severity),
+    INDEX idx_assigned (assigned_to),
+    INDEX idx_token (callback_token)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工单表';
+
+
+-- 工单状态历史表
+DROP TABLE IF EXISTS work_order_history;
+CREATE TABLE work_order_history (
+    id            BIGINT PRIMARY KEY AUTO_INCREMENT,
+    workorder_id  VARCHAR(36) NOT NULL COMMENT '工单ID',
+    status        VARCHAR(20) NOT NULL COMMENT '状态',
+    operator_id   VARCHAR(36) COMMENT '操作人ID',
+    operator_name VARCHAR(64) COMMENT '操作人名称',
+    comment       VARCHAR(500) COMMENT '备注',
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_workorder (workorder_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工单状态历史';
+
+
+-- ========================================
+-- 8. 巡检模块
+-- ========================================
+
+-- 巡检计划表
+DROP TABLE IF EXISTS inspection_plan;
+CREATE TABLE inspection_plan (
+    id                  VARCHAR(36) PRIMARY KEY COMMENT '计划UUID',
+    name                VARCHAR(128) NOT NULL COMMENT '计划名称',
+    cron_expression     VARCHAR(64) COMMENT 'Cron表达式',
+    active_hours_start  VARCHAR(10) COMMENT '生效开始时间(HH:mm)',
+    active_hours_end    VARCHAR(10) COMMENT '生效结束时间(HH:mm)',
+    is_active           TINYINT DEFAULT 1 COMMENT '是否启用',
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='巡检计划表';
+
+
+-- 巡检计划-摄像头关联表
+DROP TABLE IF EXISTS inspection_camera;
+CREATE TABLE inspection_camera (
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    plan_id     VARCHAR(36) NOT NULL COMMENT '计划ID',
+    camera_id   VARCHAR(36) NOT NULL COMMENT '摄像头ID',
+    UNIQUE KEY uk_plan_camera (plan_id, camera_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='巡检计划摄像头关联';
+
+
+-- 巡检日志表
+DROP TABLE IF EXISTS inspection_log;
+CREATE TABLE inspection_log (
+    id              VARCHAR(36) PRIMARY KEY COMMENT '日志UUID',
+    plan_id         VARCHAR(36) COMMENT '计划ID',
+    camera_id       VARCHAR(36) NOT NULL COMMENT '摄像头ID',
+    capture_time    DATETIME NOT NULL COMMENT '抓拍时间',
+    image_url       VARCHAR(512) COMMENT '图片URL',
+    disease_count   INT DEFAULT 0 COMMENT '病害数量',
+    pest_count      INT DEFAULT 0 COMMENT '虫害数量',
+    max_confidence  DECIMAL(5,4) COMMENT '最高置信度',
+    duration_ms     INT COMMENT '耗时(毫秒)',
+    status          VARCHAR(20) DEFAULT 'SUCCESS' COMMENT '状态: SUCCESS/FAILED',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_camera (camera_id),
+    INDEX idx_capture_time (capture_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='巡检日志表';
+
+
+-- ========================================
+-- 9. 日度报告模块
+-- ========================================
+
+-- 日度报告表
+DROP TABLE IF EXISTS daily_report;
+CREATE TABLE daily_report (
+    id              VARCHAR(36) PRIMARY KEY COMMENT '报告UUID',
+    report_date     DATE NOT NULL COMMENT '报告日期',
+    summary_json    JSON COMMENT '统计数据JSON',
+    html_content    LONGTEXT COMMENT '报告HTML内容',
+    email_sent      TINYINT DEFAULT 0 COMMENT '是否已发送邮件',
+    email_sent_at   DATETIME COMMENT '邮件发送时间',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY uk_date (report_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='日度报告表';
+
+
+-- ========================================
+-- 10. 农业大脑对话模块
+-- ========================================
+
+-- 农业大脑对话表
+DROP TABLE IF EXISTS ai_conversation;
+CREATE TABLE ai_conversation (
+    id          VARCHAR(36) PRIMARY KEY COMMENT '对话UUID',
+    user_id     VARCHAR(36) NOT NULL COMMENT '用户ID',
+    title       VARCHAR(256) COMMENT '对话标题',
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='农业大脑对话表';
+
+
+-- 农业大脑消息表
+DROP TABLE IF EXISTS ai_message;
+CREATE TABLE ai_message (
+    id              VARCHAR(36) PRIMARY KEY COMMENT '消息UUID',
+    conversation_id VARCHAR(36) NOT NULL COMMENT '对话ID',
+    user_id         VARCHAR(36) NOT NULL COMMENT '用户ID',
+    role            VARCHAR(20) NOT NULL COMMENT '角色: USER/ASSISTANT',
+    content         TEXT NOT NULL COMMENT '消息内容',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_conversation (conversation_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='农业大脑消息表';
+
+
+-- ========================================
+-- 11. 系统日志模块
+-- ========================================
+
+-- 操作日志表
+DROP TABLE IF EXISTS sys_log;
+CREATE TABLE sys_log (
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '日志ID',
+    user_id     VARCHAR(36) COMMENT '操作用户ID',
+    username    VARCHAR(64) COMMENT '用户名',
+    operation   VARCHAR(64) COMMENT '操作类型',
+    method      VARCHAR(256) COMMENT '请求方法',
+    params      TEXT COMMENT '请求参数',
+    ip          VARCHAR(64) COMMENT 'IP地址',
+    duration    BIGINT COMMENT '执行时长(ms)',
+    status      TINYINT DEFAULT 1 COMMENT '状态: 0=失败 1=成功',
+    error_msg   TEXT COMMENT '错误信息',
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_user (user_id),
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
