@@ -1,14 +1,36 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
 import GlowButton from '../components/GlowButton.vue'
 import { mockCameras, mockUsers, mockGridHeatmap } from '../mock/data'
+
 
 const activeTab = ref<'cameras' | 'grids' | 'users'>('cameras')
 
 const cameras = ref(mockCameras)
 const grids = ref(mockGridHeatmap)
 const users = ref(mockUsers)
+
+const cameraSearch = ref('')
+const userSearch = ref('')
+
+const filteredCameras = computed(() => {
+  if (!cameraSearch.value) return cameras.value
+  const keyword = cameraSearch.value.toLowerCase()
+  return cameras.value.filter(cam =>
+    cam.name.toLowerCase().includes(keyword) ||
+    cam.grid.toLowerCase().includes(keyword)
+  )
+})
+
+const filteredUsers = computed(() => {
+  if (!userSearch.value) return users.value
+  const keyword = userSearch.value.toLowerCase()
+  return users.value.filter(user =>
+    user.username.toLowerCase().includes(keyword) ||
+    user.name.toLowerCase().includes(keyword)
+  )
+})
 
 const statusColors: Record<string, string> = {
   ONLINE: 'text-cyber-green bg-cyber-green/10 border-cyber-green/20',
@@ -47,7 +69,11 @@ const roleLabels: Record<string, string> = {
         :key="tab.key"
         class="px-4 py-2 rounded-xl text-sm transition-all duration-200"
         :class="activeTab === tab.key ? 'bg-white/10 text-white border border-white/10' : 'text-slate-500 hover:text-white hover:bg-white/5'"
-        @click="activeTab = tab.key as any"
+        @click="
+          activeTab = tab.key as any;
+          cameraSearch = '';
+          userSearch = '';
+        "
       >
         {{ tab.label }}
       </button>
@@ -57,10 +83,18 @@ const roleLabels: Record<string, string> = {
     <GlassCard class="flex-1 min-h-0 overflow-hidden flex flex-col">
       <!-- Cameras -->
       <div v-if="activeTab === 'cameras'" class="flex-1 overflow-y-auto">
-        <div class="flex justify-between items-center mb-4">
-          <span class="text-xs text-slate-400 font-mono">{{ cameras.length }} 台设备</span>
+      <div class="flex justify-between items-center mb-4">
+        <span class="text-xs text-slate-400 font-mono">{{ filteredCameras.length }} 台设备</span>
+        <div class="flex gap-3">
+          <input
+            v-model="cameraSearch"
+            type="text"
+            placeholder="搜索摄像头名称或网格"
+            class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50"
+          />
           <GlowButton label="+ 添加摄像头" />
         </div>
+      </div>
         <table class="w-full text-sm">
           <thead>
             <tr class="text-left text-xs text-slate-500 uppercase tracking-wider border-b border-white/5">
@@ -72,7 +106,7 @@ const roleLabels: Record<string, string> = {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="cam in cameras" :key="cam.id" class="border-b border-white/5 hover:bg-white/5 transition-colors">
+            <tr v-for="cam in filteredCameras" :key="cam.id" class="border-b border-white/5 hover:bg-white/5 transition-colors">
               <td class="py-3 pr-4 text-white font-medium">{{ cam.name }}</td>
               <td class="py-3 pr-4">
                 <span class="px-2 py-0.5 rounded-md text-[10px] font-mono border" :class="statusColors[cam.status]">
@@ -86,6 +120,11 @@ const roleLabels: Record<string, string> = {
                   <button class="text-xs text-cyber-green hover:underline">编辑</button>
                   <button class="text-xs text-sakura hover:underline">删除</button>
                 </div>
+              </td>
+            </tr>
+            <tr v-if="filteredCameras.length === 0">
+              <td colspan="5" class="py-8 text-center text-slate-500 text-sm">
+                没有找到匹配的摄像头
               </td>
             </tr>
           </tbody>
@@ -133,9 +172,17 @@ const roleLabels: Record<string, string> = {
       <!-- Users -->
       <div v-if="activeTab === 'users'" class="flex-1 overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
-          <span class="text-xs text-slate-400 font-mono">{{ users.length }} 位用户</span>
+          <span class="text-xs text-slate-400 font-mono">{{ filteredUsers.length }} 位用户</span>
+          <div class="flex gap-3">
+            <input
+             v-model="userSearch"
+             type="text"
+             placeholder="搜索用户名或姓名"
+             class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50"
+            />
           <GlowButton label="+ 新增用户" />
         </div>
+      </div>
         <table class="w-full text-sm">
           <thead>
             <tr class="text-left text-xs text-slate-500 uppercase tracking-wider border-b border-white/5">
@@ -148,7 +195,7 @@ const roleLabels: Record<string, string> = {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="user in users" :key="user.id" class="border-b border-white/5 hover:bg-white/5 transition-colors">
+            <tr v-for="user in filteredUsers" :key="user.id" class="border-b border-white/5 hover:bg-white/5 transition-colors">
               <td class="py-3 pr-4 text-white font-mono text-xs">{{ user.username }}</td>
               <td class="py-3 pr-4 text-white">{{ user.name }}</td>
               <td class="py-3 pr-4">
@@ -167,6 +214,9 @@ const roleLabels: Record<string, string> = {
                   <button class="text-xs text-sakura hover:underline">禁用</button>
                 </div>
               </td>
+            </tr>
+            <tr v-if="filteredUsers.length === 0">
+             <td colspan="6" class="py-8 text-center text-slate-500 text-sm">没有找到匹配的用户</td>
             </tr>
           </tbody>
         </table>
