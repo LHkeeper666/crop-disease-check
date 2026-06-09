@@ -1,0 +1,17 @@
+# 环境变量 (包含密码, 不提交)
+.env
+
+# SSL 证书
+nginx/ssl/*.pem
+nginx/ssl/*.key
+nginx/ssl/*.crt
+
+# 数据卷
+mysql_data/
+redis_data/
+rabbitmq_data/
+es_data/
+minio_data/
+
+# ONNX 模型文件 (体积大, 单独管理)
+cv-inference/models/*.onnx
