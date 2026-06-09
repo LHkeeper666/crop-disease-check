@@ -32,7 +32,7 @@ const roleLabels: Record<string, string> = {
     <div class="flex items-center justify-between shrink-0">
       <div>
         <h1 class="text-lg font-bold text-white">多租户生物资产与设备管理舱</h1>
-        <p class="text-xs text-slate-500 font-mono">MULTI-TENANT ASSET & DEVICE MANAGEMENT</p>
+        <p class="text-xs text-slate-500 font-mono">多租户生物资产与设备管理</p>
       </div>
     </div>
 
@@ -58,7 +58,7 @@ const roleLabels: Record<string, string> = {
       <!-- Cameras -->
       <div v-if="activeTab === 'cameras'" class="flex-1 overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
-          <span class="text-xs text-slate-400 font-mono">{{ cameras.length }} devices</span>
+          <span class="text-xs text-slate-400 font-mono">{{ cameras.length }} 台设备</span>
           <GlowButton label="+ 添加摄像头" />
         </div>
         <table class="w-full text-sm">
@@ -95,7 +95,7 @@ const roleLabels: Record<string, string> = {
       <!-- Grids -->
       <div v-if="activeTab === 'grids'" class="flex-1 overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
-          <span class="text-xs text-slate-400 font-mono">{{ grids.length }} grids</span>
+          <span class="text-xs text-slate-400 font-mono">{{ grids.length }} 个网格</span>
           <GlowButton label="+ 添加网格" />
         </div>
         <div class="grid grid-cols-3 gap-4">
@@ -113,7 +113,7 @@ const roleLabels: Record<string, string> = {
             </div>
             <div class="space-y-1.5 text-xs">
               <div class="flex justify-between">
-                <span class="text-slate-500">Risk Score</span>
+                <span class="text-slate-500">风险评分</span>
                 <span class="font-mono text-white">{{ (grid.score * 100).toFixed(0) }}%</span>
               </div>
               <div class="h-1.5 rounded-full bg-white/5 overflow-hidden">
@@ -124,7 +124,7 @@ const roleLabels: Record<string, string> = {
                 />
               </div>
               <div v-if="grid.pest" class="text-slate-400">
-                Pest: <span class="text-white">{{ grid.pest }}</span>
+                虫害: <span class="text-white">{{ grid.pest }}</span>
               </div>
             </div>
           </div>
@@ -134,7 +134,7 @@ const roleLabels: Record<string, string> = {
       <!-- Users -->
       <div v-if="activeTab === 'users'" class="flex-1 overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
-          <span class="text-xs text-slate-400 font-mono">{{ users.length }} users</span>
+          <span class="text-xs text-slate-400 font-mono">{{ users.length }} 位用户</span>
           <GlowButton label="+ 新增用户" />
         </div>
         <table class="w-full text-sm">

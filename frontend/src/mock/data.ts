@@ -1,7 +1,7 @@
 // Mock data for all modules
 
 export const mockEnvironmentData = {
-  airTemp: { value: 23.6, unit: 'C', status: 'normal' as const },
+  airTemp: { value: 23.6, unit: '°C', status: 'normal' as const },
   soilMoisture: { value: 65.2, unit: '%', status: 'normal' as const },
   humidity: { value: 78.5, unit: '%', status: 'warning' as const },
   lightLevel: { value: 1230, unit: 'lux', status: 'normal' as const },
@@ -22,10 +22,10 @@ export const mockAlerts = [
 ]
 
 export const mockGrowthMetrics = [
-  { label: 'CO2', value: 420, unit: 'ppm', color: '#4ADE80' },
-  { label: 'Soil pH', value: 6.8, unit: '', color: '#FFB300' },
+  { label: 'CO₂', value: 420, unit: 'ppm', color: '#4ADE80' },
+  { label: '土壤 pH', value: 6.8, unit: '', color: '#FFB300' },
   { label: 'EC', value: 1.2, unit: 'mS/cm', color: '#4ADE80' },
-  { label: 'Temp', value: 23.6, unit: 'C', color: '#FF6A00' },
+  { label: '温度', value: 23.6, unit: '°C', color: '#FF6A00' },
   { label: 'N', value: 45, unit: 'mg/kg', color: '#4ADE80' },
   { label: 'P', value: 32, unit: 'mg/kg', color: '#FFB300' },
   { label: 'K', value: 180, unit: 'mg/kg', color: '#4ADE80' },
@@ -40,7 +40,7 @@ export const mockGreenhouseMeta = {
   cropSpecies: 'Solanum lycopersicum',
   plantingDate: '2026-03-15',
   location: '34.2614N, 108.9423E',
-  area: '2400 m2',
+  area: '2400 m²',
   status: 'ACTIVE',
 }
 

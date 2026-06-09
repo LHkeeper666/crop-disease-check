@@ -116,7 +116,7 @@ onMounted(() => {
     <div class="flex items-center justify-between shrink-0">
       <div>
         <h1 class="text-lg font-bold text-white">离线农情复盘与高级分析舱</h1>
-        <p class="text-xs text-slate-500 font-mono">OFFLINE AGRICULTURAL REVIEW & ADVANCED ANALYTICS</p>
+        <p class="text-xs text-slate-500 font-mono">离线农情复盘与高级分析</p>
       </div>
       <div class="flex gap-2">
         <GlowButton label="导出 Excel" variant="secondary" />
@@ -152,17 +152,17 @@ onMounted(() => {
     <div class="flex gap-4 flex-1 min-h-0 overflow-hidden">
       <!-- Pie chart -->
       <GlassCard class="w-80 shrink-0 flex flex-col">
-        <div class="text-xs text-slate-400 uppercase tracking-wider mb-3">Pest Distribution</div>
+        <div class="text-xs text-slate-400 tracking-wider mb-3">虫害分布</div>
         <div ref="pieChartRef" class="flex-1 min-h-[200px]" />
       </GlassCard>
 
       <!-- Trend chart -->
       <GlassCard class="flex-1 min-w-0 flex flex-col">
         <div class="flex items-center justify-between mb-3">
-          <span class="text-xs text-slate-400 uppercase tracking-wider">7-Day Trend</span>
+          <span class="text-xs text-slate-400 tracking-wider">7日趋势</span>
           <div class="flex gap-2">
-            <button class="px-3 py-1 rounded-lg text-[10px] font-mono bg-cyber-green/10 text-cyber-green border border-cyber-green/20">7 Days</button>
-            <button class="px-3 py-1 rounded-lg text-[10px] font-mono bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10">30 Days</button>
+            <button class="px-3 py-1 rounded-lg text-[10px] font-mono bg-cyber-green/10 text-cyber-green border border-cyber-green/20">7天</button>
+            <button class="px-3 py-1 rounded-lg text-[10px] font-mono bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10">30天</button>
           </div>
         </div>
         <div ref="trendChartRef" class="flex-1 min-h-[200px]" />
@@ -173,7 +173,7 @@ onMounted(() => {
     <div class="flex gap-4 shrink-0 overflow-hidden">
       <!-- Top 5 pests -->
       <GlassCard class="w-80 shrink-0">
-        <div class="text-xs text-slate-400 uppercase tracking-wider mb-3">Top 5 Pests</div>
+        <div class="text-xs text-slate-400 tracking-wider mb-3">Top 5 虫害</div>
         <div class="space-y-2.5">
           <div v-for="(pest, idx) in stats.top5Pests" :key="pest.name" class="flex items-center gap-3">
             <span class="text-xs font-mono text-slate-600 w-4">{{ idx + 1 }}</span>
@@ -191,7 +191,7 @@ onMounted(() => {
 
       <!-- Daily reports table -->
       <GlassCard class="flex-1 min-w-0 overflow-hidden flex flex-col">
-        <div class="text-xs text-slate-400 uppercase tracking-wider mb-3">Daily Reports</div>
+        <div class="text-xs text-slate-400 tracking-wider mb-3">每日报告</div>
         <div class="flex-1 overflow-y-auto">
           <table class="w-full text-sm">
             <thead>
@@ -215,7 +215,7 @@ onMounted(() => {
                 <td class="py-2 pr-3 font-mono text-xs text-cyber-green">{{ (rpt.handledRate * 100).toFixed(0) }}%</td>
                 <td class="py-2">
                   <span class="px-2 py-0.5 rounded text-[10px] font-mono" :class="rpt.emailSent ? 'text-cyber-green bg-cyber-green/10' : 'text-slate-500 bg-white/5'">
-                    {{ rpt.emailSent ? 'Sent' : 'Pending' }}
+                    {{ rpt.emailSent ? '已发送' : '待发送' }}
                   </span>
                 </td>
               </tr>
