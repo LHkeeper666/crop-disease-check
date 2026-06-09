@@ -12,6 +12,17 @@ const meta = mockGreenhouseMeta
 // Detection confidence threshold (0-1), will be sent to backend
 const confidenceThreshold = ref(0.5)
 
+// Heatmap cell detail
+const selectedCell = ref<typeof mockGridHeatmap[number] | null>(null)
+
+function selectCell(cell: typeof mockGridHeatmap[number]) {
+  selectedCell.value = cell
+}
+
+function closeCellDetail() {
+  selectedCell.value = null
+}
+
 // Real-time clock
 const now = ref(new Date())
 let clockTimer: ReturnType<typeof setInterval>
@@ -150,12 +161,12 @@ function getHeatColor(score: number) {
     <div class="flex items-center justify-between shrink-0">
       <div>
         <h1 class="text-lg font-bold text-white">2.5D 植物生理遥测舱</h1>
-        <p class="text-xs text-slate-500 font-mono">REAL-TIME AGRI-PERCEPTION CORE</p>
+        <p class="text-xs text-slate-500 font-mono">实时植物生理遥测</p>
       </div>
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyber-green/10 border border-cyber-green/20">
           <span class="w-2 h-2 rounded-full bg-cyber-green pulse-green" />
-          <span class="text-xs text-cyber-green font-mono">ONLINE</span>
+          <span class="text-xs text-cyber-green font-mono">在线</span>
         </div>
         <div class="text-xs text-slate-500 font-mono">
           {{ now.toLocaleString('zh-CN') }}
@@ -169,16 +180,16 @@ function getHeatColor(score: number) {
       <div class="w-72 flex flex-col gap-4 shrink-0 overflow-y-auto">
         <!-- Environmental Grid 2x2 -->
         <div class="grid grid-cols-2 gap-3">
-          <DataMetric label="Air Temp" :value="env.airTemp.value" unit="C" :status="env.airTemp.status" />
-          <DataMetric label="Soil Moist" :value="env.soilMoisture.value" unit="%" :status="env.soilMoisture.status" />
-          <DataMetric label="Humidity" :value="env.humidity.value" unit="%" :status="env.humidity.status" />
-          <DataMetric label="Light" :value="env.lightLevel.value" unit="lux" :status="env.lightLevel.status" />
+          <DataMetric label="空气温度" :value="env.airTemp.value" unit="°C" :status="env.airTemp.status" />
+          <DataMetric label="土壤湿度" :value="env.soilMoisture.value" unit="%" :status="env.soilMoisture.status" />
+          <DataMetric label="空气湿度" :value="env.humidity.value" unit="%" :status="env.humidity.status" />
+          <DataMetric label="光照强度" :value="env.lightLevel.value" unit="lux" :status="env.lightLevel.status" />
         </div>
 
         <!-- Confidence Threshold -->
         <GlassCard>
           <div class="flex items-center justify-between mb-3">
-            <span class="text-xs text-slate-400 uppercase tracking-wider">Detection Threshold</span>
+            <span class="text-xs text-slate-400 tracking-wider">检测阈值</span>
             <span class="text-sm font-mono font-bold" :class="confidenceThreshold >= 0.7 ? 'text-cyber-green' : confidenceThreshold >= 0.4 ? 'text-amber' : 'text-sakura'">
               {{ (confidenceThreshold * 100).toFixed(0) }}%
             </span>
@@ -211,12 +222,12 @@ function getHeatColor(score: number) {
         </GlassCard>
 
         <!-- Alerts -->
-        <GlassCard class="flex-1 min-h-0">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs text-slate-400 uppercase tracking-wider">Alerts</span>
-            <span class="text-[10px] font-mono text-sakura">{{ alerts.filter(a => a.level === 'critical').length }} critical</span>
+        <GlassCard class="flex-1 min-h-0 flex flex-col">
+          <div class="flex items-center justify-between mb-3 shrink-0">
+            <span class="text-xs text-slate-400 tracking-wider">报警</span>
+            <span class="text-[10px] font-mono text-sakura">{{ alerts.filter(a => a.level === 'critical').length }} 严重</span>
           </div>
-          <div class="space-y-2 overflow-y-auto max-h-48">
+          <div class="space-y-2 overflow-y-auto flex-1 min-h-0">
             <div
               v-for="alert in alerts"
               :key="alert.id"
@@ -237,14 +248,13 @@ function getHeatColor(score: number) {
         <!-- 2.5D Heatmap -->
         <GlassCard class="flex-1 min-h-0 flex flex-col">
           <div class="flex items-center justify-between mb-4">
-            <span class="text-xs text-slate-400 uppercase tracking-wider">2.5D Spatial Heatmap</span>
+            <span class="text-xs text-slate-400 tracking-wider">2.5D 空间热力图</span>
             <div class="flex gap-2">
-              <button class="px-3 py-1 rounded-lg text-[10px] font-mono bg-cyber-green/10 text-cyber-green border border-cyber-green/20">Disease</button>
-              <button class="px-3 py-1 rounded-lg text-[10px] font-mono bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10">Pest</button>
+              <button class="px-3 py-1 rounded-lg text-[10px] font-mono bg-cyber-green/10 text-cyber-green border border-cyber-green/20">全部</button>
               <button
                 class="px-3 py-1 rounded-lg text-[10px] font-mono bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10"
                 @click="resetRotation"
-              >Reset</button>
+              >重置</button>
             </div>
           </div>
           <!-- Grid -->
@@ -262,6 +272,7 @@ function getHeatColor(score: number) {
                 :key="cell.label"
                 class="aspect-square rounded-xl border border-white/10 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 hover:scale-105 hover:border-white/25"
                 :class="getHeatColor(cell.score)"
+                @click="selectCell(cell)"
               >
                 <span class="text-sm font-mono font-bold text-white">{{ cell.label }}</span>
                 <span class="text-[10px] font-mono text-slate-300 mt-0.5">{{ (cell.score * 100).toFixed(0) }}%</span>
@@ -273,15 +284,15 @@ function getHeatColor(score: number) {
           <div class="flex items-center justify-center gap-4 mt-3">
             <div class="flex items-center gap-1.5">
               <div class="w-3 h-3 rounded bg-cyber-green/20" />
-              <span class="text-[10px] text-slate-500">Safe</span>
+              <span class="text-[10px] text-slate-500">安全</span>
             </div>
             <div class="flex items-center gap-1.5">
               <div class="w-3 h-3 rounded bg-amber/50" />
-              <span class="text-[10px] text-slate-500">Warning</span>
+              <span class="text-[10px] text-slate-500">警告</span>
             </div>
             <div class="flex items-center gap-1.5">
               <div class="w-3 h-3 rounded bg-sakura/60" />
-              <span class="text-[10px] text-slate-500">Critical</span>
+              <span class="text-[10px] text-slate-500">严重</span>
             </div>
           </div>
         </GlassCard>
@@ -289,63 +300,110 @@ function getHeatColor(score: number) {
         <!-- Metadata Matrix -->
         <div class="grid grid-cols-5 gap-3 shrink-0">
           <div class="glass rounded-lg px-3 py-2 text-center">
-            <div class="text-[10px] text-slate-500 mb-0.5">Sector</div>
+            <div class="text-[10px] text-slate-500 mb-0.5">区域</div>
             <div class="text-xs font-mono text-white">{{ meta.sectorId }}</div>
           </div>
           <div class="glass rounded-lg px-3 py-2 text-center">
-            <div class="text-[10px] text-slate-500 mb-0.5">Crop</div>
+            <div class="text-[10px] text-slate-500 mb-0.5">作物</div>
             <div class="text-xs font-mono text-white truncate">{{ meta.cropSpecies.split(' ')[0] }}</div>
           </div>
           <div class="glass rounded-lg px-3 py-2 text-center">
-            <div class="text-[10px] text-slate-500 mb-0.5">Planted</div>
+            <div class="text-[10px] text-slate-500 mb-0.5">定植日期</div>
             <div class="text-xs font-mono text-white">{{ meta.plantingDate }}</div>
           </div>
           <div class="glass rounded-lg px-3 py-2 text-center">
-            <div class="text-[10px] text-slate-500 mb-0.5">Location</div>
+            <div class="text-[10px] text-slate-500 mb-0.5">位置</div>
             <div class="text-xs font-mono text-white">{{ meta.location.split(',')[0] }}</div>
           </div>
           <div class="glass rounded-lg px-3 py-2 text-center">
-            <div class="text-[10px] text-slate-500 mb-0.5">Area</div>
+            <div class="text-[10px] text-slate-500 mb-0.5">面积</div>
             <div class="text-xs font-mono text-white">{{ meta.area }}</div>
           </div>
         </div>
       </div>
 
       <!-- RIGHT PANEL -->
-      <div class="w-72 flex flex-col gap-4 shrink-0 overflow-y-auto">
+      <div class="w-80 flex flex-col gap-4 shrink-0 overflow-y-auto">
         <!-- Growth Metrics -->
         <GlassCard>
-          <div class="text-xs text-slate-400 uppercase tracking-wider mb-3">Growth Indices</div>
+          <div class="text-xs text-slate-400 tracking-wider mb-3">生长指标</div>
           <div class="space-y-2.5">
             <div v-for="m in mockGrowthMetrics" :key="m.label" class="flex items-center gap-3">
-              <span class="text-[10px] text-slate-500 w-12 font-mono">{{ m.label }}</span>
+              <span class="text-[10px] text-slate-500 w-14 shrink-0">{{ m.label }}</span>
               <div class="flex-1 h-2 rounded-full bg-white/5 overflow-hidden">
                 <div
                   class="h-full rounded-full transition-all duration-1000"
-                  :style="{ width: `${Math.min((m.value / (m.label === 'CO2' ? 600 : m.label === 'Soil pH' ? 14 : m.label === 'EC' ? 3 : m.label === 'Temp' ? 40 : 300)) * 100, 100)}%`, backgroundColor: m.color }"
+                  :style="{ width: `${Math.min((m.value / (m.label.includes('CO') ? 600 : m.label.includes('pH') ? 14 : m.label === 'EC' ? 3 : m.label.includes('温度') ? 40 : 300)) * 100, 100)}%`, backgroundColor: m.color }"
                 />
               </div>
-              <span class="text-xs font-mono text-white w-14 text-right">{{ m.value }} {{ m.unit }}</span>
+              <span class="text-xs font-mono text-white w-14 text-right shrink-0">{{ m.value }} {{ m.unit }}</span>
             </div>
           </div>
         </GlassCard>
 
         <!-- Trend Chart -->
         <GlassCard class="flex-1 min-h-0 flex flex-col">
-          <div class="text-xs text-slate-400 uppercase tracking-wider mb-3">7-Day Trend</div>
+          <div class="text-xs text-slate-400 tracking-wider mb-3">7日趋势</div>
           <div ref="trendChartRef" class="flex-1 min-h-[180px]" />
         </GlassCard>
 
         <!-- Power Stream -->
         <GlassCard>
-          <div class="text-xs text-slate-400 uppercase tracking-wider mb-3">Power Stream</div>
+          <div class="text-xs text-slate-400 tracking-wider mb-3">功率流</div>
           <div ref="powerChartRef" class="h-24" />
           <div class="flex justify-between mt-1 text-[10px] text-slate-600 font-mono">
             <span>-60s</span>
-            <span>now</span>
+            <span>当前</span>
           </div>
         </GlassCard>
       </div>
     </div>
+
+    <!-- Cell detail modal -->
+    <Teleport to="body">
+      <div
+        v-if="selectedCell"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+        @click.self="closeCellDetail"
+      >
+        <div class="glass rounded-2xl p-6 w-80 shadow-2xl border border-white/10">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center font-mono font-bold text-white text-lg" :class="getHeatColor(selectedCell.score)">
+                {{ selectedCell.label }}
+              </div>
+              <div>
+                <div class="text-sm font-medium text-white">网格 {{ selectedCell.label }}</div>
+                <div class="text-[10px] text-slate-500 font-mono">GRID DETAIL</div>
+              </div>
+            </div>
+            <button class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors" @click="closeCellDetail">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l6 6M6 12L6 6l6 6"/></svg>
+            </button>
+          </div>
+          <div class="space-y-3">
+            <div class="flex justify-between items-center py-2 border-b border-white/5">
+              <span class="text-xs text-slate-400">风险评分</span>
+              <span class="text-sm font-mono font-bold" :class="selectedCell.score >= 0.8 ? 'text-sakura' : selectedCell.score >= 0.5 ? 'text-amber' : 'text-cyber-green'">
+                {{ (selectedCell.score * 100).toFixed(0) }}%
+              </span>
+            </div>
+            <div class="flex justify-between items-center py-2 border-b border-white/5">
+              <span class="text-xs text-slate-400">状态</span>
+              <span class="text-xs font-mono px-2 py-0.5 rounded" :class="selectedCell.status === 'critical' ? 'text-sakura bg-sakura/10' : selectedCell.status === 'warning' ? 'text-amber bg-amber/10' : 'text-cyber-green bg-cyber-green/10'">
+                {{ selectedCell.status === 'critical' ? '严重' : selectedCell.status === 'warning' ? '警告' : '安全' }}
+              </span>
+            </div>
+            <div class="flex justify-between items-center py-2">
+              <span class="text-xs text-slate-400">检测目标</span>
+              <span class="text-xs text-white">{{ selectedCell.pest || '无' }}</span>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-white/5 text-[10px] text-slate-600 font-mono text-center">
+            后端对接后将展示完整诊断信息
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

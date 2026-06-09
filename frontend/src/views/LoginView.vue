@@ -156,7 +156,7 @@ async function handleRegister() {
           <span class="text-sunset">农作物疾病检测系统</span>
         </h1>
         <p class="text-sm text-slate-400 font-mono tracking-widest uppercase">
-          Crop Disease Monitoring System
+          农作物疾病监测系统
         </p>
         <!-- Decorative line -->
         <div class="mx-auto mt-4 w-24 h-px bg-gradient-to-r from-transparent via-cyber-green/40 to-transparent" />

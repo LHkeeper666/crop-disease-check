@@ -55,28 +55,28 @@ const stats = computed(() => ({
       <div class="glass rounded-xl px-4 py-3 flex items-center gap-3">
         <div class="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-lg font-mono font-bold text-white">{{ stats.total }}</div>
         <div>
-          <div class="text-[10px] text-slate-500 uppercase">Total</div>
+          <div class="text-[10px] text-slate-500">全部</div>
           <div class="text-xs text-white font-mono">全部工单</div>
         </div>
       </div>
       <div class="glass rounded-xl px-4 py-3 flex items-center gap-3">
         <div class="w-10 h-10 rounded-lg bg-amber/10 flex items-center justify-center text-lg font-mono font-bold text-amber">{{ stats.pending }}</div>
         <div>
-          <div class="text-[10px] text-slate-500 uppercase">Pending</div>
+          <div class="text-[10px] text-slate-500">待处理</div>
           <div class="text-xs text-white font-mono">待处理</div>
         </div>
       </div>
       <div class="glass rounded-xl px-4 py-3 flex items-center gap-3">
         <div class="w-10 h-10 rounded-lg bg-blue-400/10 flex items-center justify-center text-lg font-mono font-bold text-blue-400">{{ stats.processing }}</div>
         <div>
-          <div class="text-[10px] text-slate-500 uppercase">Processing</div>
+          <div class="text-[10px] text-slate-500">处理中</div>
           <div class="text-xs text-white font-mono">处理中</div>
         </div>
       </div>
       <div class="glass rounded-xl px-4 py-3 flex items-center gap-3">
         <div class="w-10 h-10 rounded-lg bg-cyber-green/10 flex items-center justify-center text-lg font-mono font-bold text-cyber-green">{{ stats.done }}</div>
         <div>
-          <div class="text-[10px] text-slate-500 uppercase">Done</div>
+          <div class="text-[10px] text-slate-500">已完成</div>
           <div class="text-xs text-white font-mono">已完成</div>
         </div>
       </div>
@@ -113,8 +113,8 @@ const stats = computed(() => ({
             <div class="flex-1">
               <div class="text-sm font-medium text-white mb-1">{{ order.title }}</div>
               <div class="flex items-center gap-3 text-xs text-slate-500">
-                <span class="font-mono">Grid: {{ order.gridLabel }}</span>
-                <span class="font-mono">Confidence: {{ (order.confidence * 100).toFixed(0) }}%</span>
+                <span class="font-mono">网格: {{ order.gridLabel }}</span>
+                <span class="font-mono">置信度: {{ (order.confidence * 100).toFixed(0) }}%</span>
                 <span>{{ order.assignedToName }}</span>
               </div>
             </div>
