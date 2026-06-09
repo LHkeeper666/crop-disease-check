@@ -10,6 +10,7 @@ import DashboardView from './views/DashboardView.vue'
 import DeviceManagementView from './views/DeviceManagementView.vue'
 import WorkOrderView from './views/WorkOrderView.vue'
 import ReportsView from './views/ReportsView.vue'
+import AgentView from './views/AgentView.vue'
 
 const routes = [
   { path: '/login', name: 'Login', component: LoginView, meta: { public: true } },
@@ -22,6 +23,7 @@ const routes = [
       { path: 'devices', name: 'Devices', component: DeviceManagementView },
       { path: 'workorders', name: 'WorkOrders', component: WorkOrderView },
       { path: 'reports', name: 'Reports', component: ReportsView },
+      { path: 'agent', name: 'Agent', component: AgentView },
     ],
   },
 ]

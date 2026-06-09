@@ -11,6 +11,7 @@ const navItems = [
   { path: '/workorders', label: '智能工单', icon: '&#9881;' },
   { path: '/devices', label: '设备管理', icon: '&#9881;' },
   { path: '/reports', label: '农情报表', icon: '&#9776;' },
+  { path: '/agent', label: '智慧大脑', icon: '&#9733;' },
 ]
 
 function handleLogout() {

@@ -96,7 +96,6 @@ const roleLabels: Record<string, string> = {
       <div v-if="activeTab === 'grids'" class="flex-1 overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
           <span class="text-xs text-slate-400 font-mono">{{ grids.length }} 个网格</span>
-          <GlowButton label="+ 添加网格" />
         </div>
         <div class="grid grid-cols-3 gap-4">
           <div

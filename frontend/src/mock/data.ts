@@ -14,12 +14,7 @@ export const mockEnergyData = {
   trend: 'stable' as const,
 }
 
-export const mockAlerts = [
-  { id: 1, level: 'critical' as const, message: 'Grid-B3 红蜘蛛置信度 0.95', time: '2分钟前' },
-  { id: 2, level: 'warning' as const, message: 'A区湿度超过阈值 78.5%', time: '15分钟前' },
-  { id: 3, level: 'critical' as const, message: 'Grid-A1 番茄晚疫病 置信度 0.92', time: '32分钟前' },
-  { id: 4, level: 'warning' as const, message: '3号摄像头离线超过10分钟', time: '1小时前' },
-]
+// Alerts are now dynamically generated from work orders via useWorkOrderStore
 
 export const mockGrowthMetrics = [
   { label: 'CO₂', value: 420, unit: 'ppm', color: '#4ADE80' },
@@ -31,9 +26,6 @@ export const mockGrowthMetrics = [
   { label: 'K', value: 180, unit: 'mg/kg', color: '#4ADE80' },
 ]
 
-export const mockPowerStream = Array.from({ length: 64 }, (_, i) =>
-  Math.sin(i * 0.3) * 30 + Math.random() * 15 + 50
-)
 
 export const mockGreenhouseMeta = {
   sectorId: 'GH-A1',
@@ -44,17 +36,17 @@ export const mockGreenhouseMeta = {
   status: 'ACTIVE',
 }
 
-// Grid heatmap data
+// Grid heatmap data — base risk scores per zone
 export const mockGridHeatmap = [
-  { label: 'A1', score: 0.75, pest: '番茄晚疫病', status: 'warning' },
-  { label: 'A2', score: 0.22, pest: '', status: 'safe' },
-  { label: 'A3', score: 0.15, pest: '', status: 'safe' },
-  { label: 'B1', score: 0.38, pest: '蚜虫', status: 'warning' },
-  { label: 'B2', score: 0.10, pest: '', status: 'safe' },
-  { label: 'B3', score: 0.92, pest: '红蜘蛛', status: 'critical' },
-  { label: 'C1', score: 0.45, pest: '白粉病', status: 'warning' },
-  { label: 'C2', score: 0.08, pest: '', status: 'safe' },
-  { label: 'C3', score: 0.62, pest: '蚜虫', status: 'warning' },
+  { label: 'A1', score: 0.75, pest: '番茄晚疫病', type: 'disease' as const },
+  { label: 'A2', score: 0.22, pest: '', type: null },
+  { label: 'A3', score: 0.15, pest: '', type: null },
+  { label: 'B1', score: 0.38, pest: '蚜虫', type: 'pest' as const },
+  { label: 'B2', score: 0.10, pest: '', type: null },
+  { label: 'B3', score: 0.92, pest: '红蜘蛛', type: 'pest' as const },
+  { label: 'C1', score: 0.45, pest: '白粉病', type: 'disease' as const },
+  { label: 'C2', score: 0.08, pest: '', type: null },
+  { label: 'C3', score: 0.62, pest: '蚜虫', type: 'pest' as const },
 ]
 
 // Work orders
@@ -64,6 +56,7 @@ export const mockWorkOrders = [
     title: '【紧急】Grid-B3 发现高置信度红蜘蛛',
     severity: 'CRITICAL',
     status: 'PENDING',
+    type: 'pest',
     gridLabel: 'B3',
     pestName: '红蜘蛛',
     confidence: 0.95,
@@ -76,6 +69,7 @@ export const mockWorkOrders = [
     title: '【高危】Grid-A1 番茄晚疫病扩散',
     severity: 'HIGH',
     status: 'PROCESSING',
+    type: 'disease',
     gridLabel: 'A1',
     pestName: '番茄晚疫病',
     confidence: 0.92,
@@ -88,6 +82,7 @@ export const mockWorkOrders = [
     title: 'Grid-C1 白粉病中等威胁',
     severity: 'MEDIUM',
     status: 'DONE',
+    type: 'disease',
     gridLabel: 'C1',
     pestName: '白粉病',
     confidence: 0.78,
@@ -100,6 +95,7 @@ export const mockWorkOrders = [
     title: 'Grid-B1 蚜虫低风险预警',
     severity: 'LOW',
     status: 'IGNORED',
+    type: 'pest',
     gridLabel: 'B1',
     pestName: '蚜虫',
     confidence: 0.65,
@@ -111,12 +107,9 @@ export const mockWorkOrders = [
 
 // Cameras
 export const mockCameras = [
-  { id: 'cam-001', name: 'A区-1号摄像头', status: 'ONLINE', grid: 'A1,A2', rtspUrl: 'rtsp://192.168.1.101:554/stream1' },
-  { id: 'cam-002', name: 'A区-2号摄像头', status: 'ONLINE', grid: 'A2,A3', rtspUrl: 'rtsp://192.168.1.102:554/stream1' },
-  { id: 'cam-003', name: 'B区-1号摄像头', status: 'OFFLINE', grid: 'B1,B2', rtspUrl: 'rtsp://192.168.1.103:554/stream1' },
-  { id: 'cam-004', name: 'B区-2号摄像头', status: 'ONLINE', grid: 'B2,B3', rtspUrl: 'rtsp://192.168.1.104:554/stream1' },
-  { id: 'cam-005', name: 'C区-1号摄像头', status: 'ONLINE', grid: 'C1,C2', rtspUrl: 'rtsp://192.168.1.105:554/stream1' },
-  { id: 'cam-006', name: 'C区-2号摄像头', status: 'FAULT', grid: 'C2,C3', rtspUrl: 'rtsp://192.168.1.106:554/stream1' },
+  { id: 'cam-001', name: 'A区监控', status: 'ONLINE', grid: 'A1,A2,A3', rtspUrl: 'rtsp://192.168.1.101:554/stream1' },
+  { id: 'cam-002', name: 'B区监控', status: 'ONLINE', grid: 'B1,B2,B3', rtspUrl: 'rtsp://192.168.1.102:554/stream1' },
+  { id: 'cam-003', name: 'C区监控', status: 'OFFLINE', grid: 'C1,C2,C3', rtspUrl: 'rtsp://192.168.1.103:554/stream1' },
 ]
 
 // Statistics overview
@@ -126,13 +119,19 @@ export const mockStatsOverview = {
   pendingAudit: 8,
   processed: 135,
   highRiskAlerts: 3,
-  typeDistribution: [
+  // 病害分布
+  diseaseDistribution: [
     { name: '番茄晚疫病', value: 45 },
+    { name: '白粉病', value: 20 },
+    { name: '灰霉病', value: 12 },
+    { name: '霜霉病', value: 8 },
+  ],
+  // 虫害分布
+  pestDistribution: [
     { name: '红蜘蛛', value: 30 },
     { name: '蚜虫', value: 25 },
-    { name: '白粉病', value: 20 },
     { name: '螟虫', value: 15 },
-    { name: '其他', value: 15 },
+    { name: '白粉虱', value: 10 },
   ],
   dailyTrend: [
     { date: '06-03', count: 18 },
@@ -143,12 +142,17 @@ export const mockStatsOverview = {
     { date: '06-08', count: 25 },
     { date: '06-09', count: 12 },
   ],
-  top5Pests: [
+  top5Diseases: [
     { name: '番茄晚疫病', count: 45 },
+    { name: '白粉病', count: 20 },
+    { name: '灰霉病', count: 12 },
+    { name: '霜霉病', count: 8 },
+  ],
+  top5Pests: [
     { name: '红蜘蛛', count: 30 },
     { name: '蚜虫', count: 25 },
-    { name: '白粉病', count: 20 },
     { name: '螟虫', count: 15 },
+    { name: '白粉虱', count: 10 },
   ],
 }
 

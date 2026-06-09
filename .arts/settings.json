@@ -1,3 +1,4 @@
 {
-    "clawMode.mode": "editor"
+    "clawMode.mode": "editor",
+    "java.compile.nullAnalysis.mode": "automatic"
 }

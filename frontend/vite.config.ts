@@ -11,6 +11,16 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/proxy/deepseek': {
+        target: 'https://api.deepseek.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/proxy\/deepseek/, ''),
+      },
+      '/proxy/xiaomi': {
+        target: 'https://token-plan-cn.xiaomimimo.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/proxy\/xiaomi/, ''),
+      },
     },
   },
 })
