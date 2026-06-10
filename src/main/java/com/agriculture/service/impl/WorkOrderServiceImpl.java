@@ -11,6 +11,7 @@ import com.agriculture.vo.CallbackResponseVO;
 import com.agriculture.vo.StatusHistoryVO;
 import com.agriculture.vo.WorkOrderDetailVO;
 import com.agriculture.vo.WorkOrderVO;
+import com.agriculture.websocket.WebSocketService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -71,6 +72,9 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
 
     @Resource
     private com.agriculture.dao.mapper.SysUserMapper sysUserMapper;
+
+    @Resource
+    private WebSocketService webSocketService;
 
     @Override
     public IPage<WorkOrderVO> listWorkOrders(String status, String severity,
@@ -163,6 +167,21 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         history.setCreatedAt(LocalDateTime.now());
         workOrderHistoryMapper.insert(history);
 
+        // 推送工单创建到 WebSocket
+        try {
+            Map<String, Object> wsData = new HashMap<>();
+            wsData.put("workorderId", workOrder.getId());
+            wsData.put("oldStatus", null);
+            wsData.put("newStatus", "PENDING");
+            wsData.put("operatorName", operatorName);
+            wsData.put("type", workOrder.getType());
+            wsData.put("severity", workOrder.getSeverity());
+            wsData.put("updatedAt", LocalDateTime.now().toString());
+            webSocketService.sendWorkorderChange(wsData);
+        } catch (Exception e) {
+            // 推送失败不影响主流程
+        }
+
         return workOrder.getId();
     }
 
@@ -215,6 +234,20 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         history.setComment(dto.getComment());
         history.setCreatedAt(LocalDateTime.now());
         workOrderHistoryMapper.insert(history);
+
+        // 推送工单状态变更到 WebSocket
+        try {
+            Map<String, Object> wsData = new HashMap<>();
+            wsData.put("workorderId", workOrder.getId());
+            wsData.put("oldStatus", "PENDING");
+            wsData.put("newStatus", newStatus);
+            wsData.put("operatorName", "专家回调");
+            wsData.put("comment", dto.getComment());
+            wsData.put("updatedAt", LocalDateTime.now().toString());
+            webSocketService.sendWorkorderChange(wsData);
+        } catch (Exception e) {
+            // 推送失败不影响主流程
+        }
 
         CallbackResponseVO response = new CallbackResponseVO();
         response.setWorkorderId(workOrder.getId());

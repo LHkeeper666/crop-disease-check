@@ -9,6 +9,7 @@ import com.agriculture.exception.BusinessException;
 import com.agriculture.service.CameraDetectService;
 import com.agriculture.service.InferenceClient;
 import com.agriculture.service.WorkOrderService;
+import com.agriculture.websocket.WebSocketService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.Frame;
@@ -40,6 +41,7 @@ public class CameraDetectServiceImpl implements CameraDetectService {
     private final CameraMapper cameraMapper;
     private final InferenceClient inferenceClient;
     private final WorkOrderService workOrderService;
+    private final WebSocketService webSocketService;
 
     @Value("${capture.save-path:./captures}")
     private String captureSavePath;
@@ -52,10 +54,12 @@ public class CameraDetectServiceImpl implements CameraDetectService {
 
     public CameraDetectServiceImpl(CameraMapper cameraMapper,
                                    InferenceClient inferenceClient,
-                                   WorkOrderService workOrderService) {
+                                   WorkOrderService workOrderService,
+                                   WebSocketService webSocketService) {
         this.cameraMapper = cameraMapper;
         this.inferenceClient = inferenceClient;
         this.workOrderService = workOrderService;
+        this.webSocketService = webSocketService;
     }
 
     @Override
@@ -115,7 +119,7 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         CameraDetectResponse.WorkOrderInfo workOrderInfo = createWorkOrderIfNeeded(camera, parsedResult);
 
         // 9. 构建响应
-        return CameraDetectResponse.builder()
+        CameraDetectResponse response = CameraDetectResponse.builder()
                 .cameraId(cameraId)
                 .cameraName(camera.getName())
                 .captureTime(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
@@ -123,6 +127,22 @@ public class CameraDetectServiceImpl implements CameraDetectService {
                 .inference(parsedResult)
                 .workOrder(workOrderInfo)
                 .build();
+
+        // 10. 推送推理结果到 WebSocket
+        try {
+            Map<String, Object> wsData = new HashMap<>();
+            wsData.put("inferenceId", UUID.randomUUID().toString());
+            wsData.put("cameraName", camera.getName());
+            wsData.put("captureTime", response.getCaptureTime());
+            wsData.put("diseaseCount", parsedResult.getDisease() != null ? parsedResult.getDisease().getCount() : 0);
+            wsData.put("pestCount", parsedResult.getPest() != null ? parsedResult.getPest().getCount() : 0);
+            wsData.put("workOrderCreated", Boolean.TRUE.equals(workOrderInfo.getCreated()));
+            webSocketService.sendInferenceResult(wsData);
+        } catch (Exception e) {
+            log.warn("推送推理结果到 WebSocket 失败: {}", e.getMessage());
+        }
+
+        return response;
     }
 
     /**

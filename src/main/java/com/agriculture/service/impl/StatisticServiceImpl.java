@@ -7,6 +7,7 @@ import com.agriculture.service.StatisticService;
 import com.agriculture.vo.GridStatisticsVO;
 import com.agriculture.vo.StatisticsOverviewVO;
 import com.agriculture.vo.TrendStatisticsVO;
+import com.agriculture.websocket.WebSocketService;
 import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -48,6 +49,9 @@ public class StatisticServiceImpl implements StatisticService {
 
     @Resource
     private InspectionLogMapper inspectionLogMapper;
+
+    @Resource
+    private WebSocketService webSocketService;
 
     // ==================== JSON 解析辅助 ====================
 
@@ -247,6 +251,20 @@ public class StatisticServiceImpl implements StatisticService {
         // 网格热力图
         List<StatisticsOverviewVO.GridHeatmap> gridHeatmap = buildGridHeatmap(inferences);
         vo.setGridHeatmap(gridHeatmap);
+
+        // 推送热力图更新到 WebSocket
+        try {
+            for (StatisticsOverviewVO.GridHeatmap hm : gridHeatmap) {
+                Map<String, Object> wsData = new HashMap<>();
+                wsData.put("gridId", hm.getGridId());
+                wsData.put("gridLabel", hm.getGridLabel());
+                wsData.put("score", hm.getScore());
+                wsData.put("updatedAt", now.toString());
+                webSocketService.sendHeatmapUpdate(wsData);
+            }
+        } catch (Exception e) {
+            // 推送失败不影响主流程
+        }
 
         return vo;
     }
