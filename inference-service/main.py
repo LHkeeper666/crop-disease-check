@@ -72,6 +72,7 @@ app = FastAPI(
 )
 
 # CORS
+# TODO(waiwai9000):可能需要配置cors,防范恶意访问
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

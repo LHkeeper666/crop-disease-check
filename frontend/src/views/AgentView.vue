@@ -1,6 +1,108 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
+import {
+  mockEnvironmentData,
+  mockEnergyData,
+  mockGrowthMetrics,
+  mockGreenhouseMeta,
+  mockGridHeatmap,
+  mockWorkOrders,
+  mockStatsOverview,
+  mockDailyReports,
+} from '../mock/data'
+
+// ============ Agriculture Expert System Prompt ============
+const AGRI_EXPERT_SYSTEM_PROMPT = `你是一位资深农业遥测专家 AI 助手，隶属于 TreeForge 智慧农业遥测平台。你的知识涵盖以下领域：
+
+【核心专长】
+- 作物病虫害识别与防治（番茄晚疫病、白粉病、灰霉病、霜霉病、红蜘蛛、蚜虫、螟虫、白粉虱等）
+- 农业环境监测与调控（温度、湿度、土壤水分、光照、CO₂浓度）
+- 土壤养分分析（N/P/K、pH值、EC电导率）
+- 温室智能化管理（通风、灌溉、施肥策略）
+- 农药与肥料使用规范（安全间隔期、配比建议）
+
+【数据感知能力】
+你可以访问以下遥测数据进行分析：
+- 环境参数：空气温度、土壤湿度、空气湿度、光照强度
+- 能耗数据：当前功耗与最大负载
+- 生长指标：CO₂、土壤pH、EC、温度、N/P/K含量
+- 温室元数据：区域编号、作物种类、定植日期、地理位置、面积
+- 网格热力图：各区域风险评分与病虫害类型
+- 工单系统：告警级别(PENDING/PROCESSING/DONE/IGNORED)、置信度、处理状态
+- 历史统计：总上报数、日趋势、病害/虫害分布
+
+【回答规范】
+1. 使用中文回答，语气专业但易懂
+2. 涉及数值时必须使用精确数据，格式如 "23.6°C"、"65.2%"
+3. 对于病虫害问题，给出：风险等级、传播概率、推荐防治措施、安全用药建议
+4. 对于环境异常，给出：原因分析、调控建议、预期改善时间
+5. 必要时提供分级建议（紧急/重要/常规）
+6. 回答末尾给出可执行的行动建议
+
+【报告生成规范】
+当用户要求生成日报/周报/报告时，请按以下结构输出：
+1. 报告概览（日期、监测区域、整体健康评级）
+2. 环境数据摘要（关键指标与趋势）
+3. 病虫害态势（新增/存量、风险等级分布）
+4. 工单处理情况（待处理/处理中/已完成）
+5. 风险预警（高风险网格与建议措施）
+6. 明日工作建议（基于数据趋势的预判）`
+
+// ============ Report Generation ============
+const isGeneratingReport = ref(false)
+
+function buildReportPrompt(): string {
+  const today = new Date().toISOString().slice(0, 10)
+  const env = mockEnvironmentData
+  const energy = mockEnergyData
+  const growth = mockGrowthMetrics
+  const meta = mockGreenhouseMeta
+  const grid = mockGridHeatmap
+  const orders = mockWorkOrders
+  const stats = mockStatsOverview
+  const recent = mockDailyReports.slice(0, 3)
+
+  return `请基于以下实时遥测数据，生成今日(${today})的农情日报。
+
+【温室信息】
+- 区域编号：${meta.sectorId}
+- 作物种类：${meta.cropSpecies}
+- 定植日期：${meta.plantingDate}
+- 地理位置：${meta.location}
+- 面积：${meta.area}
+- 状态：${meta.status}
+
+【环境数据】
+- 空气温度：${env.airTemp.value}${env.airTemp.unit}（状态：${env.airTemp.status}）
+- 土壤湿度：${env.soilMoisture.value}${env.soilMoisture.unit}（状态：${env.soilMoisture.status}）
+- 空气湿度：${env.humidity.value}${env.humidity.unit}（状态：${env.humidity.status}）
+- 光照强度：${env.lightLevel.value}${env.lightLevel.unit}（状态：${env.lightLevel.status}）
+
+【能耗】
+- 当前功耗：${energy.current} ${energy.unit} / ${energy.max} ${energy.unit}
+
+【生长指标】
+${growth.map(m => `- ${m.label}：${m.value} ${m.unit}`).join('\n')}
+
+【网格热力图风险评分】
+${grid.map(g => `- 网格 ${g.label}：风险 ${g.score}${g.pest ? '，检测到 ' + g.pest + '（类型：' + g.type + '）' : ''}`).join('\n')}
+
+【工单状态】
+${orders.map(o => `- ${o.title} | 级别：${o.severity} | 状态：${o.status} | 置信度：${(o.confidence * 100).toFixed(0)}%`).join('\n')}
+
+【近期统计】
+- 累计上报：${stats.totalReports} 次
+- 今日上报：${stats.todayReports} 次
+- 待审核：${stats.pendingAudit} 项
+- 已处理：${stats.processed} 项
+- 高风险预警：${stats.highRiskAlerts} 项
+
+【近3日趋势】
+${recent.map(r => `- ${r.date}：识别 ${r.detections} 次，病害 ${r.disease}，虫害 ${r.pest}，处理率 ${(r.handledRate * 100).toFixed(0)}%`).join('\n')}
+
+请按照报告生成规范，输出完整的今日农情日报。`
+}
 
 interface Message {
   id: string
@@ -72,6 +174,8 @@ const presetQuestions = [
   '查看今日待处理工单',
   '总结近7天检测数据趋势',
   '推荐当前应采取的防护措施',
+  '生成今日农情日报',
+  '分析Grid-B3红蜘蛛风险并给出防治方案',
 ]
 
 function onProviderChange() {
@@ -147,7 +251,7 @@ function isAgentConfigured(): boolean {
   return !!(selectedProvider.value && selectedModel.value && apiKey.value.trim())
 }
 
-async function sendMessage(text?: string) {
+async function sendMessage(text?: string, withSystemPrompt = false) {
   const content = text || inputText.value.trim()
   if (!content) return
 
@@ -180,6 +284,13 @@ async function sendMessage(text?: string) {
     const provider = currentProvider.value!
     const model = selectedModel.value
 
+    const apiMessages = withSystemPrompt
+      ? [
+          { role: 'system', content: AGRI_EXPERT_SYSTEM_PROMPT },
+          { role: 'user', content },
+        ]
+      : [{ role: 'user', content }]
+
     const response = await fetch(provider.endpoint, {
       method: 'POST',
       headers: {
@@ -188,8 +299,8 @@ async function sendMessage(text?: string) {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 1024,
-        messages: [{ role: 'user', content }],
+        max_tokens: 2048,
+        messages: apiMessages,
       }),
     })
 
@@ -220,6 +331,14 @@ async function sendMessage(text?: string) {
   }
 }
 
+async function generateDailyReport() {
+  if (isGeneratingReport.value) return
+  isGeneratingReport.value = true
+  const prompt = buildReportPrompt()
+  await sendMessage(prompt, true)
+  isGeneratingReport.value = false
+}
+
 function scrollToBottom() {
   if (chatContainerRef.value) {
     chatContainerRef.value.scrollTop = chatContainerRef.value.scrollHeight
@@ -235,12 +354,21 @@ function scrollToBottom() {
         <h1 class="text-lg font-bold text-white">智慧大脑</h1>
         <p class="text-xs text-slate-500 font-mono">AI-POWERED AGRICULTURAL ASSISTANT</p>
       </div>
-      <button
-        class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-        @click="showSettings = !showSettings"
-      >
-        {{ showSettings ? '关闭设置' : 'API 设置' }}
-      </button>
+      <div class="flex gap-2">
+        <button
+          class="px-4 py-1.5 rounded-lg bg-gradient-to-r from-[#FF6A00] to-[#FFB300] text-[#0B0F19] text-sm font-bold hover:shadow-lg hover:shadow-[#FF6A00]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          :disabled="isGeneratingReport || isLoading || !isAgentConfigured()"
+          @click="generateDailyReport"
+        >
+          {{ isGeneratingReport ? '生成中...' : '生成今日日报' }}
+        </button>
+        <button
+          class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+          @click="showSettings = !showSettings"
+        >
+          {{ showSettings ? '关闭设置' : 'API 设置' }}
+        </button>
+      </div>
     </div>
 
     <!-- Agent Settings -->
@@ -357,7 +485,7 @@ function scrollToBottom() {
               v-for="q in presetQuestions"
               :key="q"
               class="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-400 hover:text-white hover:bg-white/10 transition-colors text-left"
-              @click="sendMessage(q)"
+              @click="q === '生成今日农情日报' ? generateDailyReport() : sendMessage(q)"
             >
               {{ q }}
             </button>

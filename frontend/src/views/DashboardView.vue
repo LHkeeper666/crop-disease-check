@@ -100,20 +100,20 @@ const isAutoRotating = ref(true)
 let dragStart = { x: 0, y: 0 }
 let rotateStart = { x: 0, z: 0 }
 let autoRotateTimer: ReturnType<typeof setInterval> | null = null
-let pauseTimer: ReturnType<typeof setTimeout> | null = null
+let lastFrameTime = 0
 
 function startAutoRotation() {
   if (autoRotateTimer) return
   isAutoRotating.value = true
-  const baseZ = heatmapRotate.z
-  const startTime = Date.now()
-  const cycleDuration = 30000 // 30 seconds per cycle
+  lastFrameTime = Date.now()
+  const speed = 360 / 30000 // 360° per 30 seconds
 
   autoRotateTimer = setInterval(() => {
-    if (isDragging.value) return
-    const elapsed = Date.now() - startTime
-    const progress = (elapsed % cycleDuration) / cycleDuration
-    heatmapRotate.z = baseZ + progress * 360
+    if (isDragging.value) { lastFrameTime = Date.now(); return }
+    const now = Date.now()
+    const delta = now - lastFrameTime
+    lastFrameTime = now
+    heatmapRotate.z += speed * delta
   }, 16) // ~60fps
 }
 
@@ -125,32 +125,29 @@ function stopAutoRotation() {
   isAutoRotating.value = false
 }
 
-function pauseAutoRotation() {
-  stopAutoRotation()
-  if (pauseTimer) clearTimeout(pauseTimer)
-  pauseTimer = setTimeout(() => {
-    startAutoRotation()
-  }, 5000) // Resume after 5 seconds of inactivity
+function resumeAutoRotation() {
+  if (autoRotateTimer) return
+  startAutoRotation()
 }
 
 function onDragStart(e: MouseEvent) {
   isDragging.value = true
   dragStart = { x: e.clientX, y: e.clientY }
   rotateStart = { x: heatmapRotate.x, z: heatmapRotate.z }
-  stopAutoRotation()
 }
 
 function onDragMove(e: MouseEvent) {
   if (!isDragging.value) return
   const dx = e.clientX - dragStart.x
   const dy = e.clientY - dragStart.y
-  heatmapRotate.z = Math.max(-60, Math.min(60, rotateStart.z + dx * 0.3))
+  heatmapRotate.z = rotateStart.z + dx * 0.3
   heatmapRotate.x = Math.max(-30, Math.min(60, rotateStart.x - dy * 0.3))
 }
 
 function onDragEnd() {
   isDragging.value = false
-  pauseAutoRotation()
+  // Resume continuous rotation from current angle after a brief pause
+  setTimeout(() => resumeAutoRotation(), 2000)
 }
 
 function resetRotation() {
@@ -170,7 +167,6 @@ onUnmounted(() => {
   heatmapRef.value?.removeEventListener('mousemove', onDragMove)
   window.removeEventListener('mouseup', onDragEnd)
   stopAutoRotation()
-  if (pauseTimer) clearTimeout(pauseTimer)
 })
 
 // ECharts — trend chart (dynamic from store)
