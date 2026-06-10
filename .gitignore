@@ -69,3 +69,10 @@ docker-compose.override.yml
 # Node (if frontend exists)
 node_modules/
 dist/
+
+# Python
+__pycache__/
+*.pyc
+
+# 推理服务输出
+outputs/

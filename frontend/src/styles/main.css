@@ -1,0 +1,210 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-base: #0B0F19;
+  --color-base-light: #111827;
+  --color-glass: rgba(15, 23, 42, 0.4);
+  --color-glass-border: rgba(255, 255, 255, 0.1);
+
+  --color-sunset-from: #FF6A00;
+  --color-sunset-to: #FFB300;
+
+  --color-cyber-green: #4ADE80;
+  --color-cyber-green-dark: #10B981;
+
+  --color-sakura: #EF4444;
+  --color-amber: #F59E0B;
+}
+
+/* Global base */
+html, body, #app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-base);
+  color: #e2e8f0;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Glass card base */
+.glass {
+  background: var(--color-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-glass-border);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* Sunset gradient text */
+.text-sunset {
+  background: linear-gradient(135deg, var(--color-sunset-from), var(--color-sunset-to));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glow button */
+.glow-btn {
+  position: relative;
+  background: linear-gradient(135deg, var(--color-sunset-from), var(--color-sunset-to));
+  border: none;
+  border-radius: 9999px;
+  padding: 10px 28px;
+  color: #0B0F19;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.glow-btn::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, var(--color-sunset-from), var(--color-sunset-to));
+  opacity: 0;
+  filter: blur(12px);
+  transition: opacity 0.3s ease;
+  z-index: -1;
+}
+.glow-btn:hover::before {
+  opacity: 0.6;
+}
+.glow-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 25px rgba(255, 106, 0, 0.3);
+}
+
+/* Pulse animation for status dots */
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(74, 222, 128, 0); }
+}
+@keyframes pulse-red {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+@keyframes pulse-amber {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+}
+
+.pulse-green { animation: pulse-green 2s infinite; }
+.pulse-red { animation: pulse-red 2s infinite; }
+.pulse-amber { animation: pulse-amber 2s infinite; }
+
+/* Grid dot background */
+.bg-grid-dots {
+  background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+/* Striped pattern */
+.bg-striped {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 4px,
+    rgba(255,255,255,0.03) 4px,
+    rgba(255,255,255,0.03) 8px
+  );
+}
+
+/* Border glow animation */
+@keyframes border-glow-red {
+  0%, 100% { box-shadow: 0 0 8px rgba(239, 68, 68, 0.3), inset 0 0 8px rgba(239, 68, 68, 0.1); }
+  50% { box-shadow: 0 0 16px rgba(239, 68, 68, 0.5), inset 0 0 16px rgba(239, 68, 68, 0.15); }
+}
+@keyframes border-glow-amber {
+  0%, 100% { box-shadow: 0 0 8px rgba(245, 158, 11, 0.3), inset 0 0 8px rgba(245, 158, 11, 0.1); }
+  50% { box-shadow: 0 0 16px rgba(245, 158, 11, 0.5), inset 0 0 16px rgba(245, 158, 11, 0.15); }
+}
+
+.glow-red { animation: border-glow-red 2s infinite; }
+.glow-amber { animation: border-glow-amber 2s infinite; }
+
+/* Select dropdown styling */
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #1e293b;
+  color: white;
+}
+
+/* Custom range slider — TreeForge theme */
+.threshold-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 28px;
+  background: transparent;
+  outline: none;
+  margin: 0;
+  cursor: pointer;
+}
+/* Webkit: transparent track, visible thumb */
+.threshold-slider::-webkit-slider-runnable-track {
+  height: 8px;
+  background: transparent;
+  border-radius: 4px;
+}
+.threshold-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-sunset-from), var(--color-sunset-to));
+  cursor: grab;
+  /* Center thumb on the 8px track: (28px input - 8px track) / 2 = 10px margin-top */
+  margin-top: -5px;
+  box-shadow: 0 0 10px rgba(255, 106, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+  z-index: 2;
+}
+.threshold-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 16px rgba(255, 106, 0, 0.6), 0 2px 12px rgba(0, 0, 0, 0.4);
+}
+.threshold-slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.05);
+}
+/* Firefox */
+.threshold-slider::-moz-range-track {
+  height: 8px;
+  background: transparent;
+  border-radius: 4px;
+  border: none;
+}
+.threshold-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-sunset-from), var(--color-sunset-to));
+  cursor: grab;
+  box-shadow: 0 0 10px rgba(255, 106, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+}
