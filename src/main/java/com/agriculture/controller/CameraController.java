@@ -1,7 +1,10 @@
 package com.agriculture.controller;
 
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import com.agriculture.dto.CameraDetectRequest;
+import com.agriculture.dto.CameraDetectResponse;
+import com.agriculture.service.CameraDetectService;
+import com.agriculture.vo.Result;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * <p>
@@ -15,4 +18,28 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/camera")
 public class CameraController {
 
+    private final CameraDetectService cameraDetectService;
+
+    public CameraController(CameraDetectService cameraDetectService) {
+        this.cameraDetectService = cameraDetectService;
+    }
+
+    /**
+     * 摄像头实时识别
+     * 对指定摄像头的实时视频流进行抽帧并执行病虫害识别
+     *
+     * @param cameraId 摄像头ID
+     * @param request  识别请求参数
+     * @return 识别结果
+     */
+    @PostMapping("/{cameraId}/detect")
+    public Result<CameraDetectResponse> detect(
+            @PathVariable String cameraId,
+            @RequestBody(required = false) CameraDetectRequest request) {
+        if (request == null) {
+            request = new CameraDetectRequest();
+        }
+        CameraDetectResponse response = cameraDetectService.detect(cameraId, request);
+        return Result.success(response);
+    }
 }

@@ -90,3 +90,9 @@ inference:
   default-confidence: 0.5
   connect-timeout: 5000
   read-timeout: 30000
+
+# RTSP抽帧配置
+capture:
+  save-path: ./captures
+  timeout-ms: 10000
+  transport: tcp
