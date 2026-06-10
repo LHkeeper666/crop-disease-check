@@ -200,7 +200,7 @@ services:
       - "8081:8081"
     environment:
       # MySQL
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-agriculture_db}?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-agriculture_db}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-agri}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-agri_pwd_2026}
       # Redis
