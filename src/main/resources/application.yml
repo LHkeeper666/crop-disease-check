@@ -41,6 +41,18 @@ spring:
     time-zone: Asia/Shanghai
     default-property-inclusion: non_null
 
+  # 邮件配置 (QQ邮箱SMTP)
+  mail:
+    host: smtp.qq.com
+    port: 465
+    username: your-email@qq.com
+    password: your-smtp-authorization-code
+    properties:
+      mail:
+        smtp:
+          ssl:
+            enable: true
+
 # MyBatis-Plus配置
 mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml
@@ -76,6 +88,11 @@ minio:
   access-key: agri_minio_admin
   secret-key: agri_minio_2026
   bucket-name: agri-monitor
+
+# JWT配置
+jwt:
+  secret: agriculture-secret-key-2026-very-long-and-secure
+  expiration: 86400
 
 # 文件存储路径
 file:
