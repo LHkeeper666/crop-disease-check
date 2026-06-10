@@ -47,7 +47,7 @@ export const useWorkOrderStore = defineStore('workorder', () => {
       .slice(0, 6)
       .map(o => ({
         id: o.id,
-        level: (o.severity === 'CRITICAL' ? 'critical' : 'warning') as 'critical' | 'warning',
+        severity: o.severity,
         message: `Grid-${o.gridLabel} ${o.pestName} 置信度 ${(o.confidence * 100).toFixed(0)}%`,
         time: o.createdAt.replace('T', ' ').slice(0, 16),
       }))

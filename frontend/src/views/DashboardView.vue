@@ -78,6 +78,8 @@ function selectCell(cell: { label: string; severity: string | null; pest: string
 
 function closeCellDetail() {
   selectedCell.value = null
+  stopAutoRotation()
+  startAutoRotation()
 }
 
 // Real-time clock
@@ -91,6 +93,7 @@ onUnmounted(() => {
 })
 
 // 2.5D Heatmap drag-to-rotate
+const heatmapRef = ref<HTMLDivElement>()
 const heatmapRotate = reactive({ x: 15, z: -2 })
 const isDragging = ref(false)
 const isAutoRotating = ref(true)
@@ -158,13 +161,13 @@ function resetRotation() {
 }
 
 onMounted(() => {
-  window.addEventListener('mousemove', onDragMove)
+  heatmapRef.value?.addEventListener('mousemove', onDragMove)
   window.addEventListener('mouseup', onDragEnd)
   startAutoRotation()
 })
 
 onUnmounted(() => {
-  window.removeEventListener('mousemove', onDragMove)
+  heatmapRef.value?.removeEventListener('mousemove', onDragMove)
   window.removeEventListener('mouseup', onDragEnd)
   stopAutoRotation()
   if (pauseTimer) clearTimeout(pauseTimer)
@@ -301,16 +304,19 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
         <GlassCard class="flex-1 min-h-0 flex flex-col">
           <div class="flex items-center justify-between mb-3 shrink-0">
             <span class="text-xs text-slate-400 tracking-wider">报警</span>
-            <span class="text-[10px] font-mono text-sakura">{{ alerts.filter(a => a.level === 'critical').length }} 严重</span>
+            <span class="text-[10px] font-mono text-sakura">{{ alerts.filter(a => a.severity === 'CRITICAL').length }} 严重</span>
           </div>
           <div class="space-y-2 overflow-y-auto flex-1 min-h-0">
             <div
               v-for="alert in alerts"
               :key="alert.id"
               class="px-3 py-2 rounded-lg border transition-all"
-              :class="alert.level === 'critical'
-                ? 'bg-sakura/5 border-sakura/20 glow-red'
-                : 'bg-amber/5 border-amber/20 glow-amber'"
+              :class="{
+                'bg-sakura/5 border-sakura/20 glow-red': alert.severity === 'CRITICAL',
+                'bg-orange-500/5 border-orange-500/20 glow-amber': alert.severity === 'HIGH',
+                'bg-amber/5 border-amber/20': alert.severity === 'MEDIUM',
+                'bg-blue-400/5 border-blue-400/20': alert.severity === 'LOW',
+              }"
             >
               <div class="text-xs text-white leading-relaxed">{{ alert.message }}</div>
               <div class="text-[10px] text-slate-600 font-mono mt-1">{{ alert.time }}</div>
@@ -334,6 +340,7 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
             </div>
           </div>
           <div
+            ref="heatmapRef"
             class="flex-1 flex items-center justify-center select-none"
             :class="isDragging ? 'cursor-grabbing' : 'cursor-grab'"
             @mousedown.prevent="onDragStart"
@@ -411,7 +418,7 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
           <div class="glass rounded-lg px-3 py-2 text-center">
             <div class="text-[10px] text-slate-500 mb-0.5">位置</div>
             <template v-if="!editingMeta">
-              <div class="text-xs font-mono text-white">{{ meta.location.split(',')[0] }}</div>
+              <div class="text-[10px] font-mono text-white leading-tight">{{ meta.location }}</div>
             </template>
             <template v-else>
               <input v-model="meta.location" class="w-full text-xs font-mono text-white bg-transparent border-b border-cyber-green/50 text-center outline-none" />
@@ -543,9 +550,6 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
                 <div class="text-[10px] text-slate-500 font-mono">GRID DETAIL</div>
               </div>
             </div>
-            <button class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors" @click="closeCellDetail">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l6 6M6 12L6 6l6 6"/></svg>
-            </button>
           </div>
           <div class="space-y-3">
             <div class="flex justify-between items-center py-2 border-b border-white/5">
