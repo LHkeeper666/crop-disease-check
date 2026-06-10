@@ -12,6 +12,7 @@ import DeviceManagementView from './views/DeviceManagementView.vue'
 import WorkOrderView from './views/WorkOrderView.vue'
 import ReportsView from './views/ReportsView.vue'
 import AgentView from './views/AgentView.vue'
+import DetectionView from './views/DetectionView.vue'
 
 const routes = [
   { path: '/login', name: 'Login', component: LoginView, meta: { public: true } },
@@ -25,6 +26,7 @@ const routes = [
       { path: 'devices', name: 'Devices', component: DeviceManagementView },
       { path: 'workorders', name: 'WorkOrders', component: WorkOrderView },
       { path: 'reports', name: 'Reports', component: ReportsView },
+      { path: 'detection', name: 'Detection', component: DetectionView },
       { path: 'agent', name: 'Agent', component: AgentView },
     ],
   },
