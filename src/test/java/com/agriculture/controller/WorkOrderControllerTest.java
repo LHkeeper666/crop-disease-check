@@ -107,8 +107,10 @@ class WorkOrderControllerTest {
                     .andExpect(jsonPath("$.code").value(200))
                     .andExpect(jsonPath("$.data.records[0].id").value("wo-001"))
                     .andExpect(jsonPath("$.data.records[0].title").value("【HIGH】番茄晚疫病 工单"))
+                    .andExpect(jsonPath("$.data.records[0].type").value("DISEASE"))
                     .andExpect(jsonPath("$.data.records[0].gridLabel").value("A1"))
                     .andExpect(jsonPath("$.data.records[0].pestName").value("番茄晚疫病"))
+                    .andExpect(jsonPath("$.data.records[0].confidence").value(0.92))
                     .andExpect(jsonPath("$.data.total").value(1));
         }
 
