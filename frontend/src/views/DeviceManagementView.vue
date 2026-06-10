@@ -33,6 +33,60 @@ const filteredCameras = computed(() => {
   )
 })
 
+// Camera edit modal
+const showCameraModal = ref(false)
+const editingCamera = ref<any>(null)
+const cameraForm = ref({
+  name: '', rtspUrl: '', rtspUrlSub: '',
+  locationX: '', locationY: '', direction: '0',
+  grid: '', captureResolution: '640x640',
+  captureQuality: '85', reconnectInterval: '30',
+})
+
+function openEditCamera(cam: any) {
+  editingCamera.value = cam
+  cameraForm.value = {
+    name: cam.name,
+    rtspUrl: cam.rtspUrl,
+    rtspUrlSub: cam.rtspUrlSub || '',
+    locationX: String(cam.locationX || ''),
+    locationY: String(cam.locationY || ''),
+    direction: String(cam.direction || 0),
+    grid: cam.grid,
+    captureResolution: cam.captureResolution || '640x640',
+    captureQuality: String(cam.captureQuality || 85),
+    reconnectInterval: String(cam.reconnectInterval || 30),
+  }
+  showCameraModal.value = true
+}
+
+function saveCamera() {
+  if (!cameraForm.value.name.trim() || !cameraForm.value.rtspUrl.trim()) return
+  const idx = cameras.value.findIndex(c => c.id === editingCamera.value.id)
+  if (idx !== -1) {
+    cameras.value[idx] = {
+      ...cameras.value[idx],
+      name: cameraForm.value.name,
+      rtspUrl: cameraForm.value.rtspUrl,
+      rtspUrlSub: cameraForm.value.rtspUrlSub,
+      locationX: parseFloat(cameraForm.value.locationX) || 0,
+      locationY: parseFloat(cameraForm.value.locationY) || 0,
+      direction: parseFloat(cameraForm.value.direction) || 0,
+      grid: cameraForm.value.grid,
+      captureResolution: cameraForm.value.captureResolution,
+      captureQuality: parseInt(cameraForm.value.captureQuality) || 85,
+      reconnectInterval: parseInt(cameraForm.value.reconnectInterval) || 30,
+    }
+  }
+  showCameraModal.value = false
+  editingCamera.value = null
+}
+
+function closeCameraModal() {
+  showCameraModal.value = false
+  editingCamera.value = null
+}
+
 const filteredUsers = computed(() => {
   if (!userSearch.value) return users.value
   const keyword = userSearch.value.toLowerCase()
@@ -163,7 +217,8 @@ function toggleUserStatus(user: any) {
               <th class="pb-3 pr-4">名称</th>
               <th class="pb-3 pr-4">状态</th>
               <th class="pb-3 pr-4">覆盖网格</th>
-              <th class="pb-3">RTSP</th>
+              <th class="pb-3 pr-4">RTSP 地址</th>
+              <th class="pb-3">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -175,10 +230,13 @@ function toggleUserStatus(user: any) {
                 </span>
               </td>
               <td class="py-3 pr-4 text-slate-400 font-mono text-xs">{{ cam.grid }}</td>
-              <td class="py-3 text-slate-500 font-mono text-xs truncate max-w-40">{{ cam.rtspUrl }}</td>
+              <td class="py-3 pr-4 text-slate-500 font-mono text-xs truncate max-w-48">{{ cam.rtspUrl }}</td>
+              <td class="py-3">
+                <button class="text-xs text-cyber-green hover:underline" @click.stop="openEditCamera(cam)">编辑</button>
+              </td>
             </tr>
             <tr v-if="filteredCameras.length === 0">
-              <td colspan="4" class="py-8 text-center text-slate-500 text-sm">
+              <td colspan="5" class="py-8 text-center text-slate-500 text-sm">
                 没有找到匹配的摄像头
               </td>
             </tr>
@@ -455,6 +513,156 @@ function toggleUserStatus(user: any) {
                 取消
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Camera Edit Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showCameraModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+        @click.self="closeCameraModal"
+      >
+        <div class="glass rounded-2xl p-6 w-[560px] shadow-2xl border border-white/10 max-h-[85vh] overflow-y-auto">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h2 class="text-lg font-bold text-white">编辑摄像头</h2>
+              <p class="text-xs text-slate-500 font-mono">EDIT CAMERA</p>
+            </div>
+            <button
+              class="w-8 h-8 rounded-lg bg-sakura/10 hover:bg-sakura/20 flex items-center justify-center text-sakura hover:text-white transition-colors"
+              @click="closeCameraModal"
+            >
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">摄像头名称 <span class="text-sakura">*</span></label>
+              <input
+                v-model="cameraForm.name"
+                type="text"
+                placeholder="如：A区-1号摄像头"
+                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">RTSP 主码流地址 <span class="text-sakura">*</span></label>
+              <input
+                v-model="cameraForm.rtspUrl"
+                type="text"
+                placeholder="rtsp://192.168.1.101:554/stream1"
+                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+              />
+              <div class="text-[10px] text-slate-600 mt-1">用于抓拍和推理，格式 rtsp://host:port/path</div>
+            </div>
+
+            <div>
+              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">RTSP 子码流地址</label>
+              <input
+                v-model="cameraForm.rtspUrlSub"
+                type="text"
+                placeholder="rtsp://192.168.1.101:554/stream2（可选）"
+                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+              />
+              <div class="text-[10px] text-slate-600 mt-1">低分辨率流，用于前端实时预览以降低带宽</div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">经度</label>
+                <input
+                  v-model="cameraForm.locationX"
+                  type="text"
+                  placeholder="108.9423"
+                  class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+                />
+              </div>
+              <div>
+                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">纬度</label>
+                <input
+                  v-model="cameraForm.locationY"
+                  type="text"
+                  placeholder="34.2614"
+                  class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+                />
+              </div>
+              <div>
+                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">朝向角度</label>
+                <input
+                  v-model="cameraForm.direction"
+                  type="text"
+                  placeholder="0-360"
+                  class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">覆盖网格</label>
+              <input
+                v-model="cameraForm.grid"
+                type="text"
+                placeholder="A1,A2,A3（逗号分隔）"
+                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+              />
+            </div>
+
+            <div class="grid grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">抓拍分辨率</label>
+                <select
+                  v-model="cameraForm.captureResolution"
+                  class="w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-cyber-green/50 select-dark"
+                >
+                  <option value="320x320">320x320</option>
+                  <option value="640x640">640x640</option>
+                  <option value="1280x1280">1280x1280</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">JPEG 质量</label>
+                <input
+                  v-model="cameraForm.captureQuality"
+                  type="number"
+                  min="1"
+                  max="100"
+                  class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+                />
+              </div>
+              <div>
+                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">重连间隔(秒)</label>
+                <input
+                  v-model="cameraForm.reconnectInterval"
+                  type="number"
+                  min="10"
+                  max="300"
+                  class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-3 mt-6">
+            <button
+              class="flex-1 px-4 py-3 rounded-xl bg-cyber-green/10 border border-cyber-green/20 text-cyber-green text-sm hover:bg-cyber-green/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="!cameraForm.name.trim() || !cameraForm.rtspUrl.trim()"
+              @click="saveCamera"
+            >
+              保存修改
+            </button>
+            <button
+              class="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
+              @click="closeCameraModal"
+            >
+              取消
+            </button>
           </div>
         </div>
       </div>

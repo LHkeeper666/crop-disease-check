@@ -107,9 +107,27 @@ export const mockWorkOrders = [
 
 // Cameras
 export const mockCameras = [
-  { id: 'cam-001', name: 'A区监控', status: 'ONLINE', grid: 'A1,A2,A3', rtspUrl: 'rtsp://192.168.1.101:554/stream1' },
-  { id: 'cam-002', name: 'B区监控', status: 'ONLINE', grid: 'B1,B2,B3', rtspUrl: 'rtsp://192.168.1.102:554/stream1' },
-  { id: 'cam-003', name: 'C区监控', status: 'OFFLINE', grid: 'C1,C2,C3', rtspUrl: 'rtsp://192.168.1.103:554/stream1' },
+  {
+    id: 'cam-001', name: 'A区监控', status: 'OFFLINE', grid: 'A1,A2,A3',
+    rtspUrl: '',
+    rtspUrlSub: '',
+    locationX: 108.9423, locationY: 34.2614, direction: 90,
+    captureResolution: '640x640', captureQuality: 85, reconnectInterval: 30,
+  },
+  {
+    id: 'cam-002', name: 'B区监控', status: 'OFFLINE', grid: 'B1,B2,B3',
+    rtspUrl: '',
+    rtspUrlSub: '',
+    locationX: 108.9430, locationY: 34.2620, direction: 180,
+    captureResolution: '640x640', captureQuality: 85, reconnectInterval: 30,
+  },
+  {
+    id: 'cam-003', name: 'C区监控', status: 'OFFLINE', grid: 'C1,C2,C3',
+    rtspUrl: '',
+    rtspUrlSub: '',
+    locationX: 108.9440, locationY: 34.2630, direction: 270,
+    captureResolution: '640x640', captureQuality: 85, reconnectInterval: 30,
+  },
 ]
 
 // Statistics overview
