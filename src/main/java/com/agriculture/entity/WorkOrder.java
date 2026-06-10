@@ -50,46 +50,10 @@ public class WorkOrder implements Serializable {
     private String status;
 
     /**
-     * 类型: disease/pest
-     */
-    @TableField("type")
-    private String type;
-
-    /**
-     * 关联网格编号(如A1/B3)
-     */
-    @TableField("grid_label")
-    private String gridLabel;
-
-    /**
-     * 病虫害名称
-     */
-    @TableField("pest_name")
-    private String pestName;
-
-    /**
-     * 检测置信度(0.00-1.00)
-     */
-    @TableField("confidence")
-    private BigDecimal confidence;
-
-    /**
      * 关联识别ID
      */
     @TableField("inference_id")
     private String inferenceId;
-
-    /**
-     * 创建人ID
-     */
-    @TableField("created_by")
-    private String createdBy;
-
-    /**
-     * 所属企业ID
-     */
-    @TableField("company_id")
-    private String companyId;
 
     /**
      * 指派给用户ID
@@ -132,4 +96,40 @@ public class WorkOrder implements Serializable {
      */
     @TableField("updated_at")
     private LocalDateTime updatedAt;
+
+    /**
+     * 工单类型: disease/pest
+     */
+    @TableField("type")
+    private String type;
+
+    /**
+     * 关联网格编号
+     */
+    @TableField("grid_label")
+    private String gridLabel;
+
+    /**
+     * 病虫害名称
+     */
+    @TableField("pest_name")
+    private String pestName;
+
+    /**
+     * 检测置信度
+     */
+    @TableField("confidence")
+    private BigDecimal confidence;
+
+    /**
+     * 创建人ID
+     */
+    @TableField("created_by")
+    private String createdBy;
+
+    /**
+     * 所属企业ID
+     */
+    @TableField("company_id")
+    private String companyId;
 }
