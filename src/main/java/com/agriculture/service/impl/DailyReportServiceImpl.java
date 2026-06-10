@@ -124,6 +124,11 @@ public class DailyReportServiceImpl extends ServiceImpl<DailyReportMapper, Daily
         DailyReport report = new DailyReport();
         report.setId(UUID.randomUUID().toString().replace("-", ""));
         report.setReportDate(date);
+        report.setDetections(summary.getTotalDetections());
+        report.setDiseaseCount(summary.getDiseaseCount());
+        report.setPestCount(summary.getPestCount());
+        report.setHandledRate(summary.getWorkorderHandledRate());
+        report.setGreenhouseId(dto.getGreenhouseId());
         report.setSummaryJson(summaryJson);
         report.setHtmlContent(htmlContent);
         report.setEmailSent((byte) 0);
