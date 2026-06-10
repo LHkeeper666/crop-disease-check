@@ -90,3 +90,12 @@ inference:
   default-confidence: 0.5
   connect-timeout: 5000
   read-timeout: 30000
+
+# LLM 大语言模型配置 (农业大脑)
+llm:
+  api-key: ${LLM_API_KEY:sk-your-api-key-here}
+  base-url: ${LLM_BASE_URL:https://api.deepseek.com}
+  model: ${LLM_MODEL:deepseek-v4-flash}
+  connect-timeout: 5000
+  read-timeout: 60000
+  max-history-messages: 20
