@@ -12,6 +12,7 @@ public class WorkOrderVO {
     private String title;
     private String severity;
     private String status;
+    private String type;
     private String gridLabel;
     private String pestName;
     private BigDecimal confidence;
