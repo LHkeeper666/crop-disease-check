@@ -74,3 +74,10 @@ dist/
 *.sh
 
 openspec/
+
+# Python
+__pycache__/
+*.pyc
+
+# 推理服务输出
+outputs/

@@ -103,9 +103,14 @@ html, body, #app {
   0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
   50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
 }
+@keyframes pulse-amber {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+}
 
 .pulse-green { animation: pulse-green 2s infinite; }
 .pulse-red { animation: pulse-red 2s infinite; }
+.pulse-amber { animation: pulse-amber 2s infinite; }
 
 /* Grid dot background */
 .bg-grid-dots {
@@ -136,6 +141,16 @@ html, body, #app {
 
 .glow-red { animation: border-glow-red 2s infinite; }
 .glow-amber { animation: border-glow-amber 2s infinite; }
+
+/* Select dropdown styling */
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #1e293b;
+  color: white;
+}
 
 /* Custom range slider — TreeForge theme */
 .threshold-slider {

@@ -1,21 +1,67 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import * as echarts from 'echarts'
+import * as XLSX from 'xlsx'
 import GlassCard from '../components/GlassCard.vue'
 import GlowButton from '../components/GlowButton.vue'
 import { mockStatsOverview, mockDailyReports } from '../mock/data'
 
 const stats = mockStatsOverview
 const reports = ref(mockDailyReports)
+const todayGenerated = ref(false)
 
-const pieChartRef = ref<HTMLDivElement>()
+const today = new Date().toISOString().slice(0, 10)
+
+function generateDailyReport() {
+  if (todayGenerated.value) return
+  // Simulate report generation
+  todayGenerated.value = true
+  // Add today's report to the top of the list
+  reports.value.unshift({
+    id: 'rpt-today',
+    date: today,
+    detections: Math.floor(Math.random() * 50) + 20,
+    disease: Math.floor(Math.random() * 30) + 5,
+    pest: Math.floor(Math.random() * 20) + 3,
+    handledRate: +(Math.random() * 0.3 + 0.7).toFixed(2),
+  })
+}
+
+const diseaseChartRef = ref<HTMLDivElement>()
+const pestChartRef = ref<HTMLDivElement>()
 const trendChartRef = ref<HTMLDivElement>()
 
+let diseaseChart: echarts.ECharts | null = null
+let pestChart: echarts.ECharts | null = null
+let trendChart: echarts.ECharts | null = null
+
+function handleResize() {
+  diseaseChart?.resize()
+  pestChart?.resize()
+  trendChart?.resize()
+}
+
+function exportToExcel() {
+  const headers = ['日期', '识别数', '病害数', '虫害数', '处理率', '状态']
+  const rows = reports.value.map(rpt => [
+    rpt.date,
+    rpt.detections,
+    rpt.disease,
+    rpt.pest,
+    `${(rpt.handledRate * 100).toFixed(0)}%`,
+    rpt.date === today && todayGenerated.value ? '已生成' : rpt.date === today ? '未生成' : '已生成',
+  ])
+  const sheetData = [headers, ...rows]
+  const ws = XLSX.utils.aoa_to_sheet(sheetData)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, '每日报告')
+  XLSX.writeFile(wb, `农情报表_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`)
+}
+
 onMounted(() => {
-  // Pie chart - pest type distribution
-  if (pieChartRef.value) {
-    const chart = echarts.init(pieChartRef.value)
-    chart.setOption({
+  if (diseaseChartRef.value) {
+    diseaseChart = echarts.init(diseaseChartRef.value)
+    diseaseChart.setOption({
       backgroundColor: 'transparent',
       tooltip: {
         trigger: 'item',
@@ -25,27 +71,71 @@ onMounted(() => {
       },
       series: [{
         type: 'pie',
-        radius: ['45%', '70%'],
+        radius: ['29%', '50%'],
         center: ['50%', '50%'],
-        avoidLabelOverlap: false,
+        avoidLabelOverlap: true,
         itemStyle: { borderRadius: 6, borderColor: '#0B0F19', borderWidth: 2 },
-        label: { show: true, color: 'rgba(255,255,255,0.6)', fontSize: 10, fontFamily: 'JetBrains Mono' },
-        emphasis: {
-          label: { show: true, fontSize: 12, fontWeight: 'bold' },
-          itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.5)' },
+        label: {
+          show: true,
+          position: 'outside',
+          color: 'rgba(255,255,255,0.8)',
+          fontSize: 11,
+          fontFamily: 'JetBrains Mono',
+          formatter: '{b}\n{d}%',
         },
-        data: stats.typeDistribution.map((d, i) => ({
+        labelLine: { show: true, lineStyle: { color: 'rgba(255,255,255,0.3)' }, smooth: true },
+        emphasis: {
+          label: { fontSize: 13, fontWeight: 'bold' },
+          itemStyle: { shadowBlur: 20, shadowColor: 'rgba(239,68,68,0.3)' },
+        },
+        data: stats.diseaseDistribution.map((d, i) => ({
           ...d,
-          itemStyle: { color: ['#EF4444', '#FFB300', '#4ADE80', '#3B82F6', '#8B5CF6', '#6B7280'][i] },
+          itemStyle: { color: ['#EF4444', '#F97316', '#F59E0B', '#6366F1'][i] },
         })),
       }],
     })
   }
 
-  // Trend chart
+  if (pestChartRef.value) {
+    pestChart = echarts.init(pestChartRef.value)
+    pestChart.setOption({
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: 'rgba(15,23,42,0.9)',
+        borderColor: 'rgba(255,255,255,0.1)',
+        textStyle: { color: '#e2e8f0', fontSize: 12 },
+      },
+      series: [{
+        type: 'pie',
+        radius: ['29%', '50%'],
+        center: ['50%', '50%'],
+        avoidLabelOverlap: true,
+        itemStyle: { borderRadius: 6, borderColor: '#0B0F19', borderWidth: 2 },
+        label: {
+          show: true,
+          position: 'outside',
+          color: 'rgba(255,255,255,0.8)',
+          fontSize: 11,
+          fontFamily: 'JetBrains Mono',
+          formatter: '{b}\n{d}%',
+        },
+        labelLine: { show: true, lineStyle: { color: 'rgba(255,255,255,0.3)' }, smooth: true },
+        emphasis: {
+          label: { fontSize: 13, fontWeight: 'bold' },
+          itemStyle: { shadowBlur: 20, shadowColor: 'rgba(255,179,0,0.3)' },
+        },
+        data: stats.pestDistribution.map((d, i) => ({
+          ...d,
+          itemStyle: { color: ['#FFB300', '#4ADE80', '#3B82F6', '#8B5CF6'][i] },
+        })),
+      }],
+    })
+  }
+
   if (trendChartRef.value) {
-    const chart = echarts.init(trendChartRef.value)
-    chart.setOption({
+    trendChart = echarts.init(trendChartRef.value)
+    trendChart.setOption({
       backgroundColor: 'transparent',
       grid: { top: 30, right: 20, bottom: 25, left: 45 },
       legend: {
@@ -107,6 +197,15 @@ onMounted(() => {
       },
     })
   }
+
+  window.addEventListener('resize', handleResize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+  diseaseChart?.dispose()
+  pestChart?.dispose()
+  trendChart?.dispose()
 })
 </script>
 
@@ -119,8 +218,8 @@ onMounted(() => {
         <p class="text-xs text-slate-500 font-mono">离线农情复盘与高级分析</p>
       </div>
       <div class="flex gap-2">
-        <GlowButton label="导出 Excel" variant="secondary" />
-        <GlowButton label="生成日报" />
+        <GlowButton label="导出 Excel" @click="exportToExcel" />
+        <GlowButton :label="todayGenerated ? '今日已生成' : '生成日报'" :disabled="todayGenerated" @click="generateDailyReport" />
       </div>
     </div>
 
@@ -148,81 +247,75 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Charts row -->
+    <!-- Main content: left disease+pest modules, right trend -->
     <div class="flex gap-4 flex-1 min-h-0 overflow-hidden">
-      <!-- Pie chart -->
-      <GlassCard class="w-80 shrink-0 flex flex-col">
-        <div class="text-xs text-slate-400 tracking-wider mb-3">虫害分布</div>
-        <div ref="pieChartRef" class="flex-1 min-h-[200px]" />
-      </GlassCard>
+      <!-- Left: Disease + Pest modules -->
+      <div class="w-[420px] flex flex-col gap-4 shrink-0">
+        <!-- Disease module -->
+        <GlassCard class="flex-1 min-h-0 flex flex-col">
+          <div class="text-xs text-slate-400 tracking-wider mb-2 shrink-0">病害分布</div>
+          <div ref="diseaseChartRef" class="flex-1 min-h-0" />
+        </GlassCard>
 
-      <!-- Trend chart -->
-      <GlassCard class="flex-1 min-w-0 flex flex-col">
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-xs text-slate-400 tracking-wider">7日趋势</span>
-          <div class="flex gap-2">
-            <button class="px-3 py-1 rounded-lg text-[10px] font-mono bg-cyber-green/10 text-cyber-green border border-cyber-green/20">7天</button>
-            <button class="px-3 py-1 rounded-lg text-[10px] font-mono bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10">30天</button>
-          </div>
-        </div>
-        <div ref="trendChartRef" class="flex-1 min-h-[200px]" />
-      </GlassCard>
-    </div>
+        <!-- Pest module -->
+        <GlassCard class="flex-1 min-h-0 flex flex-col">
+          <div class="text-xs text-slate-400 tracking-wider mb-2 shrink-0">虫害分布</div>
+          <div ref="pestChartRef" class="flex-1 min-h-0" />
+        </GlassCard>
+      </div>
 
-    <!-- Top 5 and daily reports -->
-    <div class="flex gap-4 shrink-0 overflow-hidden">
-      <!-- Top 5 pests -->
-      <GlassCard class="w-80 shrink-0">
-        <div class="text-xs text-slate-400 tracking-wider mb-3">Top 5 虫害</div>
-        <div class="space-y-2.5">
-          <div v-for="(pest, idx) in stats.top5Pests" :key="pest.name" class="flex items-center gap-3">
-            <span class="text-xs font-mono text-slate-600 w-4">{{ idx + 1 }}</span>
-            <span class="text-xs text-white flex-1">{{ pest.name }}</span>
-            <div class="w-24 h-2 rounded-full bg-white/5 overflow-hidden">
-              <div
-                class="h-full rounded-full bg-gradient-to-r from-sunset-from to-sunset-to"
-                :style="{ width: `${(pest.count / stats.top5Pests[0].count) * 100}%` }"
-              />
+      <!-- Right: Trend + Daily reports -->
+      <div class="flex-1 min-w-0 flex flex-col gap-4">
+        <!-- Trend chart -->
+        <GlassCard class="flex-1 min-h-0 flex flex-col">
+          <div class="flex items-center justify-between mb-3 shrink-0">
+            <span class="text-xs text-slate-400 tracking-wider">7日趋势</span>
+            <div class="flex gap-2">
+              <button class="px-3 py-1 rounded-lg text-[10px] font-mono bg-cyber-green/10 text-cyber-green border border-cyber-green/20">7天</button>
+              <button class="px-3 py-1 rounded-lg text-[10px] font-mono bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10">30天</button>
             </div>
-            <span class="text-xs font-mono text-slate-400 w-8 text-right">{{ pest.count }}</span>
           </div>
-        </div>
-      </GlassCard>
+          <div ref="trendChartRef" class="flex-1 min-h-0" />
+        </GlassCard>
 
-      <!-- Daily reports table -->
-      <GlassCard class="flex-1 min-w-0 overflow-hidden flex flex-col">
-        <div class="text-xs text-slate-400 tracking-wider mb-3">每日报告</div>
-        <div class="flex-1 overflow-y-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="text-left text-[10px] text-slate-500 uppercase tracking-wider border-b border-white/5">
-                <th class="pb-2 pr-3">日期</th>
-                <th class="pb-2 pr-3">巡检</th>
-                <th class="pb-2 pr-3">识别</th>
-                <th class="pb-2 pr-3">病害</th>
-                <th class="pb-2 pr-3">虫害</th>
-                <th class="pb-2 pr-3">处理率</th>
-                <th class="pb-2">状态</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="rpt in reports" :key="rpt.id" class="border-b border-white/5 hover:bg-white/5 transition-colors">
-                <td class="py-2 pr-3 font-mono text-xs text-white">{{ rpt.date }}</td>
-                <td class="py-2 pr-3 font-mono text-xs text-slate-400">{{ rpt.inspections }}</td>
-                <td class="py-2 pr-3 font-mono text-xs text-slate-400">{{ rpt.detections }}</td>
-                <td class="py-2 pr-3 font-mono text-xs text-sakura">{{ rpt.disease }}</td>
-                <td class="py-2 pr-3 font-mono text-xs text-amber">{{ rpt.pest }}</td>
-                <td class="py-2 pr-3 font-mono text-xs text-cyber-green">{{ (rpt.handledRate * 100).toFixed(0) }}%</td>
-                <td class="py-2">
-                  <span class="px-2 py-0.5 rounded text-[10px] font-mono" :class="rpt.emailSent ? 'text-cyber-green bg-cyber-green/10' : 'text-slate-500 bg-white/5'">
-                    {{ rpt.emailSent ? '已发送' : '待发送' }}
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </GlassCard>
+        <!-- Daily reports table -->
+        <GlassCard class="flex-1 min-h-0 overflow-hidden flex flex-col">
+          <div class="text-xs text-slate-400 tracking-wider mb-3 shrink-0">每日报告</div>
+          <div class="flex-1 overflow-y-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-[10px] text-slate-500 uppercase tracking-wider border-b border-white/5">
+                  <th class="pb-2 pr-3">日期</th>
+                  <th class="pb-2 pr-3">识别</th>
+                  <th class="pb-2 pr-3">病害</th>
+                  <th class="pb-2 pr-3">虫害</th>
+                  <th class="pb-2 pr-3">处理率</th>
+                  <th class="pb-2">状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="rpt in reports" :key="rpt.id" class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                  <td class="py-2 pr-3 font-mono text-xs text-white">{{ rpt.date }}</td>
+                  <td class="py-2 pr-3 font-mono text-xs text-slate-400">{{ rpt.detections }}</td>
+                  <td class="py-2 pr-3 font-mono text-xs text-sakura">{{ rpt.disease }}</td>
+                  <td class="py-2 pr-3 font-mono text-xs text-amber">{{ rpt.pest }}</td>
+                  <td class="py-2 pr-3 font-mono text-xs text-cyber-green">{{ (rpt.handledRate * 100).toFixed(0) }}%</td>
+                  <td class="py-2">
+                    <span
+                      class="px-2 py-0.5 rounded text-[10px] font-mono"
+                      :class="rpt.date === today
+                        ? (todayGenerated ? 'text-cyber-green bg-cyber-green/10' : 'text-amber bg-amber/10')
+                        : 'text-cyber-green bg-cyber-green/10'"
+                    >
+                      {{ rpt.date === today ? (todayGenerated ? '已生成' : '未生成') : '已生成' }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </GlassCard>
+      </div>
     </div>
   </div>
 </template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import GlassCard from '../components/GlassCard.vue'
@@ -7,6 +7,111 @@ import GlowButton from '../components/GlowButton.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
+
+// Meteor effect
+const canvasRef = ref<HTMLCanvasElement>()
+let animationId: number | null = null
+
+interface Meteor {
+  x: number
+  y: number
+  length: number
+  speed: number
+  opacity: number
+  angle: number
+}
+
+function initMeteorEffect() {
+  const canvasEl = canvasRef.value
+  if (!canvasEl) return
+
+  const ctxEl = canvasEl.getContext('2d')
+  if (!ctxEl) return
+
+  const canvas = canvasEl
+  const ctx = ctxEl
+
+  const resize = () => {
+    canvas.width = window.innerWidth
+    canvas.height = window.innerHeight
+  }
+  resize()
+  window.addEventListener('resize', resize)
+
+  const meteors: Meteor[] = []
+  const maxMeteors = 20
+
+  function createMeteor(): Meteor {
+    return {
+      x: Math.random() * canvas.width * 1.5 - canvas.width * 0.25,
+      y: -50,
+      length: Math.random() * 100 + 50,
+      speed: Math.random() * 5 + 4,
+      opacity: Math.random() * 0.7 + 0.3,
+      angle: Math.PI / 4 + (Math.random() - 0.5) * 0.3,
+    }
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    // Add new meteors randomly
+    if (meteors.length < maxMeteors && Math.random() < 0.08) {
+      meteors.push(createMeteor())
+    }
+
+    // Update and draw meteors
+    for (let i = meteors.length - 1; i >= 0; i--) {
+      const m = meteors[i]
+      m.x += Math.cos(m.angle) * m.speed
+      m.y += Math.sin(m.angle) * m.speed
+      m.opacity -= 0.003
+
+      if (m.opacity <= 0 || m.y > canvas.height + 50) {
+        meteors.splice(i, 1)
+        continue
+      }
+
+      // Draw meteor trail
+      const gradient = ctx.createLinearGradient(
+        m.x, m.y,
+        m.x - Math.cos(m.angle) * m.length,
+        m.y - Math.sin(m.angle) * m.length
+      )
+      gradient.addColorStop(0, `rgba(255, 255, 255, ${m.opacity})`)
+      gradient.addColorStop(0.3, `rgba(74, 222, 128, ${m.opacity * 0.6})`)
+      gradient.addColorStop(1, 'rgba(74, 222, 128, 0)')
+
+      ctx.beginPath()
+      ctx.moveTo(m.x, m.y)
+      ctx.lineTo(
+        m.x - Math.cos(m.angle) * m.length,
+        m.y - Math.sin(m.angle) * m.length
+      )
+      ctx.strokeStyle = gradient
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+
+      // Draw meteor head glow
+      ctx.beginPath()
+      ctx.arc(m.x, m.y, 2, 0, Math.PI * 2)
+      ctx.fillStyle = `rgba(255, 255, 255, ${m.opacity})`
+      ctx.fill()
+    }
+
+    animationId = requestAnimationFrame(animate)
+  }
+
+  animate()
+}
+
+onMounted(() => {
+  initMeteorEffect()
+})
+
+onUnmounted(() => {
+  if (animationId) cancelAnimationFrame(animationId)
+})
 
 const activeTab = ref<'login' | 'register'>('login')
 
@@ -63,10 +168,16 @@ async function handleLogin() {
   }
   clearMessages()
   loading.value = true
-  const ok = await auth.login(loginUsername.value, loginPassword.value)
+  const result = await auth.login(loginUsername.value, loginPassword.value)
   loading.value = false
-  if (ok) {
-    router.push('/dashboard')
+  if (result.success) {
+    if (result.pending) {
+      localStorage.setItem('treeforge_user_pending', 'true')
+      router.push('/pending')
+    } else {
+      localStorage.removeItem('treeforge_user_pending')
+      router.push('/dashboard')
+    }
   } else {
     errorMsg.value = '用户名或密码错误'
   }
@@ -87,11 +198,22 @@ async function handleRegister() {
   }
   clearMessages()
   loading.value = true
-  await new Promise(r => setTimeout(r, 1000))
+  const ok = await auth.register(regEmail.value, regUsername.value, regPassword.value)
   loading.value = false
-  successMsg.value = '注册成功，请登录'
-  activeTab.value = 'login'
-  loginUsername.value = regUsername.value
+  if (ok) {
+    // Auto login after registration, then redirect to pending
+    const loginResult = await auth.login(regUsername.value, regPassword.value)
+    if (loginResult.success && loginResult.pending) {
+      localStorage.setItem('treeforge_user_pending', 'true')
+      router.push('/pending')
+    } else {
+      successMsg.value = '注册成功，请登录'
+      activeTab.value = 'login'
+      loginUsername.value = regUsername.value
+    }
+  } else {
+    errorMsg.value = '该用户名已被注册'
+  }
 }
 </script>
 
@@ -103,11 +225,13 @@ async function handleRegister() {
         src="/images/bg/login-bg.png"
         alt=""
         class="absolute inset-0 w-full h-full object-cover"
-        style="filter: blur(10px) brightness(0.45); transform: scale(1.1);"
+        style="filter: blur(2px) brightness(0.45); transform: scale(1.1);"
       />
     </div>
     <!-- Dark overlay -->
     <div class="absolute inset-0 z-[1] bg-base/40" />
+    <!-- Meteor canvas -->
+    <canvas ref="canvasRef" class="absolute inset-0 z-[2] pointer-events-none" />
 
     <!-- Floating decorative elements -->
     <div class="absolute top-20 left-[10%] w-72 h-72 bg-cyber-green/8 rounded-full blur-[80px] z-[2]" />
