@@ -83,3 +83,10 @@ minio:
 file:
   upload-path: ./uploads/images/
   allowed-types: image/jpeg,image/png,image/jpg
+
+# Python推理服务配置
+inference:
+  service-url: http://localhost:8000
+  default-confidence: 0.5
+  connect-timeout: 5000
+  read-timeout: 30000

@@ -1,0 +1,63 @@
+@startuml 部署架构
+!theme plain
+title 系统部署架构
+
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontSize 12
+skinparam nodeBackgroundColor #LightBlue
+
+node "Nginx反向代理" as nginx {
+    [前端静态资源] as static_files
+    [API代理] as api_proxy
+}
+
+node "前端SPA" as frontend {
+    [Vue 3应用] as vue_app
+}
+
+node "后端APIServer" as backend {
+    [FastAPI/Express] as api_server
+}
+
+node "CV推理Worker" as cv_worker {
+    [PyTorch + ONNX Runtime] as inference_engine
+}
+
+node "数据库服务器" as db_server {
+    [PostgreSQL] as postgres
+}
+
+node "缓存服务器" as cache_server {
+    [Redis] as redis
+}
+
+node "GPU设备" as gpu {
+    [CUDA/cuDNN] as cuda
+}
+
+nginx --> frontend : 静态资源
+nginx --> backend : API请求
+
+backend --> cv_worker : 推理任务
+backend --> postgres : 数据存储
+backend --> redis : 缓存/会话/WebSocket
+
+cv_worker --> cuda : GPU加速
+cv_worker --> postgres : 结果存储
+
+note bottom of nginx
+  端口80/443
+  前端静态资源 + API反向代理
+end note
+
+note bottom of backend
+  端口8000/3000
+  REST API + WebSocket
+end note
+
+note bottom of cv_worker
+  端口8001
+  CV模型推理服务
+end note
+
+@enduml
