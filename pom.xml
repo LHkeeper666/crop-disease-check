@@ -111,13 +111,6 @@
             <version>5.5.13.3</version>
         </dependency>
 
-        <!-- JavaCV (RTSP抽帧) -->
-        <dependency>
-            <groupId>org.bytedeco</groupId>
-            <artifactId>javacv-platform</artifactId>
-            <version>1.5.10</version>
-        </dependency>
-
         <!-- 测试依赖 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
