@@ -2,10 +2,12 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import * as echarts from 'echarts'
 import * as XLSX from 'xlsx'
+import { useRouter } from 'vue-router'
 import GlassCard from '../components/GlassCard.vue'
 import GlowButton from '../components/GlowButton.vue'
 import { mockStatsOverview, mockDailyReports } from '../mock/data'
 
+const router = useRouter()
 const stats = mockStatsOverview
 const reports = ref(mockDailyReports)
 const todayGenerated = ref(false)
@@ -14,17 +16,9 @@ const today = new Date().toISOString().slice(0, 10)
 
 function generateDailyReport() {
   if (todayGenerated.value) return
-  // Simulate report generation
   todayGenerated.value = true
-  // Add today's report to the top of the list
-  reports.value.unshift({
-    id: 'rpt-today',
-    date: today,
-    detections: Math.floor(Math.random() * 50) + 20,
-    disease: Math.floor(Math.random() * 30) + 5,
-    pest: Math.floor(Math.random() * 20) + 3,
-    handledRate: +(Math.random() * 0.3 + 0.7).toFixed(2),
-  })
+  // Navigate to agent page — the agent will handle report generation with AI
+  router.push('/agent')
 }
 
 const diseaseChartRef = ref<HTMLDivElement>()
