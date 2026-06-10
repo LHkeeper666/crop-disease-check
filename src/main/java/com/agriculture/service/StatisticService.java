@@ -4,7 +4,7 @@ import com.agriculture.vo.GridStatisticsVO;
 import com.agriculture.vo.StatisticsOverviewVO;
 import com.agriculture.vo.TrendStatisticsVO;
 
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import java.time.LocalDate;
 import java.util.List;
 
