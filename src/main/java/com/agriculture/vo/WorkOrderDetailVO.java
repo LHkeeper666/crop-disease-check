@@ -1,0 +1,15 @@
+package com.agriculture.vo;
+
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+
+import java.util.List;
+
+@Data
+@EqualsAndHashCode(callSuper = true)
+public class WorkOrderDetailVO extends WorkOrderVO {
+
+    private String inferenceId;
+    private String expertComment;
+    private List<StatusHistoryVO> statusHistory;
+}

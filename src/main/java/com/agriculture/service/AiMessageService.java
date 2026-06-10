@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 
 /**
  * <p>
- * å†œä¸šå¤§è„‘æ¶ˆæ¯è¡¨ 服务类
+ * 农业大脑消息表 服务类
  * </p>
  *
  * @author agriculture-team
