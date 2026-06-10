@@ -4,18 +4,24 @@ import com.agriculture.dao.mapper.CameraMapper;
 import com.agriculture.dto.CameraDetectRequest;
 import com.agriculture.dto.CameraDetectResponse;
 import com.agriculture.entity.Camera;
+import com.agriculture.entity.WorkOrder;
 import com.agriculture.exception.BusinessException;
 import com.agriculture.service.CameraDetectService;
 import com.agriculture.service.InferenceClient;
+import com.agriculture.service.WorkOrderService;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.Frame;
+import org.bytedeco.javacv.Java2DFrameConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.*;
-import java.net.Socket;
-import java.net.URI;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -33,6 +39,7 @@ public class CameraDetectServiceImpl implements CameraDetectService {
 
     private final CameraMapper cameraMapper;
     private final InferenceClient inferenceClient;
+    private final WorkOrderService workOrderService;
 
     @Value("${capture.save-path:./captures}")
     private String captureSavePath;
@@ -40,9 +47,15 @@ public class CameraDetectServiceImpl implements CameraDetectService {
     @Value("${capture.timeout-ms:10000}")
     private int captureTimeoutMs;
 
-    public CameraDetectServiceImpl(CameraMapper cameraMapper, InferenceClient inferenceClient) {
+    @Value("${capture.transport:tcp}")
+    private String captureTransport;
+
+    public CameraDetectServiceImpl(CameraMapper cameraMapper,
+                                   InferenceClient inferenceClient,
+                                   WorkOrderService workOrderService) {
         this.cameraMapper = cameraMapper;
         this.inferenceClient = inferenceClient;
+        this.workOrderService = workOrderService;
     }
 
     @Override
@@ -113,41 +126,62 @@ public class CameraDetectServiceImpl implements CameraDetectService {
     }
 
     /**
-     * 从RTSP流抽帧（简化实现，实际生产环境建议使用JavaCV/FFmpeg）
+     * 从RTSP流抽帧（使用JavaCV FFmpegFrameGrabber）
      */
     private byte[] captureFrameFromRtsp(String rtspUrl) throws Exception {
-        // 简化实现：验证RTSP地址可达性
-        // 实际生产环境应使用JavaCV的FFmpegFrameGrabber进行抽帧
-        // 这里提供一个基础的连接验证，真正的抽帧逻辑需要引入javacv依赖
-
         log.info("尝试从RTSP流抽帧: {}", rtspUrl);
 
-        // 解析RTSP地址
-        URI uri = new URI(rtspUrl);
-        String host = uri.getHost();
-        int port = uri.getPort() > 0 ? uri.getPort() : 554;
+        FFmpegFrameGrabber grabber = null;
+        try {
+            grabber = new FFmpegFrameGrabber(rtspUrl);
 
-        // 验证连接可达性
-        try (Socket socket = new Socket()) {
-            socket.connect(new java.net.InetSocketAddress(host, port), captureTimeoutMs);
-            log.info("RTSP连接成功: {}:{}", host, port);
-        } catch (Exception e) {
-            throw new RuntimeException("无法连接到RTSP流: " + e.getMessage());
+            // 配置RTSP参数
+            grabber.setOption("rtsp_transport", captureTransport);
+            grabber.setOption("stimeout", String.valueOf(captureTimeoutMs * 1000)); // 微秒
+            grabber.setOption("buffer_size", "1024000");
+
+            // 设置超时
+            grabber.setFormat("rtsp");
+
+            log.info("正在连接RTSP流...");
+            grabber.start();
+
+            // 跳过前几帧，等待流稳定
+            int warmupFrames = 5;
+            for (int i = 0; i < warmupFrames; i++) {
+                grabber.grab();
+            }
+
+            // 抓取一帧图像
+            Frame frame = grabber.grabImage();
+            if (frame == null) {
+                throw new RuntimeException("无法从RTSP流获取图像帧");
+            }
+
+            // 转换为BufferedImage
+            Java2DFrameConverter converter = new Java2DFrameConverter();
+            BufferedImage image = converter.convert(frame);
+            if (image == null) {
+                throw new RuntimeException("图像帧转换失败");
+            }
+
+            // 转换为JPEG字节数组
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(image, "jpg", baos);
+
+            log.info("RTSP抽帧成功，图像大小: {} bytes", baos.size());
+            return baos.toByteArray();
+
+        } finally {
+            if (grabber != null) {
+                try {
+                    grabber.stop();
+                    grabber.release();
+                } catch (Exception e) {
+                    log.warn("关闭RTSP连接时出错: {}", e.getMessage());
+                }
+            }
         }
-
-        // TODO: 使用JavaCV进行实际抽帧
-        // FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(rtspUrl);
-        // grabber.setOption("rtsp_transport", "tcp");
-        // grabber.start();
-        // Frame frame = grabber.grabImage();
-        // BufferedImage image = new Java2DFrameConverter().convert(frame);
-        // ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        // ImageIO.write(image, "jpg", baos);
-        // grabber.stop();
-        // return baos.toByteArray();
-
-        // 临时返回空数组，待集成JavaCV后替换
-        throw new RuntimeException("RTSP抽帧功能需要集成JavaCV依赖，请在pom.xml中添加javacv-platform依赖");
     }
 
     /**
@@ -284,25 +318,35 @@ public class CameraDetectServiceImpl implements CameraDetectService {
 
         String severity = maxConfidence >= 0.8 ? "CRITICAL" : "HIGH";
 
-        // TODO: 调用WorkOrderService创建工单
-        // WorkOrder workOrder = new WorkOrder();
-        // workOrder.setTitle(String.format("【%s】%s 发现%s", severity, camera.getName(), pestName));
-        // workOrder.setSeverity(severity);
-        // workOrder.setStatus("PENDING");
-        // workOrder.setType(type);
-        // workOrder.setPestName(pestName);
-        // workOrder.setConfidence(BigDecimal.valueOf(maxConfidence));
-        // workOrder.setCompanyId(camera.getCompanyId());
-        // workOrderService.save(workOrder);
+        // 创建工单
+        try {
+            WorkOrder workOrder = new WorkOrder();
+            workOrder.setId(UUID.randomUUID().toString());
+            workOrder.setTitle(String.format("【%s】%s 发现%s", severity, camera.getName(), pestName));
+            workOrder.setSeverity(severity);
+            workOrder.setStatus("PENDING");
+            workOrder.setType(type);
+            workOrder.setPestName(pestName);
+            workOrder.setConfidence(BigDecimal.valueOf(maxConfidence));
+            workOrder.setCompanyId(camera.getCompanyId());
+            workOrder.setCreatedAt(LocalDateTime.now());
+            workOrder.setUpdatedAt(LocalDateTime.now());
 
-        log.info("检测到病虫害: camera={}, pest={}, confidence={}, severity={}",
-                camera.getName(), pestName, maxConfidence, severity);
+            workOrderService.save(workOrder);
 
-        // 临时返回模拟工单信息
-        return CameraDetectResponse.WorkOrderInfo.builder()
-                .created(true)
-                .workOrderId(UUID.randomUUID().toString())
-                .severity(severity)
-                .build();
+            log.info("已创建工单: id={}, camera={}, pest={}, confidence={}, severity={}",
+                    workOrder.getId(), camera.getName(), pestName, maxConfidence, severity);
+
+            return CameraDetectResponse.WorkOrderInfo.builder()
+                    .created(true)
+                    .workOrderId(workOrder.getId())
+                    .severity(severity)
+                    .build();
+        } catch (Exception e) {
+            log.error("创建工单失败: camera={}", camera.getName(), e);
+            return CameraDetectResponse.WorkOrderInfo.builder()
+                    .created(false)
+                    .build();
+        }
     }
 }
