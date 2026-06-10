@@ -15,19 +15,53 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import jakarta.annotation.Resource;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder> implements WorkOrderService {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> parseDetections(String detectionsJson) {
+        if (!StringUtils.hasText(detectionsJson)) {
+            return Collections.emptyList();
+        }
+        try {
+            return JSON.readValue(detectionsJson, new TypeReference<List<Map<String, Object>>>() {});
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
+    }
+
+    private String extractTopName(List<Map<String, Object>> dets) {
+        return dets.stream()
+                .max((a, b) -> {
+                    BigDecimal ca = new BigDecimal(a.getOrDefault("confidence", 0).toString());
+                    BigDecimal cb = new BigDecimal(b.getOrDefault("confidence", 0).toString());
+                    return ca.compareTo(cb);
+                })
+                .map(d -> (String) d.getOrDefault("name_cn", d.getOrDefault("class_name", "")))
+                .orElse("");
+    }
+
+    private BigDecimal extractTopConfidence(List<Map<String, Object>> dets) {
+        return dets.stream()
+                .map(d -> new BigDecimal(d.getOrDefault("confidence", 0).toString()))
+                .max(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
+    }
 
     @Resource
     private WorkOrderHistoryMapper workOrderHistoryMapper;
@@ -103,7 +137,9 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         }
 
         // 获取关联信息生成标题
-        String pestName = inference.getPestName() != null ? inference.getPestName() : "未知病虫害";
+        List<Map<String, Object>> dets = parseDetections(inference.getDetections());
+        String pestName = extractTopName(dets);
+        if (pestName.isEmpty()) pestName = "未知病虫害";
         String gridLabel = getGridLabelByInference(inference);
         String title = "【" + dto.getSeverity() + "】Grid-" + gridLabel + " 发现" + pestName;
 
@@ -197,8 +233,9 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         if (workOrder.getInferenceId() != null) {
             Inference inference = inferenceMapper.selectById(workOrder.getInferenceId());
             if (inference != null) {
-                vo.setPestName(inference.getPestName());
-                vo.setConfidence(inference.getConfidence());
+                List<Map<String, Object>> dets = parseDetections(inference.getDetections());
+                vo.setPestName(extractTopName(dets));
+                vo.setConfidence(extractTopConfidence(dets));
 
                 // 通过 Inference → Report → Grid 获取 gridLabel 和 imageUrl
                 if (inference.getReportId() != null) {

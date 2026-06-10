@@ -53,6 +53,7 @@ class BBox(BaseModel):
 
 
 class DetectionItem(BaseModel):
+    class_id: int = Field(..., description="模型 class index，对应 disease_info.id 或 pest_info.id")
     class_name: str = Field(..., description="类别英文名 / 原始名")
     name_cn: str = Field("", description="类别中文名")
     confidence: float = Field(..., description="置信度 [0, 1]")
