@@ -6,15 +6,29 @@ import com.agriculture.service.AiConversationService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Service;
 
-/**
- * <p>
- * å†œä¸šå¤§è„‘å¯¹è¯è¡¨ 服务实现类
- * </p>
- *
- * @author agriculture-team
- * @since 2026-06-09
- */
+import java.time.LocalDateTime;
+import java.util.UUID;
+
 @Service
 public class AiConversationServiceImpl extends ServiceImpl<AiConversationMapper, AiConversation> implements AiConversationService {
 
+    @Override
+    public AiConversation createConversation(String userId, String title) {
+        AiConversation conversation = new AiConversation();
+        conversation.setId(UUID.randomUUID().toString().replace("-", ""));
+        conversation.setUserId(userId);
+        conversation.setTitle(title);
+        conversation.setCreatedAt(LocalDateTime.now());
+        conversation.setUpdatedAt(LocalDateTime.now());
+        baseMapper.insert(conversation);
+        return conversation;
+    }
+
+    @Override
+    public void updateUpdatedAt(String id) {
+        AiConversation conversation = new AiConversation();
+        conversation.setId(id);
+        conversation.setUpdatedAt(LocalDateTime.now());
+        baseMapper.updateById(conversation);
+    }
 }

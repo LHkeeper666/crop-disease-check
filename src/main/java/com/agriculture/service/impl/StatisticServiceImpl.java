@@ -199,6 +199,51 @@ public class StatisticServiceImpl implements StatisticService {
                 .collect(Collectors.toList());
         vo.setTop5Pests(top5Pests);
 
+        // 病害分布 (pipeline=DISEASE, 按中文名分组, top 10)
+        Map<String, Long> diseaseCount = flat.stream()
+                .filter(f -> "DISEASE".equals(f.pipeline) && f.nameCn != null)
+                .collect(Collectors.groupingBy(f -> f.nameCn, Collectors.counting()));
+        List<StatisticsOverviewVO.TypeDistribution> diseaseDistribution = diseaseCount.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(10)
+                .map(entry -> {
+                    StatisticsOverviewVO.TypeDistribution td = new StatisticsOverviewVO.TypeDistribution();
+                    td.setName(entry.getKey());
+                    td.setValue(entry.getValue().intValue());
+                    return td;
+                })
+                .collect(Collectors.toList());
+        vo.setDiseaseDistribution(diseaseDistribution);
+
+        // 虫害分布 (pipeline=PEST, 按中文名分组, top 10)
+        Map<String, Long> pestCount = flat.stream()
+                .filter(f -> "PEST".equals(f.pipeline) && f.nameCn != null)
+                .collect(Collectors.groupingBy(f -> f.nameCn, Collectors.counting()));
+        List<StatisticsOverviewVO.TypeDistribution> pestDistribution = pestCount.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(10)
+                .map(entry -> {
+                    StatisticsOverviewVO.TypeDistribution td = new StatisticsOverviewVO.TypeDistribution();
+                    td.setName(entry.getKey());
+                    td.setValue(entry.getValue().intValue());
+                    return td;
+                })
+                .collect(Collectors.toList());
+        vo.setPestDistribution(pestDistribution);
+
+        // Top5 病害 (pipeline=DISEASE, 按中文名分组, top 5)
+        List<StatisticsOverviewVO.TopPest> top5Diseases = diseaseCount.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(5)
+                .map(entry -> {
+                    StatisticsOverviewVO.TopPest tp = new StatisticsOverviewVO.TopPest();
+                    tp.setName(entry.getKey());
+                    tp.setCount(entry.getValue().intValue());
+                    return tp;
+                })
+                .collect(Collectors.toList());
+        vo.setTop5Diseases(top5Diseases);
+
         // 网格热力图
         List<StatisticsOverviewVO.GridHeatmap> gridHeatmap = buildGridHeatmap(inferences);
         vo.setGridHeatmap(gridHeatmap);

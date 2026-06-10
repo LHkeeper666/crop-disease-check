@@ -70,12 +70,6 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
     private com.agriculture.dao.mapper.InferenceMapper inferenceMapper;
 
     @Resource
-    private com.agriculture.dao.mapper.ReportMapper reportMapper;
-
-    @Resource
-    private com.agriculture.dao.mapper.GridMapper gridMapper;
-
-    @Resource
     private com.agriculture.dao.mapper.SysUserMapper sysUserMapper;
 
     @Override
@@ -136,20 +130,23 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
             throw new BusinessException("关联的识别记录不存在");
         }
 
-        // 获取关联信息生成标题
+        // 从 detections JSON 提取信息
         List<Map<String, Object>> dets = parseDetections(inference.getDetections());
         String pestName = extractTopName(dets);
         if (pestName.isEmpty()) pestName = "未知病虫害";
-        String gridLabel = getGridLabelByInference(inference);
-        String title = "【" + dto.getSeverity() + "】Grid-" + gridLabel + " 发现" + pestName;
+        String pipeline = !dets.isEmpty() ? (String) dets.get(0).get("pipeline") : null;
 
         // 创建工单
         WorkOrder workOrder = new WorkOrder();
-        workOrder.setTitle(title);
+        workOrder.setTitle("【" + dto.getSeverity() + "】" + pestName + " 工单");
         workOrder.setSeverity(dto.getSeverity());
         workOrder.setStatus("PENDING");
+        workOrder.setType(pipeline);
+        workOrder.setPestName(pestName);
+        workOrder.setConfidence(extractTopConfidence(dets));
         workOrder.setInferenceId(dto.getInferenceId());
         workOrder.setAssignedTo(dto.getAssignedTo());
+        workOrder.setCreatedBy(operatorId);
         workOrder.setCallbackToken(UUID.randomUUID().toString().replace("-", ""));
         workOrder.setTokenExpireAt(LocalDateTime.now().plusDays(7));
         workOrder.setTokenUsed((byte) 0);
@@ -229,36 +226,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         WorkOrderVO vo = new WorkOrderVO();
         BeanUtils.copyProperties(workOrder, vo);
 
-        // 关联查询 Inference
-        if (workOrder.getInferenceId() != null) {
-            Inference inference = inferenceMapper.selectById(workOrder.getInferenceId());
-            if (inference != null) {
-                List<Map<String, Object>> dets = parseDetections(inference.getDetections());
-                vo.setPestName(extractTopName(dets));
-                vo.setConfidence(extractTopConfidence(dets));
-
-                // 通过 Inference → Report → Grid 获取 gridLabel 和 imageUrl
-                if (inference.getReportId() != null) {
-                    Report report = reportMapper.selectById(inference.getReportId());
-                    if (report != null) {
-                        // 获取图片URL（取第一张）
-                        if (StringUtils.hasText(report.getImageUrls())) {
-                            String[] urls = report.getImageUrls().split(",");
-                            vo.setImageUrl(urls[0].trim());
-                        }
-                        // 获取网格标签
-                        if (report.getGridId() != null) {
-                            Grid grid = gridMapper.selectById(report.getGridId());
-                            if (grid != null) {
-                                vo.setGridLabel(grid.getLabel());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 关联查询指派人
+        // 关联查询指派人姓名
         if (workOrder.getAssignedTo() != null) {
             SysUser user = sysUserMapper.selectById(workOrder.getAssignedTo());
             if (user != null) {
@@ -267,18 +235,5 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         }
 
         return vo;
-    }
-
-    private String getGridLabelByInference(Inference inference) {
-        if (inference.getReportId() != null) {
-            Report report = reportMapper.selectById(inference.getReportId());
-            if (report != null && report.getGridId() != null) {
-                Grid grid = gridMapper.selectById(report.getGridId());
-                if (grid != null) {
-                    return grid.getLabel();
-                }
-            }
-        }
-        return "未知区域";
     }
 }

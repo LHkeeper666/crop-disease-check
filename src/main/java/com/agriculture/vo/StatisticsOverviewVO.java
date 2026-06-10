@@ -15,6 +15,9 @@ public class StatisticsOverviewVO {
     private List<TypeDistribution> typeDistribution;
     private List<DailyTrend> dailyTrend;
     private List<TopPest> top5Pests;
+    private List<TypeDistribution> diseaseDistribution;
+    private List<TypeDistribution> pestDistribution;
+    private List<TopPest> top5Diseases;
     private List<GridHeatmap> gridHeatmap;
 
     @Data

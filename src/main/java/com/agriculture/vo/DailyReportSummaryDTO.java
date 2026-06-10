@@ -8,6 +8,7 @@ import java.util.List;
 @Data
 public class DailyReportSummaryDTO {
 
+    private String greenhouseId;
     private Integer totalInspections;
     private Integer totalDetections;
     private Integer diseaseCount;

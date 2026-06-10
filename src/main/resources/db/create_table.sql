@@ -215,18 +215,26 @@ CREATE TABLE work_order (
     title           VARCHAR(256) NOT NULL COMMENT '工单标题',
     severity        VARCHAR(20) NOT NULL COMMENT '严重程度: LOW/MEDIUM/HIGH/CRITICAL',
     status          VARCHAR(20) DEFAULT 'PENDING' COMMENT '状态: PENDING/PROCESSING/DONE/IGNORED/ESCALATED',
+    type            VARCHAR(20) COMMENT '类型: disease/pest',
+    grid_label      VARCHAR(10) COMMENT '关联网格编号(如A1/B3)',
+    pest_name       VARCHAR(50) COMMENT '病虫害名称',
+    confidence      DECIMAL(3,2) COMMENT '检测置信度(0.00-1.00)',
     inference_id    VARCHAR(36) COMMENT '关联识别ID',
     assigned_to     VARCHAR(36) COMMENT '指派给用户ID',
+    created_by      VARCHAR(36) COMMENT '创建人ID',
     expert_comment  VARCHAR(500) COMMENT '专家备注',
     callback_token  VARCHAR(128) COMMENT '回调Token',
     token_expire_at DATETIME COMMENT 'Token过期时间',
     token_used      TINYINT DEFAULT 0 COMMENT 'Token是否已使用',
+    company_id      VARCHAR(36) COMMENT '所属企业ID',
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     INDEX idx_status (status),
     INDEX idx_severity (severity),
     INDEX idx_assigned (assigned_to),
-    INDEX idx_token (callback_token)
+    INDEX idx_token (callback_token),
+    INDEX idx_company (company_id),
+    INDEX idx_grid (grid_label)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工单表';
 
 
@@ -300,10 +308,16 @@ DROP TABLE IF EXISTS daily_report;
 CREATE TABLE daily_report (
     id              VARCHAR(36) PRIMARY KEY COMMENT '报告UUID',
     report_date     DATE NOT NULL COMMENT '报告日期',
+    detections      INT DEFAULT 0 COMMENT '识别总次数',
+    disease_count   INT DEFAULT 0 COMMENT '病害次数',
+    pest_count      INT DEFAULT 0 COMMENT '虫害次数',
+    handled_rate    DECIMAL(3,2) DEFAULT 0.00 COMMENT '处理率(0.00-1.00)',
+    greenhouse_id   VARCHAR(36) COMMENT '关联温室ID',
     summary_json    JSON COMMENT '统计数据JSON',
-    html_content    LONGTEXT COMMENT '报告HTML内容',
+    html_content    LONGTEXT COMMENT '报告HTML内容(AI生成)',
     email_sent      TINYINT DEFAULT 0 COMMENT '是否已发送邮件',
     email_sent_at   DATETIME COMMENT '邮件发送时间',
+    company_id      VARCHAR(36) COMMENT '所属企业ID',
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     UNIQUE KEY uk_date (report_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='日度报告表';
