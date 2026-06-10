@@ -15,19 +15,53 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import jakarta.annotation.Resource;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder> implements WorkOrderService {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> parseDetections(String detectionsJson) {
+        if (!StringUtils.hasText(detectionsJson)) {
+            return Collections.emptyList();
+        }
+        try {
+            return JSON.readValue(detectionsJson, new TypeReference<List<Map<String, Object>>>() {});
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
+    }
+
+    private String extractTopName(List<Map<String, Object>> dets) {
+        return dets.stream()
+                .max((a, b) -> {
+                    BigDecimal ca = new BigDecimal(a.getOrDefault("confidence", 0).toString());
+                    BigDecimal cb = new BigDecimal(b.getOrDefault("confidence", 0).toString());
+                    return ca.compareTo(cb);
+                })
+                .map(d -> (String) d.getOrDefault("name_cn", d.getOrDefault("class_name", "")))
+                .orElse("");
+    }
+
+    private BigDecimal extractTopConfidence(List<Map<String, Object>> dets) {
+        return dets.stream()
+                .map(d -> new BigDecimal(d.getOrDefault("confidence", 0).toString()))
+                .max(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
+    }
 
     @Resource
     private WorkOrderHistoryMapper workOrderHistoryMapper;
@@ -96,9 +130,11 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
             throw new BusinessException("关联的识别记录不存在");
         }
 
-        // 从 Inference 获取反冗余字段
-        String pestName = inference.getPestName() != null ? inference.getPestName() : "未知病虫害";
-        String pipeline = inference.getPipeline();
+        // 从 detections JSON 提取信息
+        List<Map<String, Object>> dets = parseDetections(inference.getDetections());
+        String pestName = extractTopName(dets);
+        if (pestName.isEmpty()) pestName = "未知病虫害";
+        String pipeline = !dets.isEmpty() ? (String) dets.get(0).get("pipeline") : null;
 
         // 创建工单
         WorkOrder workOrder = new WorkOrder();
@@ -107,7 +143,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         workOrder.setStatus("PENDING");
         workOrder.setType(pipeline);
         workOrder.setPestName(pestName);
-        workOrder.setConfidence(inference.getConfidence());
+        workOrder.setConfidence(extractTopConfidence(dets));
         workOrder.setInferenceId(dto.getInferenceId());
         workOrder.setAssignedTo(dto.getAssignedTo());
         workOrder.setCreatedBy(operatorId);

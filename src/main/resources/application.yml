@@ -99,3 +99,9 @@ llm:
   connect-timeout: 5000
   read-timeout: 60000
   max-history-messages: 20
+
+# RTSP抽帧配置
+capture:
+  save-path: ./captures
+  timeout-ms: 10000
+  transport: tcp

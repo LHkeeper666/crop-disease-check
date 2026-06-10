@@ -14,16 +14,16 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import jakarta.annotation.Resource;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
+import java.util.*;
 
 /**
  * <p>
@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference> implements InferenceService {
 
     private static final BigDecimal LOW_CONFIDENCE_THRESHOLD = new BigDecimal("0.6");
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     @Resource
     private ReportMapper reportMapper;
@@ -51,6 +52,9 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
     private PestInfoMapper pestInfoMapper;
 
     @Resource
+    private DiseaseInfoMapper diseaseInfoMapper;
+
+    @Resource
     private AuditRecordMapper auditRecordMapper;
 
     @Resource
@@ -61,30 +65,38 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
 
     @Override
     public IPage<PendingReviewVO> listPendingReview(String sortByConfidence, int page, int size) {
-        // 查询低置信度的识别结果（is_low_confidence = 1）
+        // 全量查询（detections 在 JSON 中，无法用 SQL 直接过滤置信度）
         LambdaQueryWrapper<Inference> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Inference::getIsLowConfidence, (byte) 1);
-
-        // 排序
         if ("asc".equalsIgnoreCase(sortByConfidence)) {
-            wrapper.orderByAsc(Inference::getConfidence);
+            wrapper.orderByAsc(Inference::getCreatedAt);
         } else {
-            wrapper.orderByDesc(Inference::getConfidence);
+            wrapper.orderByDesc(Inference::getCreatedAt);
         }
 
         Page<Inference> pageParam = new Page<>(page, size);
         Page<Inference> result = baseMapper.selectPage(pageParam, wrapper);
 
-        Page<PendingReviewVO> voPage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
-        voPage.setRecords(result.getRecords().stream()
-                .map(this::toPendingReviewVO)
-                .collect(Collectors.toList()));
+        // 在应用层过滤：保留含有低置信度检测的记录
+        List<PendingReviewVO> filtered = new ArrayList<>();
+        for (Inference inference : result.getRecords()) {
+            List<Map<String, Object>> dets = parseDetections(inference.getDetections());
+            boolean hasLow = dets.stream()
+                    .anyMatch(d -> {
+                        Object conf = d.get("confidence");
+                        return conf != null && new BigDecimal(conf.toString()).compareTo(LOW_CONFIDENCE_THRESHOLD) < 0;
+                    });
+            if (hasLow) {
+                filtered.add(toPendingReviewVO(inference, dets));
+            }
+        }
+
+        Page<PendingReviewVO> voPage = new Page<>(result.getCurrent(), result.getSize(), filtered.size());
+        voPage.setRecords(filtered);
         return voPage;
     }
 
     @Override
     public IPage<PendingAuditVO> listPendingAudit(int page, int size) {
-        // 查询状态为 PENDING 的上报记录，关联识别结果
         LambdaQueryWrapper<Report> reportWrapper = new LambdaQueryWrapper<>();
         reportWrapper.eq(Report::getStatus, "PENDING")
                      .orderByDesc(Report::getCreatedAt);
@@ -95,7 +107,7 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
         Page<PendingAuditVO> voPage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
         voPage.setRecords(result.getRecords().stream()
                 .map(this::toPendingAuditVO)
-                .collect(Collectors.toList()));
+                .collect(java.util.stream.Collectors.toList()));
         return voPage;
     }
 
@@ -115,7 +127,6 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
             throw new BusinessException("无效的审核操作: " + action);
         }
 
-        // 驳回时校验 comment
         if ("REJECTED".equals(action)) {
             if (!StringUtils.hasText(dto.getComment())) {
                 throw new BusinessException(40050, "驳回原因不能为空");
@@ -125,12 +136,10 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
             }
         }
 
-        // 更新上报状态
         report.setStatus("REJECTED".equals(action) ? "REJECTED" : "AUDITED");
         report.setUpdatedAt(LocalDateTime.now());
         reportMapper.updateById(report);
 
-        // 记录审核记录
         AuditRecord record = new AuditRecord();
         record.setReportId(reportId);
         record.setAuditorId(auditorId);
@@ -151,7 +160,6 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
             throw new BusinessException("仅已审核通过的记录可制定防治方案");
         }
 
-        // 检查是否已有方案
         LambdaQueryWrapper<PreventionPlan> existWrapper = new LambdaQueryWrapper<>();
         existWrapper.eq(PreventionPlan::getReportId, reportId);
         PreventionPlan existPlan = preventionPlanMapper.selectOne(existWrapper);
@@ -185,7 +193,6 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
             throw new BusinessException(404, "防治方案不存在，请先制定方案");
         }
 
-        // 保存历史版本
         PreventionPlanVersion version = new PreventionPlanVersion();
         version.setPlanId(plan.getId());
         version.setContent(plan.getContent());
@@ -194,7 +201,6 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
         version.setCreatedAt(LocalDateTime.now());
         preventionPlanVersionMapper.insert(version);
 
-        // 更新方案
         plan.setContent(dto.getContent());
         plan.setSuggestTime(dto.getSuggestTime());
         plan.setVersion(plan.getVersion() + 1);
@@ -218,7 +224,6 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
         vo.setVersion(plan.getVersion());
         vo.setCreatedAt(plan.getCreatedAt());
 
-        // 查询制定人姓名
         if (StringUtils.hasText(plan.getAuthorId())) {
             SysUser author = sysUserMapper.selectById(plan.getAuthorId());
             if (author != null) {
@@ -226,7 +231,6 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
             }
         }
 
-        // 查询历史版本
         LambdaQueryWrapper<PreventionPlanVersion> versionWrapper = new LambdaQueryWrapper<>();
         versionWrapper.eq(PreventionPlanVersion::getPlanId, plan.getId())
                       .orderByDesc(PreventionPlanVersion::getVersion);
@@ -239,39 +243,71 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
             vvo.setVersion(v.getVersion());
             vvo.setCreatedAt(v.getCreatedAt());
             return vvo;
-        }).collect(Collectors.toList()));
+        }).collect(java.util.stream.Collectors.toList()));
 
         return vo;
     }
 
     // ==================== 私有辅助方法 ====================
 
-    private PendingReviewVO toPendingReviewVO(Inference inference) {
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> parseDetections(String detectionsJson) {
+        if (!StringUtils.hasText(detectionsJson)) {
+            return Collections.emptyList();
+        }
+        try {
+            return JSON.readValue(detectionsJson, new TypeReference<List<Map<String, Object>>>() {});
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * 从 detections 中提取置信度最高的检测项名称（中文）
+     */
+    private String extractTopName(List<Map<String, Object>> dets) {
+        return dets.stream()
+                .max((a, b) -> {
+                    BigDecimal ca = new BigDecimal(a.getOrDefault("confidence", 0).toString());
+                    BigDecimal cb = new BigDecimal(b.getOrDefault("confidence", 0).toString());
+                    return ca.compareTo(cb);
+                })
+                .map(d -> (String) d.getOrDefault("name_cn", d.getOrDefault("class_name", "")))
+                .orElse("");
+    }
+
+    /**
+     * 从 detections 中提取最高置信度
+     */
+    private BigDecimal extractTopConfidence(List<Map<String, Object>> dets) {
+        return dets.stream()
+                .map(d -> new BigDecimal(d.getOrDefault("confidence", 0).toString()))
+                .max(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
+    }
+
+    private PendingReviewVO toPendingReviewVO(Inference inference, List<Map<String, Object>> dets) {
         PendingReviewVO vo = new PendingReviewVO();
         vo.setId(inference.getId());
         vo.setReportId(inference.getReportId());
-        vo.setPestName(inference.getPestName());
-        vo.setConfidence(inference.getConfidence());
+        vo.setPestName(extractTopName(dets));
+        vo.setConfidence(extractTopConfidence(dets));
         vo.setCreatedAt(inference.getCreatedAt());
 
-        // 关联查询上报信息
         if (StringUtils.hasText(inference.getReportId())) {
             Report report = reportMapper.selectById(inference.getReportId());
             if (report != null) {
                 vo.setFoundAt(report.getFoundAt());
-                // 获取图片URL（取第一张）
                 if (StringUtils.hasText(report.getImageUrls())) {
                     String[] urls = report.getImageUrls().split(",");
                     vo.setImageUrl(urls[0].trim());
                 }
-                // 获取上报人姓名
                 if (StringUtils.hasText(report.getUserId())) {
                     SysUser reporter = sysUserMapper.selectById(report.getUserId());
                     if (reporter != null) {
                         vo.setReporterName(reporter.getName());
                     }
                 }
-                // 获取网格标签
                 if (StringUtils.hasText(report.getGridId())) {
                     Grid grid = gridMapper.selectById(report.getGridId());
                     if (grid != null) {
@@ -289,13 +325,11 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
         vo.setCropType(report.getCropType());
         vo.setFoundAt(report.getFoundAt());
 
-        // 获取图片URL（取第一张）
         if (StringUtils.hasText(report.getImageUrls())) {
             String[] urls = report.getImageUrls().split(",");
             vo.setImageUrl(urls[0].trim());
         }
 
-        // 获取上报人姓名
         if (StringUtils.hasText(report.getUserId())) {
             SysUser reporter = sysUserMapper.selectById(report.getUserId());
             if (reporter != null) {
@@ -303,7 +337,6 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
             }
         }
 
-        // 获取网格标签
         if (StringUtils.hasText(report.getGridId())) {
             Grid grid = gridMapper.selectById(report.getGridId());
             if (grid != null) {
@@ -311,16 +344,17 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
             }
         }
 
-        // 获取识别结果（取置信度最高的一个）
+        // 获取该上报的识别结果（取最新一条）
         LambdaQueryWrapper<Inference> inferenceWrapper = new LambdaQueryWrapper<>();
         inferenceWrapper.eq(Inference::getReportId, report.getId())
-                        .orderByDesc(Inference::getConfidence)
+                        .orderByDesc(Inference::getCreatedAt)
                         .last("LIMIT 1");
         Inference inference = baseMapper.selectOne(inferenceWrapper);
         if (inference != null) {
             vo.setId(inference.getId());
-            vo.setPestName(inference.getPestName());
-            vo.setConfidence(inference.getConfidence());
+            List<Map<String, Object>> dets = parseDetections(inference.getDetections());
+            vo.setPestName(extractTopName(dets));
+            vo.setConfidence(extractTopConfidence(dets));
         }
 
         return vo;

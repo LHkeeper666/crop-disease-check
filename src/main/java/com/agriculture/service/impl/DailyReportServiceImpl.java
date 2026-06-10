@@ -19,10 +19,11 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import jakarta.annotation.Resource;
 import java.math.BigDecimal;
@@ -157,22 +158,28 @@ public class DailyReportServiceImpl extends ServiceImpl<DailyReportMapper, Daily
                         .le(Inference::getCreatedAt, dayEnd);
         List<Inference> inferences = inferenceMapper.selectList(inferenceWrapper);
 
-        summary.setTotalDetections(inferences.size());
+        // 展开 JSON detections 为扁平列表
+        List<Map<String, Object>> allDets = new ArrayList<>();
+        for (Inference inf : inferences) {
+            allDets.addAll(parseDetections(inf.getDetections()));
+        }
 
-        // 按pipeline分类统计病害和虫害
-        long diseaseCount = inferences.stream()
-                .filter(i -> "DISEASE".equals(i.getPipeline()))
+        summary.setTotalDetections(allDets.size());
+
+        // 按 pipeline 分类统计
+        long diseaseCount = allDets.stream()
+                .filter(d -> "DISEASE".equals(d.get("pipeline")))
                 .count();
-        long pestCount = inferences.stream()
-                .filter(i -> "PEST".equals(i.getPipeline()))
+        long pestCount = allDets.stream()
+                .filter(d -> "PEST".equals(d.get("pipeline")))
                 .count();
         summary.setDiseaseCount((int) diseaseCount);
         summary.setPestCount((int) pestCount);
 
-        // 统计高发病虫害TOP5
-        Map<String, Long> pestNameCount = inferences.stream()
-                .filter(i -> i.getPestName() != null)
-                .collect(Collectors.groupingBy(Inference::getPestName, Collectors.counting()));
+        // 统计高发病虫害TOP5（按 name_cn）
+        Map<String, Long> pestNameCount = allDets.stream()
+                .filter(d -> d.get("name_cn") != null)
+                .collect(Collectors.groupingBy(d -> (String) d.get("name_cn"), Collectors.counting()));
         List<DailyReportSummaryDTO.TopPestDTO> topPests = pestNameCount.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                 .limit(5)
@@ -306,6 +313,18 @@ public class DailyReportServiceImpl extends ServiceImpl<DailyReportMapper, Daily
 
         html.append("</body></html>");
         return html.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> parseDetections(String detectionsJson) {
+        if (!StringUtils.hasText(detectionsJson)) {
+            return Collections.emptyList();
+        }
+        try {
+            return objectMapper.readValue(detectionsJson, new TypeReference<List<Map<String, Object>>>() {});
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
     }
 
     private DailyReportVO toVO(DailyReport report) {

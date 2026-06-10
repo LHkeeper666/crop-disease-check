@@ -11,7 +11,7 @@ import lombok.Setter;
 
 /**
  * <p>
- * 虫害信息表 (id 对应 YOLOv8 虫害模型 class index, 0-101)
+ * 病害信息表 (id 对应 YOLOv8 病害模型 class index, 0-37)
  * </p>
  *
  * @author agriculture-team
@@ -19,22 +19,28 @@ import lombok.Setter;
  */
 @Getter
 @Setter
-@TableName("pest_info")
-public class PestInfo implements Serializable {
+@TableName("disease_info")
+public class DiseaseInfo implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     /**
-     * 虫害ID(模型class index)
+     * 病害ID(模型class index)
      */
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
 
     /**
-     * 虫害名称
+     * 病害名称(英文)
      */
-    @TableField("pest_name")
-    private String pestName;
+    @TableField("disease_name")
+    private String diseaseName;
+
+    /**
+     * 病害名称(中文)
+     */
+    @TableField("name_cn")
+    private String nameCn;
 
     /**
      * 描述

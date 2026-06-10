@@ -80,16 +80,22 @@ public class WorkOrder implements Serializable {
     private String inferenceId;
 
     /**
-     * 指派给用户ID
-     */
-    @TableField("assigned_to")
-    private String assignedTo;
-
-    /**
      * 创建人ID
      */
     @TableField("created_by")
     private String createdBy;
+
+    /**
+     * 所属企业ID
+     */
+    @TableField("company_id")
+    private String companyId;
+
+    /**
+     * 指派给用户ID
+     */
+    @TableField("assigned_to")
+    private String assignedTo;
 
     /**
      * 专家备注
@@ -114,12 +120,6 @@ public class WorkOrder implements Serializable {
      */
     @TableField("token_used")
     private Byte tokenUsed;
-
-    /**
-     * 所属企业ID
-     */
-    @TableField("company_id")
-    private String companyId;
 
     /**
      * 创建时间

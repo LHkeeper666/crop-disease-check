@@ -37,17 +37,22 @@ CREATE TABLE sys_user (
 -- 摄像头表
 DROP TABLE IF EXISTS camera;
 CREATE TABLE camera (
-    id            VARCHAR(36) PRIMARY KEY COMMENT '摄像头UUID',
-    name          VARCHAR(128) NOT NULL COMMENT '摄像头名称',
-    rtsp_url      VARCHAR(512) COMMENT 'RTSP流地址',
-    location_x    DECIMAL(10,6) COMMENT '经度',
-    location_y    DECIMAL(10,6) COMMENT '纬度',
-    direction     DECIMAL(5,1) COMMENT '朝向角度',
-    status        VARCHAR(20) DEFAULT 'OFFLINE' COMMENT '状态: ONLINE/OFFLINE/FAULT',
-    last_frame_at DATETIME COMMENT '最后抓拍时间',
-    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    deleted       TINYINT DEFAULT 0 COMMENT '逻辑删除'
+    id                  VARCHAR(36) PRIMARY KEY COMMENT '摄像头UUID',
+    name                VARCHAR(128) NOT NULL COMMENT '摄像头名称',
+    rtsp_url            VARCHAR(512) COMMENT 'RTSP主码流地址',
+    rtsp_url_sub        VARCHAR(512) DEFAULT NULL COMMENT 'RTSP子码流地址',
+    location_x          DECIMAL(10,6) COMMENT '经度',
+    location_y          DECIMAL(10,6) COMMENT '纬度',
+    direction           DECIMAL(5,1) COMMENT '朝向角度',
+    capture_resolution  VARCHAR(20) DEFAULT '640x640' COMMENT '抓拍分辨率',
+    capture_quality     INT DEFAULT 85 COMMENT '抓拍JPEG质量(1-100)',
+    reconnect_interval  INT DEFAULT 30 COMMENT '断流重连间隔(秒)',
+    status              VARCHAR(20) DEFAULT 'OFFLINE' COMMENT '状态: ONLINE/OFFLINE/FAULT',
+    last_frame_at       DATETIME COMMENT '最后抓拍时间',
+    last_online_at      DATETIME DEFAULT NULL COMMENT '最近一次在线时间',
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted             TINYINT DEFAULT 0 COMMENT '逻辑删除'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='摄像头表';
 
 
@@ -85,19 +90,33 @@ CREATE TABLE camera_grid (
 -- 4. 病虫害知识库
 -- ========================================
 
--- 病虫害信息表
+-- 病害信息表 (id 对应 YOLOv8 病害模型 class index, 0-37)
+DROP TABLE IF EXISTS disease_info;
+CREATE TABLE disease_info (
+    id            INT PRIMARY KEY COMMENT '病害ID(模型class index)',
+    disease_name  VARCHAR(128) NOT NULL COMMENT '病害名称(英文)',
+    name_cn       VARCHAR(128) COMMENT '病害名称(中文)',
+    description   TEXT COMMENT '描述',
+    conditions    TEXT COMMENT '发生条件',
+    prevention    TEXT COMMENT '防治方法',
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted       TINYINT DEFAULT 0 COMMENT '逻辑删除'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='病害信息表';
+
+
+-- 虫害信息表 (id 对应 YOLOv8 虫害模型 class index, 0-101)
 DROP TABLE IF EXISTS pest_info;
 CREATE TABLE pest_info (
-    id          VARCHAR(36) PRIMARY KEY COMMENT '病虫害UUID',
-    pest_name   VARCHAR(128) NOT NULL COMMENT '病虫害名称',
-    pest_type   VARCHAR(20) NOT NULL COMMENT '类型: DISEASE/PEST/WEED',
+    id          INT PRIMARY KEY COMMENT '虫害ID(模型class index)',
+    pest_name   VARCHAR(128) NOT NULL COMMENT '虫害名称',
     description TEXT COMMENT '描述',
     conditions  TEXT COMMENT '发生条件',
     prevention  TEXT COMMENT '防治方法',
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     deleted     TINYINT DEFAULT 0 COMMENT '逻辑删除'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='病虫害知识库';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='虫害信息表';
 
 
 -- ========================================
@@ -125,20 +144,18 @@ CREATE TABLE report (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='图像上报记录表';
 
 
--- 识别结果表
+-- 识别结果表 (一行对应一张图片的一次推理，包含多种病害+虫害检出)
 DROP TABLE IF EXISTS inference;
 CREATE TABLE inference (
-    id                VARCHAR(36) PRIMARY KEY COMMENT '识别UUID',
-    report_id         VARCHAR(36) NOT NULL COMMENT '关联上报ID',
-    pest_id           VARCHAR(36) COMMENT '关联病虫害ID',
-    pest_name         VARCHAR(128) COMMENT '识别的病虫害名称',
-    confidence        DECIMAL(5,4) COMMENT '置信度(0-1)',
-    is_low_confidence TINYINT DEFAULT 0 COMMENT '是否低置信度(<0.6)',
-    pipeline          VARCHAR(20) COMMENT '识别管道: DISEASE/PEST',
-    bbox              JSON COMMENT '检测框坐标',
-    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    INDEX idx_report (report_id),
-    INDEX idx_confidence (confidence)
+    id                  VARCHAR(36) PRIMARY KEY COMMENT '识别UUID',
+    report_id           VARCHAR(36) NOT NULL COMMENT '关联上报ID',
+    disease_ids         JSON COMMENT '病害ID数组 [0,3,15]，对应 disease_info.id',
+    pest_ids            JSON COMMENT '虫害ID数组 [22,45]，对应 pest_info.id',
+    detections          JSON COMMENT '完整检测结果数组(含class_id/class_name/name_cn/confidence/bbox/pipeline)',
+    annotated_image_url VARCHAR(512) COMMENT '标注图存储路径/URL',
+    total_elapsed_ms    DECIMAL(10,2) COMMENT '双模型总推理耗时(ms)',
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_report (report_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='识别结果表';
 
 
