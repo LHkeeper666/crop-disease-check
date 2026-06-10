@@ -56,9 +56,11 @@ const showSettings = ref(false)
 const chatContainerRef = ref<HTMLDivElement>()
 
 // Agent config state
+// API key is never persisted to localStorage for security
+localStorage.removeItem('agent_api_key')
 const selectedProvider = ref(localStorage.getItem('agent_provider') || '')
 const selectedModel = ref(localStorage.getItem('agent_model') || '')
-const apiKey = ref(localStorage.getItem('agent_api_key') || '')
+const apiKey = ref('')
 const isValidating = ref(false)
 const validationResult = ref<{ success: boolean; message: string } | null>(null)
 
@@ -135,14 +137,14 @@ function saveAgentConfig() {
 
   localStorage.setItem('agent_provider', selectedProvider.value)
   localStorage.setItem('agent_model', selectedModel.value)
-  localStorage.setItem('agent_api_key', apiKey.value)
+  // API key is NOT persisted to localStorage for security
 
-  validationResult.value = { success: true, message: 'Agent 配置已保存' }
+  validationResult.value = { success: true, message: 'Agent 配置已保存（API Key 仅在本次会话有效）' }
   showSettings.value = false
 }
 
 function isAgentConfigured(): boolean {
-  return !!(localStorage.getItem('agent_provider') && localStorage.getItem('agent_model') && localStorage.getItem('agent_api_key'))
+  return !!(selectedProvider.value && selectedModel.value && apiKey.value.trim())
 }
 
 async function sendMessage(text?: string) {
@@ -175,15 +177,14 @@ async function sendMessage(text?: string) {
   scrollToBottom()
 
   try {
-    const provider = providers.find(p => p.id === localStorage.getItem('agent_provider'))!
-    const model = localStorage.getItem('agent_model')!
-    const apiKeyValue = localStorage.getItem('agent_api_key')!
+    const provider = currentProvider.value!
+    const model = selectedModel.value
 
     const response = await fetch(provider.endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKeyValue}`,
+        'Authorization': `Bearer ${apiKey.value}`,
       },
       body: JSON.stringify({
         model,

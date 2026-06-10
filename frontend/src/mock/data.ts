@@ -158,11 +158,11 @@ export const mockStatsOverview = {
 
 // Daily reports
 export const mockDailyReports = [
-  { id: 'rpt-001', date: '2026-06-08', inspections: 120, detections: 45, disease: 28, pest: 17, handledRate: 0.85, emailSent: true },
-  { id: 'rpt-002', date: '2026-06-07', inspections: 115, detections: 52, disease: 35, pest: 17, handledRate: 0.90, emailSent: true },
-  { id: 'rpt-003', date: '2026-06-06', inspections: 108, detections: 38, disease: 22, pest: 16, handledRate: 0.78, emailSent: true },
-  { id: 'rpt-004', date: '2026-06-05', inspections: 95, detections: 28, disease: 15, pest: 13, handledRate: 0.82, emailSent: true },
-  { id: 'rpt-005', date: '2026-06-04', inspections: 110, detections: 42, disease: 30, pest: 12, handledRate: 0.88, emailSent: true },
+  { id: 'rpt-001', date: '2026-06-08', detections: 45, disease: 28, pest: 17, handledRate: 0.85 },
+  { id: 'rpt-002', date: '2026-06-07', detections: 52, disease: 35, pest: 17, handledRate: 0.90 },
+  { id: 'rpt-003', date: '2026-06-06', detections: 38, disease: 22, pest: 16, handledRate: 0.78 },
+  { id: 'rpt-004', date: '2026-06-05', detections: 28, disease: 15, pest: 13, handledRate: 0.82 },
+  { id: 'rpt-005', date: '2026-06-04', detections: 42, disease: 30, pest: 12, handledRate: 0.88 },
 ]
 
 // Users

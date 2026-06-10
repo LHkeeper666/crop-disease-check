@@ -450,11 +450,11 @@ function sendEmailToExpert() {
                 </svg>
               </button>
               <button
-                class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                class="w-8 h-8 rounded-lg bg-sakura/10 hover:bg-sakura/20 flex items-center justify-center text-sakura hover:text-white transition-colors"
                 @click="closeDetail"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M6 6l6 6M6 12L6 6l6 6" />
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
                 </svg>
               </button>
             </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import GlassCard from '../components/GlassCard.vue'
@@ -22,11 +22,14 @@ interface Meteor {
 }
 
 function initMeteorEffect() {
-  const canvas = canvasRef.value
-  if (!canvas) return
+  const canvasEl = canvasRef.value
+  if (!canvasEl) return
 
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
+  const ctxEl = canvasEl.getContext('2d')
+  if (!ctxEl) return
+
+  const canvas = canvasEl
+  const ctx = ctxEl
 
   const resize = () => {
     canvas.width = window.innerWidth
@@ -165,10 +168,16 @@ async function handleLogin() {
   }
   clearMessages()
   loading.value = true
-  const ok = await auth.login(loginUsername.value, loginPassword.value)
+  const result = await auth.login(loginUsername.value, loginPassword.value)
   loading.value = false
-  if (ok) {
-    router.push('/dashboard')
+  if (result.success) {
+    if (result.pending) {
+      localStorage.setItem('treeforge_user_pending', 'true')
+      router.push('/pending')
+    } else {
+      localStorage.removeItem('treeforge_user_pending')
+      router.push('/dashboard')
+    }
   } else {
     errorMsg.value = '用户名或密码错误'
   }
@@ -189,11 +198,22 @@ async function handleRegister() {
   }
   clearMessages()
   loading.value = true
-  await new Promise(r => setTimeout(r, 1000))
+  const ok = await auth.register(regEmail.value, regUsername.value, regPassword.value)
   loading.value = false
-  successMsg.value = '注册成功，请登录'
-  activeTab.value = 'login'
-  loginUsername.value = regUsername.value
+  if (ok) {
+    // Auto login after registration, then redirect to pending
+    const loginResult = await auth.login(regUsername.value, regPassword.value)
+    if (loginResult.success && loginResult.pending) {
+      localStorage.setItem('treeforge_user_pending', 'true')
+      router.push('/pending')
+    } else {
+      successMsg.value = '注册成功，请登录'
+      activeTab.value = 'login'
+      loginUsername.value = regUsername.value
+    }
+  } else {
+    errorMsg.value = '该用户名已被注册'
+  }
 }
 </script>
 

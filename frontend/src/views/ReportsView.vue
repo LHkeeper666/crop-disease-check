@@ -8,6 +8,24 @@ import { mockStatsOverview, mockDailyReports } from '../mock/data'
 
 const stats = mockStatsOverview
 const reports = ref(mockDailyReports)
+const todayGenerated = ref(false)
+
+const today = new Date().toISOString().slice(0, 10)
+
+function generateDailyReport() {
+  if (todayGenerated.value) return
+  // Simulate report generation
+  todayGenerated.value = true
+  // Add today's report to the top of the list
+  reports.value.unshift({
+    id: 'rpt-today',
+    date: today,
+    detections: Math.floor(Math.random() * 50) + 20,
+    disease: Math.floor(Math.random() * 30) + 5,
+    pest: Math.floor(Math.random() * 20) + 3,
+    handledRate: +(Math.random() * 0.3 + 0.7).toFixed(2),
+  })
+}
 
 const diseaseChartRef = ref<HTMLDivElement>()
 const pestChartRef = ref<HTMLDivElement>()
@@ -24,15 +42,14 @@ function handleResize() {
 }
 
 function exportToExcel() {
-  const headers = ['日期', '巡检数', '识别数', '病害数', '虫害数', '处理率', '状态']
+  const headers = ['日期', '识别数', '病害数', '虫害数', '处理率', '状态']
   const rows = reports.value.map(rpt => [
     rpt.date,
-    rpt.inspections,
     rpt.detections,
     rpt.disease,
     rpt.pest,
     `${(rpt.handledRate * 100).toFixed(0)}%`,
-    rpt.emailSent ? '已发送' : '待发送'
+    rpt.date === today && todayGenerated.value ? '已生成' : rpt.date === today ? '未生成' : '已生成',
   ])
   const sheetData = [headers, ...rows]
   const ws = XLSX.utils.aoa_to_sheet(sheetData)
@@ -202,7 +219,7 @@ onBeforeUnmount(() => {
       </div>
       <div class="flex gap-2">
         <GlowButton label="导出 Excel" @click="exportToExcel" />
-        <GlowButton label="生成日报" />
+        <GlowButton :label="todayGenerated ? '今日已生成' : '生成日报'" :disabled="todayGenerated" @click="generateDailyReport" />
       </div>
     </div>
 
@@ -269,7 +286,6 @@ onBeforeUnmount(() => {
               <thead>
                 <tr class="text-left text-[10px] text-slate-500 uppercase tracking-wider border-b border-white/5">
                   <th class="pb-2 pr-3">日期</th>
-                  <th class="pb-2 pr-3">巡检</th>
                   <th class="pb-2 pr-3">识别</th>
                   <th class="pb-2 pr-3">病害</th>
                   <th class="pb-2 pr-3">虫害</th>
@@ -280,14 +296,18 @@ onBeforeUnmount(() => {
               <tbody>
                 <tr v-for="rpt in reports" :key="rpt.id" class="border-b border-white/5 hover:bg-white/5 transition-colors">
                   <td class="py-2 pr-3 font-mono text-xs text-white">{{ rpt.date }}</td>
-                  <td class="py-2 pr-3 font-mono text-xs text-slate-400">{{ rpt.inspections }}</td>
                   <td class="py-2 pr-3 font-mono text-xs text-slate-400">{{ rpt.detections }}</td>
                   <td class="py-2 pr-3 font-mono text-xs text-sakura">{{ rpt.disease }}</td>
                   <td class="py-2 pr-3 font-mono text-xs text-amber">{{ rpt.pest }}</td>
                   <td class="py-2 pr-3 font-mono text-xs text-cyber-green">{{ (rpt.handledRate * 100).toFixed(0) }}%</td>
                   <td class="py-2">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-mono" :class="rpt.emailSent ? 'text-cyber-green bg-cyber-green/10' : 'text-slate-500 bg-white/5'">
-                      {{ rpt.emailSent ? '已发送' : '待发送' }}
+                    <span
+                      class="px-2 py-0.5 rounded text-[10px] font-mono"
+                      :class="rpt.date === today
+                        ? (todayGenerated ? 'text-cyber-green bg-cyber-green/10' : 'text-amber bg-amber/10')
+                        : 'text-cyber-green bg-cyber-green/10'"
+                    >
+                      {{ rpt.date === today ? (todayGenerated ? '已生成' : '未生成') : '已生成' }}
                     </span>
                   </td>
                 </tr>
