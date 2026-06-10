@@ -19,7 +19,7 @@ services:
       - "3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-agri_root_2026}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-agri_monitor}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-agriculture_db}
       MYSQL_USER: ${MYSQL_USER:-agri}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-agri_pwd_2026}
       TZ: Asia/Shanghai
@@ -200,7 +200,7 @@ services:
       - "8081:8081"
     environment:
       # MySQL
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-agri_monitor}?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-agriculture_db}?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-agri}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-agri_pwd_2026}
       # Redis
