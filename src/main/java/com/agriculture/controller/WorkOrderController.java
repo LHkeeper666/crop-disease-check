@@ -1,18 +1,108 @@
 package com.agriculture.controller;
 
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import com.agriculture.dto.CallbackDTO;
+import com.agriculture.dto.WorkOrderCreateDTO;
+import com.agriculture.service.WorkOrderService;
+import com.agriculture.vo.CallbackResponseVO;
+import com.agriculture.vo.Result;
+import com.agriculture.vo.WorkOrderDetailVO;
+import com.agriculture.vo.WorkOrderVO;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.*;
 
-/**
- * <p>
- * 工单表 前端控制器
- * </p>
- *
- * @author agriculture-team
- * @since 2026-06-09
- */
+import javax.annotation.Resource;
+import javax.validation.Valid;
+import java.time.LocalDateTime;
+
 @RestController
-@RequestMapping("/work-order")
+@RequestMapping("/workorder")
 public class WorkOrderController {
 
+    @Resource
+    private WorkOrderService workOrderService;
+
+    @GetMapping("/list")
+    public Result<IPage<WorkOrderVO>> listWorkOrders(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String severity,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss") LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss") LocalDateTime endDate,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return Result.success(workOrderService.listWorkOrders(status, severity, startDate, endDate, page, size));
+    }
+
+    @GetMapping("/{id}")
+    public Result<WorkOrderDetailVO> getWorkOrderDetail(@PathVariable String id) {
+        return Result.success(workOrderService.getWorkOrderDetail(id));
+    }
+
+    @PostMapping("/create")
+    public Result<String> createWorkOrder(@Valid @RequestBody WorkOrderCreateDTO dto) {
+        // TODO: 从 SecurityContext 获取当前用户信息，暂时使用默认值
+        String operatorId = "system";
+        String operatorName = "管理员";
+        String id = workOrderService.createWorkOrder(dto, operatorId, operatorName);
+        return Result.success("工单创建成功", id);
+    }
+
+    @PostMapping("/callback")
+    public Result<CallbackResponseVO> handleCallback(@Valid @RequestBody CallbackDTO dto) {
+        return Result.success(workOrderService.handleCallback(dto));
+    }
+
+    @GetMapping(value = "/callback/page", produces = MediaType.TEXT_HTML_VALUE)
+    public String callbackPage(@RequestParam String token) {
+        return "<!DOCTYPE html>\n"
+                + "<html lang=\"zh-CN\">\n"
+                + "<head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0\">\n"
+                + "<title>工单回调处理</title>\n"
+                + "<style>body{font-family:system-ui;max-width:600px;margin:50px auto;padding:20px}\n"
+                + ".card{border:1px solid #e0e0e0;border-radius:8px;padding:24px;margin-bottom:16px}\n"
+                + ".btn{display:inline-block;padding:10px 24px;border:none;border-radius:6px;font-size:14px;cursor:pointer;margin:4px}\n"
+                + ".btn-confirm{background:#10b981;color:#fff} .btn-ignore{background:#6b7280;color:#fff}\n"
+                + ".btn-info{background:#3b82f6;color:#fff} .msg{padding:12px;border-radius:6px;margin:12px 0}\n"
+                + ".msg-ok{background:#d1fae5;color:#065f46} .msg-err{background:#fee2e2;color:#991b1b}\n"
+                + "textarea{width:100%;box-sizing:border-box;padding:8px;border:1px solid #d1d5db;border-radius:6px;margin:8px 0}\n"
+                + "</style></head>\n"
+                + "<body>\n"
+                + "<h2>工单回调处理</h2>\n"
+                + "<div class=\"card\" id=\"form-area\">\n"
+                + "  <p><strong>Token:</strong> <span id=\"token-display\"></span></p>\n"
+                + "  <p><strong>操作备注：</strong></p>\n"
+                + "  <textarea id=\"comment\" rows=\"3\" placeholder=\"输入备注信息（驳回时必填，不少于10字）\"></textarea>\n"
+                + "  <div style=\"margin-top:16px\">\n"
+                + "    <button class=\"btn btn-confirm\" onclick=\"submit('CONFIRM')\">确认</button>\n"
+                + "    <button class=\"btn btn-ignore\" onclick=\"submit('IGNORE')\">忽略</button>\n"
+                + "    <button class=\"btn btn-info\" onclick=\"submit('MORE_INFO')\">需要更多信息</button>\n"
+                + "  </div>\n"
+                + "</div>\n"
+                + "<div id=\"result\" style=\"display:none\"></div>\n"
+                + "<script>\n"
+                + "const token='" + token + "';\n"
+                + "document.getElementById('token-display').textContent=token.substring(0,8)+'...';\n"
+                + "async function submit(action){\n"
+                + "  const comment=document.getElementById('comment').value;\n"
+                + "  try{\n"
+                + "    const r=await fetch('/workorder/callback',{method:'POST',\n"
+                + "      headers:{'Content-Type':'application/json'},\n"
+                + "      body:JSON.stringify({token,action,comment})});\n"
+                + "    const j=await r.json();\n"
+                + "    const el=document.getElementById('result');\n"
+                + "    el.style.display='block';\n"
+                + "    if(j.code===200){\n"
+                + "      el.innerHTML='<div class=\"msg msg-ok\">操作成功！工单状态已变更为: '+j.data.newStatus+'</div>';\n"
+                + "      document.getElementById('form-area').style.display='none';\n"
+                + "    }else{\n"
+                + "      el.innerHTML='<div class=\"msg msg-err\">错误: '+j.message+'</div>';\n"
+                + "    }\n"
+                + "  }catch(e){\n"
+                + "    document.getElementById('result').style.display='block';\n"
+                + "    document.getElementById('result').innerHTML='<div class=\"msg msg-err\">请求失败: '+e.message+'</div>';\n"
+                + "  }\n"
+                + "}\n"
+                + "</script></body></html>";
+    }
 }
