@@ -69,3 +69,8 @@ docker-compose.override.yml
 # Node (if frontend exists)
 node_modules/
 dist/
+
+*.pdf
+*.sh
+
+openspec/
