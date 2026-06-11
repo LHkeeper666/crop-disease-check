@@ -41,6 +41,21 @@ public class UserVO {
     private String email;
 
     /**
+     * 用户头像路径
+     */
+    private String avatar;
+
+    /**
+     * 所属企业ID
+     */
+    private String companyId;
+
+    /**
+     * 是否已通过审批加入企业
+     */
+    private Boolean approved;
+
+    /**
      * 状态
      */
     private String status;

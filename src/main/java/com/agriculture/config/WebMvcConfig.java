@@ -52,6 +52,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/auth/send-otp",
                         "/api/auth/register",
                         "/api/auth/refresh",
+                        "/api/company/validate-invite",
                         "/doc.html",
                         "/webjars/**",
                         "/swagger-resources/**",

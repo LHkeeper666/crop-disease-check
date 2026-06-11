@@ -67,6 +67,24 @@ public class SysUser implements Serializable {
     private String email;
 
     /**
+     * 用户头像路径
+     */
+    @TableField("avatar")
+    private String avatar;
+
+    /**
+     * 所属企业ID
+     */
+    @TableField("company_id")
+    private String companyId;
+
+    /**
+     * 是否已通过审批加入企业: 0=否 1=是
+     */
+    @TableField("approved")
+    private Byte approved;
+
+    /**
      * 状态: ACTIVE/DISABLED
      */
     @TableField("status")
