@@ -1,0 +1,41 @@
+@startuml 双流水线架构
+!theme plain
+title 异构双流水线CV推理引擎架构
+
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontSize 12
+skinparam activityDiamondBackgroundColor #LightYellow
+
+start
+
+:摄像头抓拍图片;
+
+fork
+    :病害推理流水线;
+    :模型加载;
+    :预处理;
+    :推理;
+    :后处理;
+    :结果A;
+fork again
+    :虫害推理流水线;
+    :模型加载;
+    :预处理;
+    :推理;
+    :后处理;
+    :结果B;
+end fork
+
+:结果聚合;
+:入库;
+
+stop
+
+note right
+  两条流水线独立运行
+  可并行执行，互不阻塞
+  病害模型精度 mAP ≥ 0.80
+  虫害模型精度 mAP ≥ 0.75
+end note
+
+@enduml

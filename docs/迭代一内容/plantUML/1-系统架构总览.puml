@@ -1,0 +1,66 @@
+@startuml 系统架构总览
+!theme plain
+title 智慧农业病虫害无人值守监测与决策系统 - 系统架构总览
+
+skinparam componentStyle rectangle
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontSize 12
+
+package "前端展示层" as frontend #LightBlue {
+    [视频流广场] as video
+    [2.5D热力图] as heatmap
+    [统计图表] as charts
+    [农业大脑对话面板] as ai_panel
+}
+
+package "后端服务层" as backend #LightGreen {
+    package "异构双推理流水线" as pipeline {
+        [病害CV模型] as disease_model
+        [虫害CV模型] as pest_model
+        [数据聚合 & 空间映射] as aggregation
+    }
+
+    [工单引擎] as workorder
+    [LLM报告生成器] as llm_report
+    [邮件网关] as email_gateway
+    [定时任务调度器] as scheduler
+}
+
+package "数据存储层" as storage #LightYellow {
+    [关系型数据库] as rdb
+    [时序数据库] as tsdb
+    [文件存储] as filestorage
+    [消息队列] as mq
+}
+
+package "硬件感知层" as hardware #LightCoral {
+    [摄像头机位] as camera
+    [传感器节点] as sensor
+    [边缘计算盒] as edge
+}
+
+' 连接关系
+video --> backend
+heatmap --> backend
+charts --> backend
+ai_panel --> backend
+
+disease_model --> aggregation
+pest_model --> aggregation
+
+aggregation --> workorder
+aggregation --> llm_report
+
+workorder --> email_gateway
+llm_report --> email_gateway
+
+scheduler --> disease_model
+scheduler --> pest_model
+
+backend --> storage
+
+camera --> backend
+sensor --> backend
+edge --> backend
+
+@enduml

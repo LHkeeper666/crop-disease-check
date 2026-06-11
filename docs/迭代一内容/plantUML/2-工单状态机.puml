@@ -1,0 +1,52 @@
+@startuml 工单状态机
+!theme plain
+title 工单状态机定义
+
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontSize 14
+
+[*] --> 待处理 : 工单创建
+
+state 待处理 as PENDING #LightYellow
+state 处理中 as PROCESSING #LightBlue
+state 已完成 as DONE #LightGreen
+state 已忽略 as IGNORED #LightGray
+state 已升级 as ESCALATED #LightCoral
+
+PENDING --> PROCESSING : 专家确认处理
+PENDING --> IGNORED : 专家忽略
+PENDING --> ESCALATED : 超时自动升级
+
+PROCESSING --> DONE : 处理完成
+PROCESSING --> ESCALATED : 超时升级
+
+DONE --> [*]
+IGNORED --> [*]
+ESCALATED --> [*]
+
+note right of PENDING
+  初始状态
+  等待专家处理
+end note
+
+note right of PROCESSING
+  专家正在处理
+  可填写指导意见
+end note
+
+note right of DONE
+  工单处理完成
+  记录专家意见
+end note
+
+note right of IGNORED
+  专家判断为误报
+  或无需处理
+end note
+
+note right of ESCALATED
+  超时未处理
+  通知更高级别人员
+end note
+
+@enduml

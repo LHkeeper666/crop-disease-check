@@ -1,0 +1,50 @@
+@startuml 数据流图
+!theme plain
+title 系统数据流图
+
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontSize 11
+skinparam activityDiamondBackgroundColor #LightYellow
+
+start
+
+:摄像头机位;
+note right: RTSP流
+
+:定时抓拍引擎;
+note right: 巡检计划调度器驱动
+
+:原始图片;
+
+fork
+    :病害推理流水线;
+fork again
+    :虫害推理流水线;
+end fork
+
+:推理结果;
+
+:结果聚合引擎;
+
+fork
+    :数据库存储;
+fork again
+    :WebSocket实时推送;
+fork again
+    :事件检测器;
+
+    if (置信度超过阈值?) then (是)
+        :突发工单生成;
+        :邮件网关外发;
+    else (否)
+    endif
+end fork
+
+:专家邮箱;
+note right: Token回调
+
+:状态更新 & 大屏刷新;
+
+stop
+
+@enduml
