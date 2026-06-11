@@ -1,6 +1,6 @@
 package com.agriculture;
 
-import com.agriculture.service.EmailService;
+import com.agriculture.common.service.EmailService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

@@ -1,12 +1,14 @@
 package com.agriculture.controller;
 
-import com.agriculture.dto.*;
-import com.agriculture.exception.BusinessException;
-import com.agriculture.exception.GlobalExceptionHandler;
-import com.agriculture.service.AuthService;
-import com.agriculture.vo.LoginVO;
-import com.agriculture.vo.Result;
-import com.agriculture.vo.UserVO;
+import com.agriculture.modules.auth.dto.RefreshTokenDTO;
+import com.agriculture.modules.auth.controller.AuthController;
+import com.agriculture.modules.user.dto.*;
+import com.agriculture.common.exception.BusinessException;
+import com.agriculture.common.exception.GlobalExceptionHandler;
+import com.agriculture.modules.auth.service.AuthService;
+import com.agriculture.modules.user.vo.LoginVO;
+import com.agriculture.common.vo.Result;
+import com.agriculture.modules.user.vo.UserVO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

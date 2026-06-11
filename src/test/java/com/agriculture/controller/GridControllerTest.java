@@ -1,11 +1,12 @@
 package com.agriculture.controller;
 
-import com.agriculture.dto.GridCreateDTO;
-import com.agriculture.dto.GridUpdateDTO;
-import com.agriculture.exception.BusinessException;
-import com.agriculture.exception.GlobalExceptionHandler;
-import com.agriculture.service.GridService;
-import com.agriculture.vo.GridVO;
+import com.agriculture.modules.grid.controller.GridController;
+import com.agriculture.modules.grid.dto.GridCreateDTO;
+import com.agriculture.modules.grid.dto.GridUpdateDTO;
+import com.agriculture.common.exception.BusinessException;
+import com.agriculture.common.exception.GlobalExceptionHandler;
+import com.agriculture.modules.grid.service.GridService;
+import com.agriculture.modules.grid.vo.GridVO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

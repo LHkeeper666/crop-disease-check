@@ -60,11 +60,18 @@ docker exec $containerName `
     -e "SELECT id, name FROM inspection_plan LIMIT 3;"
 
 Write-Host ""
+Write-Host "=== 6. 停止 Docker 后端容器 (释放 8080 端口给本地 IDEA) ===" -ForegroundColor Cyan
+docker stop agri-monitor-backend 2>$null
+Write-Host "Docker 后端容器已停止" -ForegroundColor Green
+
+Write-Host ""
 Write-Host "=== 初始化完成 ===" -ForegroundColor Green
 Write-Host "  MySQL:       localhost:3306"
 Write-Host "  Redis:       localhost:6379"
 Write-Host "  RabbitMQ:    localhost:15672"
 Write-Host "  ES:          localhost:9200"
 Write-Host "  MinIO:       localhost:9001"
-Write-Host "  后端:        localhost:8080"
+Write-Host "  CV推理:      localhost:8000"
 Write-Host "  前端:        localhost:3000"
+Write-Host ""
+Write-Host "请在 IDEA 中启动后端项目 (端口 8080)" -ForegroundColor Yellow

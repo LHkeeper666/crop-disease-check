@@ -1,9 +1,11 @@
 package com.agriculture.service;
 
-import com.agriculture.config.LlmProperties;
-import com.agriculture.entity.AiConversation;
-import com.agriculture.entity.AiMessage;
-import com.agriculture.service.impl.AgriBrainServiceImpl;
+import com.agriculture.common.config.LlmProperties;
+import com.agriculture.modules.agriBrain.entity.AiConversation;
+import com.agriculture.modules.agriBrain.entity.AiMessage;
+import com.agriculture.modules.agriBrain.service.AiMessageService;
+import com.agriculture.modules.agriBrain.service.AiConversationService;
+import com.agriculture.modules.agriBrain.service.impl.AgriBrainServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

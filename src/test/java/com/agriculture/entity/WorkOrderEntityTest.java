@@ -1,5 +1,6 @@
 package com.agriculture.entity;
 
+import com.agriculture.modules.workorder.entity.WorkOrder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

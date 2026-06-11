@@ -17,3 +17,6 @@ minio:
 
 file:
   upload-path: /app/uploads/images/
+
+inference:
+  service-url: http://cv-inference:8000

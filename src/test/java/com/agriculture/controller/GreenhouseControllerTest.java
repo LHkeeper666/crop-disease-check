@@ -1,10 +1,11 @@
 package com.agriculture.controller;
 
-import com.agriculture.dto.GreenhouseDTO;
-import com.agriculture.entity.Greenhouse;
-import com.agriculture.exception.BusinessException;
-import com.agriculture.exception.GlobalExceptionHandler;
-import com.agriculture.service.GreenhouseService;
+import com.agriculture.modules.greenhouse.controller.GreenhouseController;
+import com.agriculture.modules.greenhouse.dto.GreenhouseDTO;
+import com.agriculture.modules.greenhouse.entity.Greenhouse;
+import com.agriculture.common.exception.BusinessException;
+import com.agriculture.common.exception.GlobalExceptionHandler;
+import com.agriculture.modules.greenhouse.service.GreenhouseService;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;

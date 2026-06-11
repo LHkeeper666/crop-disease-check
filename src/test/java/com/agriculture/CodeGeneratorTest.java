@@ -8,8 +8,6 @@ import com.baomidou.mybatisplus.generator.config.PackageConfig;
 import com.baomidou.mybatisplus.generator.config.StrategyConfig;
 import com.baomidou.mybatisplus.generator.config.rules.NamingStrategy;
 import com.baomidou.mybatisplus.generator.engine.FreemarkerTemplateEngine;
-import org.junit.jupiter.api.Test;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -60,8 +58,8 @@ public class CodeGeneratorTest {
 
     /**
      * 运行此方法即可自动生成代码
+     * 注意：此方法不会被 Maven 自动执行，需在 IDE 中手动右键运行
      */
-    @Test
     public void generateCode() {
         // 1. 数据源配置
         DataSourceConfig dataSourceConfig = new DataSourceConfig.Builder(DB_URL, DB_USER, DB_PASS)
