@@ -57,7 +57,31 @@ CREATE TABLE camera (
 
 
 -- ========================================
--- 3. 网格区域模块
+-- 3. 温室管理模块
+-- ========================================
+
+-- 温室/大棚表
+DROP TABLE IF EXISTS greenhouse;
+CREATE TABLE greenhouse (
+    id            VARCHAR(36) PRIMARY KEY COMMENT '温室UUID',
+    sector_id     VARCHAR(32) NOT NULL COMMENT '区域编号(如GH-A1)',
+    crop_species  VARCHAR(128) COMMENT '作物种类(拉丁学名或中文名)',
+    planting_date DATE COMMENT '定植日期',
+    location      VARCHAR(64) COMMENT '地理位置坐标',
+    area          DECIMAL(10,2) COMMENT '面积(m²)',
+    status        VARCHAR(20) DEFAULT 'ACTIVE' COMMENT '状态: ACTIVE/INACTIVE/MAINTENANCE',
+    company_id    VARCHAR(36) COMMENT '所属企业ID',
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted       TINYINT DEFAULT 0 COMMENT '逻辑删除',
+    UNIQUE KEY uk_sector_id (sector_id),
+    INDEX idx_status (status),
+    INDEX idx_company (company_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='温室/大棚表';
+
+
+-- ========================================
+-- 4. 网格区域模块
 -- ========================================
 
 -- 网格/地块表
