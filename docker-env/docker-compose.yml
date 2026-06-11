@@ -191,8 +191,8 @@ services:
   # ----------------------------------------------------------
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker-env/backend/Dockerfile
     container_name: agri-monitor-backend
     restart: always
     ports:
@@ -234,7 +234,6 @@ services:
       # JVM 参数
       JAVA_OPTS: -Xms512m -Xmx1024m
     volumes:
-      - ./backend/app:/app
       - backend_uploads:/app/uploads
     depends_on:
       mysql:

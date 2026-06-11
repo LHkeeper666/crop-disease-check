@@ -134,6 +134,7 @@ class ModelManager:
                 xyxy = box.xyxy.cpu().numpy()[0]
 
                 detections.append(DetectionItem(
+                    class_id=cls_id,
                     class_name=cls_name_raw,
                     name_cn=self._zh_map.get(cls_name_raw, cls_name_raw),
                     confidence=round(conf, 4),

@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 
 /**
  * <p>
- * 病虫害知识库 服务类
+ * 虫害信息表 服务类
  * </p>
  *
  * @author agriculture-team

@@ -10,4 +10,6 @@ public class DailyReportGenerateDTO {
 
     @NotNull(message = "日期不能为空")
     private LocalDate date;
+
+    private String greenhouseId;
 }

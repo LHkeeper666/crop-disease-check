@@ -12,7 +12,7 @@ import lombok.Setter;
 
 /**
  * <p>
- * 识别结果表
+ * 识别结果表 (一行对应一张图片的一次推理)
  * </p>
  *
  * @author agriculture-team
@@ -38,40 +38,35 @@ public class Inference implements Serializable {
     private String reportId;
 
     /**
-     * 关联病虫害ID
+     * 病害ID数组 [0,3,15]，JSON格式
      */
-    @TableField("pest_id")
-    private String pestId;
+    @TableField("disease_ids")
+    private String diseaseIds;
 
     /**
-     * 识别的病虫害名称
+     * 虫害ID数组 [22,45]，JSON格式
      */
-    @TableField("pest_name")
-    private String pestName;
+    @TableField("pest_ids")
+    private String pestIds;
 
     /**
-     * 置信度(0-1)
+     * 完整检测结果数组，JSON格式
+     * 每项含: pipeline, class_id, class_name, name_cn, confidence, bbox
      */
-    @TableField("confidence")
-    private BigDecimal confidence;
+    @TableField("detections")
+    private String detections;
 
     /**
-     * 是否低置信度(<0.6)
+     * 标注图存储路径/URL
      */
-    @TableField("is_low_confidence")
-    private Byte isLowConfidence;
+    @TableField("annotated_image_url")
+    private String annotatedImageUrl;
 
     /**
-     * 识别管道: DISEASE/PEST
+     * 双模型总推理耗时(ms)
      */
-    @TableField("pipeline")
-    private String pipeline;
-
-    /**
-     * 检测框坐标
-     */
-    @TableField("bbox")
-    private String bbox;
+    @TableField("total_elapsed_ms")
+    private BigDecimal totalElapsedMs;
 
     /**
      * 创建时间

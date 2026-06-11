@@ -11,23 +11,58 @@ import com.agriculture.vo.CallbackResponseVO;
 import com.agriculture.vo.StatusHistoryVO;
 import com.agriculture.vo.WorkOrderDetailVO;
 import com.agriculture.vo.WorkOrderVO;
+import com.agriculture.websocket.WebSocketService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import jakarta.annotation.Resource;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder> implements WorkOrderService {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> parseDetections(String detectionsJson) {
+        if (!StringUtils.hasText(detectionsJson)) {
+            return Collections.emptyList();
+        }
+        try {
+            return JSON.readValue(detectionsJson, new TypeReference<List<Map<String, Object>>>() {});
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
+    }
+
+    private String extractTopName(List<Map<String, Object>> dets) {
+        return dets.stream()
+                .max((a, b) -> {
+                    BigDecimal ca = new BigDecimal(a.getOrDefault("confidence", 0).toString());
+                    BigDecimal cb = new BigDecimal(b.getOrDefault("confidence", 0).toString());
+                    return ca.compareTo(cb);
+                })
+                .map(d -> (String) d.getOrDefault("name_cn", d.getOrDefault("class_name", "")))
+                .orElse("");
+    }
+
+    private BigDecimal extractTopConfidence(List<Map<String, Object>> dets) {
+        return dets.stream()
+                .map(d -> new BigDecimal(d.getOrDefault("confidence", 0).toString()))
+                .max(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
+    }
 
     @Resource
     private WorkOrderHistoryMapper workOrderHistoryMapper;
@@ -36,13 +71,10 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
     private com.agriculture.dao.mapper.InferenceMapper inferenceMapper;
 
     @Resource
-    private com.agriculture.dao.mapper.ReportMapper reportMapper;
-
-    @Resource
-    private com.agriculture.dao.mapper.GridMapper gridMapper;
-
-    @Resource
     private com.agriculture.dao.mapper.SysUserMapper sysUserMapper;
+
+    @Resource
+    private WebSocketService webSocketService;
 
     @Override
     public IPage<WorkOrderVO> listWorkOrders(String status, String severity,
@@ -102,18 +134,23 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
             throw new BusinessException("关联的识别记录不存在");
         }
 
-        // 获取关联信息生成标题
-        String pestName = inference.getPestName() != null ? inference.getPestName() : "未知病虫害";
-        String gridLabel = getGridLabelByInference(inference);
-        String title = "【" + dto.getSeverity() + "】Grid-" + gridLabel + " 发现" + pestName;
+        // 从 detections JSON 提取信息
+        List<Map<String, Object>> dets = parseDetections(inference.getDetections());
+        String pestName = extractTopName(dets);
+        if (pestName.isEmpty()) pestName = "未知病虫害";
+        String pipeline = !dets.isEmpty() ? (String) dets.get(0).get("pipeline") : null;
 
         // 创建工单
         WorkOrder workOrder = new WorkOrder();
-        workOrder.setTitle(title);
+        workOrder.setTitle("【" + dto.getSeverity() + "】" + pestName + " 工单");
         workOrder.setSeverity(dto.getSeverity());
         workOrder.setStatus("PENDING");
+        workOrder.setType(pipeline);
+        workOrder.setPestName(pestName);
+        workOrder.setConfidence(extractTopConfidence(dets));
         workOrder.setInferenceId(dto.getInferenceId());
         workOrder.setAssignedTo(dto.getAssignedTo());
+        workOrder.setCreatedBy(operatorId);
         workOrder.setCallbackToken(UUID.randomUUID().toString().replace("-", ""));
         workOrder.setTokenExpireAt(LocalDateTime.now().plusDays(7));
         workOrder.setTokenUsed((byte) 0);
@@ -129,6 +166,21 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         history.setOperatorName(operatorName);
         history.setCreatedAt(LocalDateTime.now());
         workOrderHistoryMapper.insert(history);
+
+        // 推送工单创建到 WebSocket
+        try {
+            Map<String, Object> wsData = new HashMap<>();
+            wsData.put("workorderId", workOrder.getId());
+            wsData.put("oldStatus", null);
+            wsData.put("newStatus", "PENDING");
+            wsData.put("operatorName", operatorName);
+            wsData.put("type", workOrder.getType());
+            wsData.put("severity", workOrder.getSeverity());
+            wsData.put("updatedAt", LocalDateTime.now().toString());
+            webSocketService.sendWorkorderChange(wsData);
+        } catch (Exception e) {
+            // 推送失败不影响主流程
+        }
 
         return workOrder.getId();
     }
@@ -183,6 +235,20 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         history.setCreatedAt(LocalDateTime.now());
         workOrderHistoryMapper.insert(history);
 
+        // 推送工单状态变更到 WebSocket
+        try {
+            Map<String, Object> wsData = new HashMap<>();
+            wsData.put("workorderId", workOrder.getId());
+            wsData.put("oldStatus", "PENDING");
+            wsData.put("newStatus", newStatus);
+            wsData.put("operatorName", "专家回调");
+            wsData.put("comment", dto.getComment());
+            wsData.put("updatedAt", LocalDateTime.now().toString());
+            webSocketService.sendWorkorderChange(wsData);
+        } catch (Exception e) {
+            // 推送失败不影响主流程
+        }
+
         CallbackResponseVO response = new CallbackResponseVO();
         response.setWorkorderId(workOrder.getId());
         response.setNewStatus(newStatus);
@@ -193,35 +259,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         WorkOrderVO vo = new WorkOrderVO();
         BeanUtils.copyProperties(workOrder, vo);
 
-        // 关联查询 Inference
-        if (workOrder.getInferenceId() != null) {
-            Inference inference = inferenceMapper.selectById(workOrder.getInferenceId());
-            if (inference != null) {
-                vo.setPestName(inference.getPestName());
-                vo.setConfidence(inference.getConfidence());
-
-                // 通过 Inference → Report → Grid 获取 gridLabel 和 imageUrl
-                if (inference.getReportId() != null) {
-                    Report report = reportMapper.selectById(inference.getReportId());
-                    if (report != null) {
-                        // 获取图片URL（取第一张）
-                        if (StringUtils.hasText(report.getImageUrls())) {
-                            String[] urls = report.getImageUrls().split(",");
-                            vo.setImageUrl(urls[0].trim());
-                        }
-                        // 获取网格标签
-                        if (report.getGridId() != null) {
-                            Grid grid = gridMapper.selectById(report.getGridId());
-                            if (grid != null) {
-                                vo.setGridLabel(grid.getLabel());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 关联查询指派人
+        // 关联查询指派人姓名
         if (workOrder.getAssignedTo() != null) {
             SysUser user = sysUserMapper.selectById(workOrder.getAssignedTo());
             if (user != null) {
@@ -230,18 +268,5 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         }
 
         return vo;
-    }
-
-    private String getGridLabelByInference(Inference inference) {
-        if (inference.getReportId() != null) {
-            Report report = reportMapper.selectById(inference.getReportId());
-            if (report != null && report.getGridId() != null) {
-                Grid grid = gridMapper.selectById(report.getGridId());
-                if (grid != null) {
-                    return grid.getLabel();
-                }
-            }
-        }
-        return "未知区域";
     }
 }

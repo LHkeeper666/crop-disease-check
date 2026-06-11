@@ -6,7 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 
 /**
  * <p>
- * 病虫害知识库 Mapper 接口
+ * 虫害信息表 Mapper 接口
  * </p>
  *
  * @author agriculture-team

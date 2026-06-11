@@ -44,6 +44,12 @@ public class Camera implements Serializable {
     private String rtspUrl;
 
     /**
+     * RTSP子码流地址
+     */
+    @TableField("rtsp_url_sub")
+    private String rtspUrlSub;
+
+    /**
      * 经度
      */
     @TableField("location_x")
@@ -62,6 +68,24 @@ public class Camera implements Serializable {
     private BigDecimal direction;
 
     /**
+     * 抓拍分辨率
+     */
+    @TableField("capture_resolution")
+    private String captureResolution;
+
+    /**
+     * 抓拍JPEG质量(1-100)
+     */
+    @TableField("capture_quality")
+    private Integer captureQuality;
+
+    /**
+     * 断流重连间隔(秒)
+     */
+    @TableField("reconnect_interval")
+    private Integer reconnectInterval;
+
+    /**
      * 状态: ONLINE/OFFLINE/FAULT
      */
     @TableField("status")
@@ -72,6 +96,18 @@ public class Camera implements Serializable {
      */
     @TableField("last_frame_at")
     private LocalDateTime lastFrameAt;
+
+    /**
+     * 最近一次在线时间
+     */
+    @TableField("last_online_at")
+    private LocalDateTime lastOnlineAt;
+
+    /**
+     * 所属企业ID
+     */
+    @TableField("company_id")
+    private String companyId;
 
     /**
      * 创建时间
