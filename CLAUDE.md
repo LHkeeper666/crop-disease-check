@@ -30,18 +30,25 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 ### Docker Compose (from docker-env/)
+
+Uses profiles to separate infrastructure from application services:
+
 ```bash
-# Requires proxy env vars for image pulls:
-export HTTP_PROXY=http://127.0.0.1:7897
-export HTTPS_PROXY=http://127.0.0.1:7897
-docker compose up -d
-docker compose down
+# Development: start middleware only (MySQL, Redis, RabbitMQ, ES, MinIO)
+docker compose --profile infra up -d
+
+# Deployment: start all services (middleware + backend + frontend + CV inference)
+docker compose --profile infra --profile app up -d
+
+# Stop all
+docker compose --profile infra --profile app down
 ```
+
 Build args use `host.docker.internal:7897` for in-container proxy access.
 
 ### Database Init
 SQL scripts at `src/main/resources/db/`: run `create_table.sql` then `init_data.sql` against MySQL `agriculture_db`.
-PowerShell shortcut: `docker-env/init-db.ps1` (starts compose, waits for MySQL, imports SQL).
+PowerShell shortcut: `docker-env/init-db.ps1` (starts middleware only via `--profile infra`, waits for MySQL, imports SQL).
 
 ## Architecture
 
@@ -59,7 +66,7 @@ PowerShell shortcut: `docker-env/init-db.ps1` (starts compose, waits for MySQL, 
                     └──────────┘
 ```
 
-**Backend** (`src/`): Spring Boot 2.7.18, Java 8, MyBatis-Plus. Modular architecture with domain-driven package structure. Context path: `/api`.
+**Backend** (`src/`): Spring Boot 3.2.5, Java 17, MyBatis-Plus. Modular architecture with domain-driven package structure. Context path: `/api`.
 
 Backend modules (`com.agriculture.modules.*`): auth, user, company, camera, grid, greenhouse, environment, report, inference, workorder, inspection, dailyReport, statistics, agriBrain, pestDiseaseInfo. Common code in `com.agriculture.common.*` (config, exception, interceptor, annotation, aspect, util, websocket, vo, service).
 
@@ -76,9 +83,22 @@ Backend modules (`com.agriculture.modules.*`): auth, user, company, camera, grid
 - **Database**: 18 tables. Logical deletion via MyBatis-Plus `@TableLogic`. See `docs/数据库设计文档.md` for full schema.
 - **API spec**: Full REST API documentation in `docs/接口文档.md` (51KB, 14 sections). Base path: `/api/v1`.
 
-## Two Backend Codebases
+## Docker Profiles
 
-The main backend code lives in `src/` (Spring Boot 2.7.18, Java 8, full feature set). The Docker environment at `docker-env/backend/` contains a **separate, simplified** backend (Spring Boot 3.3.0, Java 17, skeleton only). When modifying backend logic, edit `src/` — the Docker backend is a stub.
+| Profile | Services | Use Case |
+|---------|----------|----------|
+| `infra` | MySQL, Redis, RabbitMQ, ES, MinIO | Local development (run backend/frontend locally) |
+| `app` | Backend, Frontend, CV Inference, Nginx | Full deployment |
+
+**Development workflow**: `.\init-db.ps1` → start backend in IDEA → `npm run dev` in frontend/
+
+## Docker Environment
+
+All Dockerfiles reference code from the main project:
+- Backend: builds from project root `src/` and `pom.xml`
+- Frontend: builds from `frontend/` directory
+- CV Inference: builds from `inference-service/` directory
+- Models: mounted from `models/` directory (disease + pest)
 
 ## Conventions
 
