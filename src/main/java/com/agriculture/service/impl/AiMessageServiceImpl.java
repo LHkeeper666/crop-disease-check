@@ -11,6 +11,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * <p>
+ * 农业大脑消息表 服务实现类
+ * </p>
+ *
+ * @author agriculture-team
+ * @since 2026-06-09
+ */
+
 @Service
 public class AiMessageServiceImpl extends ServiceImpl<AiMessageMapper, AiMessage> implements AiMessageService {
 
