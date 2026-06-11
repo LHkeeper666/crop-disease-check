@@ -44,7 +44,7 @@ services:
   # ----------------------------------------------------------
   redis:
     image: redis:7-alpine
-    container_name: agri-monitor-redis
+    container_name: docker start 你的redis容器名
     restart: always
     ports:
       - "6379:6379"
@@ -149,6 +149,9 @@ services:
     build:
       context: ./cv-inference
       dockerfile: Dockerfile
+      args:
+        - HTTP_PROXY=http://host.docker.internal:7897
+        - HTTPS_PROXY=http://host.docker.internal:7897
     container_name: agri-monitor-cv
     restart: always
     ports:
@@ -255,6 +258,9 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - HTTP_PROXY=http://host.docker.internal:7897
+        - HTTPS_PROXY=http://host.docker.internal:7897
     container_name: agri-monitor-frontend
     restart: always
     ports:
