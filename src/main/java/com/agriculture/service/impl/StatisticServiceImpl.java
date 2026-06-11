@@ -7,9 +7,13 @@ import com.agriculture.service.StatisticService;
 import com.agriculture.vo.GridStatisticsVO;
 import com.agriculture.vo.StatisticsOverviewVO;
 import com.agriculture.vo.TrendStatisticsVO;
+import com.agriculture.websocket.WebSocketService;
 import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
@@ -29,6 +33,8 @@ import java.util.stream.Collectors;
 @Service
 public class StatisticServiceImpl implements StatisticService {
 
+    private static final ObjectMapper JSON = new ObjectMapper();
+
     @Resource
     private ReportMapper reportMapper;
 
@@ -43,6 +49,62 @@ public class StatisticServiceImpl implements StatisticService {
 
     @Resource
     private InspectionLogMapper inspectionLogMapper;
+
+    @Resource
+    private WebSocketService webSocketService;
+
+    // ==================== JSON 解析辅助 ====================
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> parseDetections(Inference inference) {
+        if (inference == null || !StringUtils.hasText(inference.getDetections())) {
+            return Collections.emptyList();
+        }
+        try {
+            return JSON.readValue(inference.getDetections(), new TypeReference<List<Map<String, Object>>>() {});
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * 将一条 Inference（含 JSON detections 数组）展开为多条扁平记录
+     */
+    private List<FlatDetection> flattenDetections(List<Inference> inferences) {
+        List<FlatDetection> result = new ArrayList<>();
+        for (Inference inf : inferences) {
+            List<Map<String, Object>> dets = parseDetections(inf);
+            for (Map<String, Object> d : dets) {
+                FlatDetection fd = new FlatDetection();
+                fd.inferenceId = inf.getId();
+                fd.reportId = inf.getReportId();
+                fd.createdAt = inf.getCreatedAt();
+                fd.annotatedImageUrl = inf.getAnnotatedImageUrl();
+                fd.pipeline = (String) d.get("pipeline");
+                fd.classId = d.get("class_id") != null ? ((Number) d.get("class_id")).intValue() : null;
+                fd.className = (String) d.get("class_name");
+                fd.nameCn = (String) d.get("name_cn");
+                Object conf = d.get("confidence");
+                fd.confidence = conf != null ? new BigDecimal(conf.toString()) : null;
+                result.add(fd);
+            }
+        }
+        return result;
+    }
+
+    private static class FlatDetection {
+        String inferenceId;
+        String reportId;
+        LocalDateTime createdAt;
+        String annotatedImageUrl;
+        String pipeline;
+        Integer classId;
+        String className;
+        String nameCn;
+        BigDecimal confidence;
+    }
+
+    // ==================== 业务方法 ====================
 
     @Override
     public StatisticsOverviewVO getOverview(Integer days) {
@@ -64,7 +126,7 @@ public class StatisticServiceImpl implements StatisticService {
         todayWrapper.ge(Report::getCreatedAt, todayStart).le(Report::getCreatedAt, now);
         vo.setTodayReports(reportMapper.selectCount(todayWrapper).intValue());
 
-        // 待审核数 (PENDING / PENDING_RECOGNITION)
+        // 待审核数
         LambdaQueryWrapper<Report> pendingWrapper = new LambdaQueryWrapper<>();
         pendingWrapper.in(Report::getStatus, "PENDING", "PENDING_RECOGNITION");
         vo.setPendingAudit(reportMapper.selectCount(pendingWrapper).intValue());
@@ -74,21 +136,24 @@ public class StatisticServiceImpl implements StatisticService {
         processedWrapper.eq(Report::getStatus, "AUDITED");
         vo.setProcessed(reportMapper.selectCount(processedWrapper).intValue());
 
-        // 高风险告警 (CRITICAL 且未 DONE)
+        // 高风险告警
         LambdaQueryWrapper<WorkOrder> alertWrapper = new LambdaQueryWrapper<>();
         alertWrapper.eq(WorkOrder::getSeverity, "CRITICAL")
                     .ne(WorkOrder::getStatus, "DONE");
         vo.setHighRiskAlerts(workOrderMapper.selectCount(alertWrapper).intValue());
 
-        // 查询时间窗口内的所有 inference
+        // 查询时间窗口内的 inference
         LambdaQueryWrapper<Inference> inferenceWrapper = new LambdaQueryWrapper<>();
         inferenceWrapper.ge(Inference::getCreatedAt, startTime).le(Inference::getCreatedAt, now);
         List<Inference> inferences = inferenceMapper.selectList(inferenceWrapper);
 
-        // 类型分布 (按病虫害名称)
-        Map<String, Long> typeCount = inferences.stream()
-                .filter(i -> i.getPestName() != null)
-                .collect(Collectors.groupingBy(Inference::getPestName, Collectors.counting()));
+        // 展开为扁平检测列表
+        List<FlatDetection> flat = flattenDetections(inferences);
+
+        // 类型分布 (按中文名称)
+        Map<String, Long> typeCount = flat.stream()
+                .filter(f -> f.nameCn != null)
+                .collect(Collectors.groupingBy(f -> f.nameCn, Collectors.counting()));
         List<StatisticsOverviewVO.TypeDistribution> typeDistribution = typeCount.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                 .limit(10)
@@ -101,7 +166,7 @@ public class StatisticServiceImpl implements StatisticService {
                 .collect(Collectors.toList());
         vo.setTypeDistribution(typeDistribution);
 
-        // 每日趋势 (含病害/虫害拆分)
+        // 每日趋势 (按 inference 记录粒度)
         Map<LocalDate, List<Inference>> dailyGroups = inferences.stream()
                 .filter(i -> i.getCreatedAt() != null)
                 .collect(Collectors.groupingBy(
@@ -112,21 +177,21 @@ public class StatisticServiceImpl implements StatisticService {
         for (Map.Entry<LocalDate, List<Inference>> entry : dailyGroups.entrySet()) {
             StatisticsOverviewVO.DailyTrend trend = new StatisticsOverviewVO.DailyTrend();
             trend.setDate(entry.getKey().toString());
-            List<Inference> dayList = entry.getValue();
-            int disease = (int) dayList.stream().filter(i -> "DISEASE".equals(i.getPipeline())).count();
-            int pest = (int) dayList.stream().filter(i -> "PEST".equals(i.getPipeline())).count();
+            List<FlatDetection> dayFlat = flattenDetections(entry.getValue());
+            int disease = (int) dayFlat.stream().filter(f -> "DISEASE".equals(f.pipeline)).count();
+            int pest = (int) dayFlat.stream().filter(f -> "PEST".equals(f.pipeline)).count();
             trend.setDiseaseCount(disease);
             trend.setPestCount(pest);
-            trend.setCount(dayList.size());
+            trend.setCount(dayFlat.size());
             dailyTrend.add(trend);
         }
         vo.setDailyTrend(dailyTrend);
 
         // Top5 病虫害
-        Map<String, Long> pestNameCount = inferences.stream()
-                .filter(i -> i.getPestName() != null)
-                .collect(Collectors.groupingBy(Inference::getPestName, Collectors.counting()));
-        List<StatisticsOverviewVO.TopPest> top5Pests = pestNameCount.entrySet().stream()
+        Map<String, Long> nameCount = flat.stream()
+                .filter(f -> f.nameCn != null)
+                .collect(Collectors.groupingBy(f -> f.nameCn, Collectors.counting()));
+        List<StatisticsOverviewVO.TopPest> top5Pests = nameCount.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                 .limit(5)
                 .map(entry -> {
@@ -138,9 +203,68 @@ public class StatisticServiceImpl implements StatisticService {
                 .collect(Collectors.toList());
         vo.setTop5Pests(top5Pests);
 
-        // 网格热力图: Inference -> Report -> Grid
+        // 病害分布 (pipeline=DISEASE, 按中文名分组, top 10)
+        Map<String, Long> diseaseCount = flat.stream()
+                .filter(f -> "DISEASE".equals(f.pipeline) && f.nameCn != null)
+                .collect(Collectors.groupingBy(f -> f.nameCn, Collectors.counting()));
+        List<StatisticsOverviewVO.TypeDistribution> diseaseDistribution = diseaseCount.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(10)
+                .map(entry -> {
+                    StatisticsOverviewVO.TypeDistribution td = new StatisticsOverviewVO.TypeDistribution();
+                    td.setName(entry.getKey());
+                    td.setValue(entry.getValue().intValue());
+                    return td;
+                })
+                .collect(Collectors.toList());
+        vo.setDiseaseDistribution(diseaseDistribution);
+
+        // 虫害分布 (pipeline=PEST, 按中文名分组, top 10)
+        Map<String, Long> pestCount = flat.stream()
+                .filter(f -> "PEST".equals(f.pipeline) && f.nameCn != null)
+                .collect(Collectors.groupingBy(f -> f.nameCn, Collectors.counting()));
+        List<StatisticsOverviewVO.TypeDistribution> pestDistribution = pestCount.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(10)
+                .map(entry -> {
+                    StatisticsOverviewVO.TypeDistribution td = new StatisticsOverviewVO.TypeDistribution();
+                    td.setName(entry.getKey());
+                    td.setValue(entry.getValue().intValue());
+                    return td;
+                })
+                .collect(Collectors.toList());
+        vo.setPestDistribution(pestDistribution);
+
+        // Top5 病害 (pipeline=DISEASE, 按中文名分组, top 5)
+        List<StatisticsOverviewVO.TopPest> top5Diseases = diseaseCount.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(5)
+                .map(entry -> {
+                    StatisticsOverviewVO.TopPest tp = new StatisticsOverviewVO.TopPest();
+                    tp.setName(entry.getKey());
+                    tp.setCount(entry.getValue().intValue());
+                    return tp;
+                })
+                .collect(Collectors.toList());
+        vo.setTop5Diseases(top5Diseases);
+
+        // 网格热力图
         List<StatisticsOverviewVO.GridHeatmap> gridHeatmap = buildGridHeatmap(inferences);
         vo.setGridHeatmap(gridHeatmap);
+
+        // 推送热力图更新到 WebSocket
+        try {
+            for (StatisticsOverviewVO.GridHeatmap hm : gridHeatmap) {
+                Map<String, Object> wsData = new HashMap<>();
+                wsData.put("gridId", hm.getGridId());
+                wsData.put("gridLabel", hm.getGridLabel());
+                wsData.put("score", hm.getScore());
+                wsData.put("updatedAt", now.toString());
+                webSocketService.sendHeatmapUpdate(wsData);
+            }
+        } catch (Exception e) {
+            // 推送失败不影响主流程
+        }
 
         return vo;
     }
@@ -159,7 +283,6 @@ public class StatisticServiceImpl implements StatisticService {
             return Collections.emptyList();
         }
 
-        // 获取所有 reportId -> gridId 映射
         Set<String> reportIds = inferences.stream()
                 .map(Inference::getReportId)
                 .filter(Objects::nonNull)
@@ -179,30 +302,30 @@ public class StatisticServiceImpl implements StatisticService {
         List<GridStatisticsVO> result = new ArrayList<>();
         for (Map.Entry<String, List<Inference>> entry : gridInferences.entrySet()) {
             String gridId = entry.getKey();
-            List<Inference> gridList = entry.getValue();
+            List<FlatDetection> flat = flattenDetections(entry.getValue());
 
             GridStatisticsVO vo = new GridStatisticsVO();
             vo.setGridId(gridId);
             vo.setGridLabel(gridLabelMap.getOrDefault(gridId, gridId));
-            vo.setTotalDetections(gridList.size());
-            vo.setDiseaseCount((int) gridList.stream().filter(i -> "DISEASE".equals(i.getPipeline())).count());
-            vo.setPestCount((int) gridList.stream().filter(i -> "PEST".equals(i.getPipeline())).count());
+            vo.setTotalDetections(flat.size());
+            vo.setDiseaseCount((int) flat.stream().filter(f -> "DISEASE".equals(f.pipeline)).count());
+            vo.setPestCount((int) flat.stream().filter(f -> "PEST".equals(f.pipeline)).count());
 
             // 平均置信度
-            BigDecimal avgConf = gridList.stream()
-                    .map(Inference::getConfidence)
-                    .filter(Objects::nonNull)
+            BigDecimal totalConf = flat.stream()
+                    .filter(f -> f.confidence != null)
+                    .map(f -> f.confidence)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
-            if (!gridList.isEmpty()) {
-                vo.setAvgConfidence(avgConf.divide(BigDecimal.valueOf(gridList.size()), 4, RoundingMode.HALF_UP));
+            if (!flat.isEmpty()) {
+                vo.setAvgConfidence(totalConf.divide(BigDecimal.valueOf(flat.size()), 4, RoundingMode.HALF_UP));
             } else {
                 vo.setAvgConfidence(BigDecimal.ZERO);
             }
 
             // 最高频病虫害
-            String topPest = gridList.stream()
-                    .filter(i -> i.getPestName() != null)
-                    .collect(Collectors.groupingBy(Inference::getPestName, Collectors.counting()))
+            String topPest = flat.stream()
+                    .filter(f -> f.nameCn != null)
+                    .collect(Collectors.groupingBy(f -> f.nameCn, Collectors.counting()))
                     .entrySet().stream()
                     .max(Map.Entry.comparingByValue())
                     .map(Map.Entry::getKey)
@@ -212,7 +335,6 @@ public class StatisticServiceImpl implements StatisticService {
             result.add(vo);
         }
 
-        // 按总检测数降序
         result.sort((a, b) -> Integer.compare(b.getTotalDetections(), a.getTotalDetections()));
         return result;
     }
@@ -229,7 +351,6 @@ public class StatisticServiceImpl implements StatisticService {
         wrapper.ge(Inference::getCreatedAt, startTime).le(Inference::getCreatedAt, now);
         List<Inference> inferences = inferenceMapper.selectList(wrapper);
 
-        // 按粒度分组
         Map<String, List<Inference>> grouped;
         switch (granularity) {
             case "WEEK":
@@ -249,7 +370,7 @@ public class StatisticServiceImpl implements StatisticService {
                             return date.getYear() + "-" + String.format("%02d", date.getMonthValue());
                         }, TreeMap::new, Collectors.toList()));
                 break;
-            default: // DAY
+            default:
                 grouped = inferences.stream()
                         .filter(i -> i.getCreatedAt() != null)
                         .collect(Collectors.groupingBy(
@@ -262,10 +383,10 @@ public class StatisticServiceImpl implements StatisticService {
         for (Map.Entry<String, List<Inference>> entry : grouped.entrySet()) {
             TrendStatisticsVO vo = new TrendStatisticsVO();
             vo.setDate(entry.getKey());
-            List<Inference> list = entry.getValue();
-            vo.setDiseaseCount((int) list.stream().filter(i -> "DISEASE".equals(i.getPipeline())).count());
-            vo.setPestCount((int) list.stream().filter(i -> "PEST".equals(i.getPipeline())).count());
-            vo.setTotal(list.size());
+            List<FlatDetection> flat = flattenDetections(entry.getValue());
+            vo.setDiseaseCount((int) flat.stream().filter(f -> "DISEASE".equals(f.pipeline)).count());
+            vo.setPestCount((int) flat.stream().filter(f -> "PEST".equals(f.pipeline)).count());
+            vo.setTotal(flat.size());
             result.add(vo);
         }
         return result;
@@ -273,7 +394,6 @@ public class StatisticServiceImpl implements StatisticService {
 
     @Override
     public void exportData(LocalDate startDate, LocalDate endDate, String gridId, String pestType, HttpServletResponse response) {
-        // 构建查询条件
         LambdaQueryWrapper<Inference> wrapper = new LambdaQueryWrapper<>();
         if (startDate != null) {
             wrapper.ge(Inference::getCreatedAt, startDate.atStartOfDay());
@@ -281,36 +401,42 @@ public class StatisticServiceImpl implements StatisticService {
         if (endDate != null) {
             wrapper.le(Inference::getCreatedAt, endDate.atTime(LocalTime.MAX));
         }
-        if (pestType != null && !pestType.isEmpty()) {
-            wrapper.eq(Inference::getPestName, pestType);
-        }
 
         List<Inference> inferences = inferenceMapper.selectList(wrapper);
 
-        // 如果需要按 gridId 筛选，过滤 inference
-        if (gridId != null && !gridId.isEmpty()) {
-            Set<String> reportIds = inferences.stream()
-                    .map(Inference::getReportId)
+        // 展开为扁平检测列表
+        List<FlatDetection> flat = flattenDetections(inferences);
+
+        // 按 pestType 筛选（name_cn 或 class_name）
+        if (StringUtils.hasText(pestType)) {
+            flat = flat.stream()
+                    .filter(f -> pestType.equals(f.nameCn) || pestType.equals(f.className))
+                    .collect(Collectors.toList());
+        }
+
+        // 按 gridId 筛选
+        if (StringUtils.hasText(gridId)) {
+            Set<String> reportIds = flat.stream()
+                    .map(f -> f.reportId)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
             if (!reportIds.isEmpty()) {
                 Map<String, String> reportGridMap = getReportGridMap(reportIds);
-                inferences = inferences.stream()
-                        .filter(i -> i.getReportId() != null && gridId.equals(reportGridMap.get(i.getReportId())))
+                flat = flat.stream()
+                        .filter(f -> f.reportId != null && gridId.equals(reportGridMap.get(f.reportId)))
                         .collect(Collectors.toList());
             } else {
-                inferences = Collections.emptyList();
+                flat = Collections.emptyList();
             }
         }
 
-        // 检查数据量限制
-        if (inferences.size() > 5000) {
+        if (flat.size() > 5000) {
             throw new BusinessException(40070, "导出数据量超过5000条，请缩小筛选范围");
         }
 
         // 获取关联数据
-        Set<String> reportIds = inferences.stream()
-                .map(Inference::getReportId)
+        Set<String> reportIds = flat.stream()
+                .map(f -> f.reportId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         Map<String, String> reportGridMap = reportIds.isEmpty() ? Collections.emptyMap() : getReportGridMap(reportIds);
@@ -319,23 +445,22 @@ public class StatisticServiceImpl implements StatisticService {
 
         // 构建导出数据
         List<Map<Integer, String>> exportData = new ArrayList<>();
-        for (Inference inf : inferences) {
+        for (FlatDetection f : flat) {
             Map<Integer, String> row = new LinkedHashMap<>();
             String gridLabel = "";
-            if (inf.getReportId() != null && reportGridMap.containsKey(inf.getReportId())) {
-                String gId = reportGridMap.get(inf.getReportId());
+            if (f.reportId != null && reportGridMap.containsKey(f.reportId)) {
+                String gId = reportGridMap.get(f.reportId);
                 gridLabel = gridLabelMap.getOrDefault(gId, gId);
             }
-            row.put(0, inf.getId());
+            row.put(0, f.inferenceId);
             row.put(1, gridLabel);
-            row.put(2, inf.getPipeline() != null ? ("DISEASE".equals(inf.getPipeline()) ? "病害" : "虫害") : "");
-            row.put(3, inf.getPestName() != null ? inf.getPestName() : "");
-            row.put(4, inf.getConfidence() != null ? inf.getConfidence().toPlainString() : "");
-            row.put(5, inf.getCreatedAt() != null ? inf.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
+            row.put(2, f.pipeline != null ? ("DISEASE".equals(f.pipeline) ? "病害" : "虫害") : "");
+            row.put(3, f.nameCn != null ? f.nameCn : "");
+            row.put(4, f.confidence != null ? f.confidence.toPlainString() : "");
+            row.put(5, f.createdAt != null ? f.createdAt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
             exportData.add(row);
         }
 
-        // 写入 Excel
         try {
             response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
             response.setCharacterEncoding("utf-8");
@@ -361,7 +486,7 @@ public class StatisticServiceImpl implements StatisticService {
     }
 
     /**
-     * 构建网格热力图数据: Inference -> Report -> Grid
+     * 构建网格热力图数据
      */
     private List<StatisticsOverviewVO.GridHeatmap> buildGridHeatmap(List<Inference> inferences) {
         Set<String> reportIds = inferences.stream()
@@ -374,7 +499,7 @@ public class StatisticServiceImpl implements StatisticService {
         Set<String> gridIds = new HashSet<>(reportGridMap.values());
         Map<String, String> gridLabelMap = getGridLabelMap(gridIds);
 
-        // 按 gridId 统计
+        // 按 gridId 统计（每条 inference 算一次记录）
         Map<String, Long> gridCount = inferences.stream()
                 .filter(i -> i.getReportId() != null && reportGridMap.containsKey(i.getReportId()))
                 .collect(Collectors.groupingBy(i -> reportGridMap.get(i.getReportId()), Collectors.counting()));
@@ -395,9 +520,6 @@ public class StatisticServiceImpl implements StatisticService {
         return result;
     }
 
-    /**
-     * 获取 reportId -> gridId 映射
-     */
     private Map<String, String> getReportGridMap(Set<String> reportIds) {
         if (reportIds.isEmpty()) return Collections.emptyMap();
         LambdaQueryWrapper<Report> wrapper = new LambdaQueryWrapper<>();
@@ -407,9 +529,6 @@ public class StatisticServiceImpl implements StatisticService {
                 .collect(Collectors.toMap(Report::getId, Report::getGridId, (a, b) -> a));
     }
 
-    /**
-     * 获取 gridId -> gridLabel 映射
-     */
     private Map<String, String> getGridLabelMap(Set<String> gridIds) {
         if (gridIds.isEmpty()) return Collections.emptyMap();
         LambdaQueryWrapper<Grid> wrapper = new LambdaQueryWrapper<>();

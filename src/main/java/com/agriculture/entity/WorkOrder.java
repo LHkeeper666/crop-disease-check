@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.Setter;
@@ -95,4 +96,40 @@ public class WorkOrder implements Serializable {
      */
     @TableField("updated_at")
     private LocalDateTime updatedAt;
+
+    /**
+     * 工单类型: disease/pest
+     */
+    @TableField("type")
+    private String type;
+
+    /**
+     * 关联网格编号
+     */
+    @TableField("grid_label")
+    private String gridLabel;
+
+    /**
+     * 病虫害名称
+     */
+    @TableField("pest_name")
+    private String pestName;
+
+    /**
+     * 检测置信度
+     */
+    @TableField("confidence")
+    private BigDecimal confidence;
+
+    /**
+     * 创建人ID
+     */
+    @TableField("created_by")
+    private String createdBy;
+
+    /**
+     * 所属企业ID
+     */
+    @TableField("company_id")
+    private String companyId;
 }

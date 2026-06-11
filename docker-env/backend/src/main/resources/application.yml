@@ -1,8 +1,0 @@
-server:
-  port: 8080
-
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/agriculture_db
-    username: agri
-    password: agri_pwd_2026
