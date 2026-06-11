@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * <p>
- * 虫害信息表 服务实现类
+ * 病虫害知识库 服务实现类
  * </p>
  *
  * @author agriculture-team

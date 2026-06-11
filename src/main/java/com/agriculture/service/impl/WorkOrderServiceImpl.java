@@ -29,6 +29,14 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * <p>
+ * 工单表 服务实现类
+ * </p>
+ *
+ * @author agriculture-team
+ * @since 2026-06-09
+ */
 @Service
 public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder> implements WorkOrderService {
 

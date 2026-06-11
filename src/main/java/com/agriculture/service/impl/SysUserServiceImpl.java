@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * <p>
- * ç”¨æˆ·è¡¨ 服务实现类
+ * 用户表 服务实现类
  * </p>
  *
  * @author agriculture-team
