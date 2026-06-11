@@ -11,8 +11,8 @@ spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/agriculture_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false
-    username: root
-    password: 123456
+    username: agri
+    password: agri_pwd_2026
 
   # Redis 配置 (验证码/限流/缓存)
   data:
@@ -57,8 +57,9 @@ spring:
 
 # MyBatis-Plus配置
 mybatis-plus:
-  mapper-locations: classpath:mapper/**/*.xml
-  type-aliases-package: com.agriculture.entity
+  # mapper XML 文件按模块存放在 mapper/<module>/ 目录下
+  mapper-locations: classpath*:mapper/**/*.xml
+  type-aliases-package: com.agriculture.modules.*.entity
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl

@@ -59,7 +59,9 @@ PowerShell shortcut: `docker-env/init-db.ps1` (starts compose, waits for MySQL, 
                     └──────────┘
 ```
 
-**Backend** (`src/`): Spring Boot 2.7.18, Java 8, MyBatis-Plus. Layered: Controller → Service → Mapper. Context path: `/api`.
+**Backend** (`src/`): Spring Boot 2.7.18, Java 8, MyBatis-Plus. Modular architecture with domain-driven package structure. Context path: `/api`.
+
+Backend modules (`com.agriculture.modules.*`): auth, user, company, camera, grid, greenhouse, environment, report, inference, workorder, inspection, dailyReport, statistics, agriBrain, pestDiseaseInfo. Common code in `com.agriculture.common.*` (config, exception, interceptor, annotation, aspect, util, websocket, vo, service).
 
 **Frontend** (`frontend/`): Vue 3 + TypeScript + Vite + TailwindCSS + Pinia. Currently uses mock data in `stores/` — real API integration pending.
 
@@ -69,7 +71,7 @@ PowerShell shortcut: `docker-env/init-db.ps1` (starts compose, waits for MySQL, 
 
 - **Auth**: JWT tokens validated by `JwtInterceptor`. Public endpoints excluded in `WebMvcConfig`. Token stored as `treeforge_token` in localStorage on frontend.
 - **RBAC**: `@RequireRole` annotation + `PermissionAspect` (AOP). Roles: admin, expert, manager, staff.
-- **Response wrapper**: All endpoints return `Result<T>` (code/message/data). See `vo/Result.java`.
+- **Response wrapper**: All endpoints return `Result<T>` (code/message/data). See `common/vo/Result.java`.
 - **API docs**: Knife4j/Swagger at `http://localhost:8080/api/doc.html` when running.
 - **Database**: 18 tables. Logical deletion via MyBatis-Plus `@TableLogic`. See `docs/数据库设计文档.md` for full schema.
 - **API spec**: Full REST API documentation in `docs/接口文档.md` (51KB, 14 sections). Base path: `/api/v1`.

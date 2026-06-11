@@ -1,14 +1,14 @@
 package com.agriculture.controller;
 
-import com.agriculture.dto.RegisterDTO;
-import com.agriculture.dto.SendOtpDTO;
-import com.agriculture.dto.LoginDTO;
-import com.agriculture.service.AuthService;
-import com.agriculture.vo.LoginVO;
-import com.agriculture.vo.UserVO;
+import com.agriculture.modules.user.dto.RegisterDTO;
+import com.agriculture.modules.user.dto.SendOtpDTO;
+import com.agriculture.modules.user.dto.LoginDTO;
+import com.agriculture.modules.auth.service.AuthService;
+import com.agriculture.modules.user.vo.LoginVO;
+import com.agriculture.modules.user.vo.UserVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.agriculture.dao.mapper.SysUserMapper;
-import com.agriculture.entity.SysUser;
+import com.agriculture.modules.user.mapper.SysUserMapper;
+import com.agriculture.modules.user.entity.SysUser;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

@@ -1,11 +1,14 @@
 package com.agriculture.controller;
 
-import com.agriculture.dto.JoinCompanyDTO;
-import com.agriculture.dto.ValidateInviteDTO;
-import com.agriculture.exception.BusinessException;
-import com.agriculture.exception.GlobalExceptionHandler;
-import com.agriculture.service.CompanyService;
-import com.agriculture.vo.*;
+import com.agriculture.modules.company.vo.ValidateInviteVO;
+import com.agriculture.modules.company.vo.JoinCompanyVO;
+import com.agriculture.modules.company.controller.CompanyController;
+import com.agriculture.modules.company.dto.JoinCompanyDTO;
+import com.agriculture.modules.company.dto.ValidateInviteDTO;
+import com.agriculture.common.exception.BusinessException;
+import com.agriculture.common.exception.GlobalExceptionHandler;
+import com.agriculture.modules.company.service.CompanyService;
+import com.agriculture.modules.company.vo.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

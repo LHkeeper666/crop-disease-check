@@ -1,5 +1,8 @@
 package com.agriculture.websocket;
 
+import com.agriculture.common.websocket.JwtUtils;
+import com.agriculture.common.websocket.WebSocketAuthInterceptor;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
