@@ -1,18 +1,24 @@
 package com.agriculture.modules.workorder.controller;
 
 import com.agriculture.modules.workorder.dto.CallbackDTO;
+import com.agriculture.modules.workorder.dto.SeverityUpdateDTO;
+import com.agriculture.modules.workorder.dto.StatusUpdateDTO;
 import com.agriculture.modules.workorder.dto.WorkOrderCreateDTO;
+import com.agriculture.modules.workorder.dto.WorkOrderManualCreateDTO;
 import com.agriculture.modules.workorder.service.WorkOrderService;
 import com.agriculture.modules.workorder.vo.CallbackResponseVO;
 import com.agriculture.common.vo.Result;
 import com.agriculture.modules.workorder.vo.WorkOrderDetailVO;
 import com.agriculture.modules.workorder.vo.WorkOrderVO;
+import com.agriculture.modules.user.entity.SysUser;
+import com.agriculture.modules.user.mapper.SysUserMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.time.LocalDateTime;
 
@@ -23,6 +29,9 @@ public class WorkOrderController {
     @Resource
     private WorkOrderService workOrderService;
 
+    @Resource
+    private SysUserMapper sysUserMapper;
+
     @GetMapping("/list")
     public Result<IPage<WorkOrderVO>> listWorkOrders(
             @RequestParam(required = false) String status,
@@ -30,8 +39,11 @@ public class WorkOrderController {
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss") LocalDateTime startDate,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss") LocalDateTime endDate,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return Result.success(workOrderService.listWorkOrders(status, severity, startDate, endDate, page, size));
+            @RequestParam(defaultValue = "20") int size,
+            HttpServletRequest request) {
+        String userId = (String) request.getAttribute("userId");
+        String companyId = resolveCompanyId(userId);
+        return Result.success(workOrderService.listWorkOrders(status, severity, startDate, endDate, page, size, companyId));
     }
 
     @GetMapping("/{id}")
@@ -40,12 +52,64 @@ public class WorkOrderController {
     }
 
     @PostMapping("/create")
-    public Result<String> createWorkOrder(@Valid @RequestBody WorkOrderCreateDTO dto) {
-        // TODO: 从 SecurityContext 获取当前用户信息，暂时使用默认值
-        String operatorId = "system";
-        String operatorName = "管理员";
-        String id = workOrderService.createWorkOrder(dto, operatorId, operatorName);
+    public Result<String> createWorkOrder(@Valid @RequestBody WorkOrderCreateDTO dto,
+                                          HttpServletRequest request) {
+        String userId = (String) request.getAttribute("userId");
+        SysUser currentUser = sysUserMapper.selectById(userId);
+        String operatorId = userId;
+        String operatorName = currentUser != null ? currentUser.getName() : "系统";
+        String companyId = currentUser != null ? currentUser.getCompanyId() : null;
+        String id = workOrderService.createWorkOrder(dto, operatorId, operatorName, companyId);
         return Result.success("工单创建成功", id);
+    }
+
+    @PostMapping("/create-manual")
+    public Result<String> createManualWorkOrder(@Valid @RequestBody WorkOrderManualCreateDTO dto,
+                                                HttpServletRequest request) {
+        String userId = (String) request.getAttribute("userId");
+        SysUser currentUser = sysUserMapper.selectById(userId);
+        String operatorId = userId;
+        String operatorName = currentUser != null ? currentUser.getName() : "系统";
+        String companyId = currentUser != null ? currentUser.getCompanyId() : null;
+        String id = workOrderService.createManualWorkOrder(dto, operatorId, operatorName, companyId);
+        return Result.success("工单创建成功", id);
+    }
+
+    @PutMapping("/{id}/status")
+    public Result<Void> updateStatus(@PathVariable String id,
+                                     @Valid @RequestBody StatusUpdateDTO dto,
+                                     HttpServletRequest request) {
+        String userId = (String) request.getAttribute("userId");
+        SysUser currentUser = sysUserMapper.selectById(userId);
+        String operatorId = userId;
+        String operatorName = currentUser != null ? currentUser.getName() : "系统";
+        workOrderService.updateStatus(id, dto.getStatus(), dto.getComment(), operatorId, operatorName);
+        return Result.success("状态更新成功", null);
+    }
+
+    @PutMapping("/{id}/severity")
+    public Result<Void> updateSeverity(@PathVariable String id,
+                                       @Valid @RequestBody SeverityUpdateDTO dto) {
+        workOrderService.updateSeverity(id, dto.getSeverity());
+        return Result.success("严重程度更新成功", null);
+    }
+
+    @DeleteMapping("/{id}")
+    public Result<Void> deleteWorkOrder(@PathVariable String id) {
+        workOrderService.deleteWorkOrder(id);
+        return Result.success("工单已删除", null);
+    }
+
+    /**
+     * 根据用户ID解析企业ID，若无则返回空字符串（不过滤）
+     */
+    private String resolveCompanyId(String userId) {
+        if (userId == null) return "";
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user != null && user.getCompanyId() != null && !user.getCompanyId().isEmpty()) {
+            return user.getCompanyId();
+        }
+        return "";
     }
 
     @PostMapping("/callback")

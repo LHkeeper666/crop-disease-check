@@ -178,6 +178,13 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- MinIO 对象存储 -->
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>8.5.12</version>
+        </dependency>
+
         <!--javacv 依赖       -->
         <dependency>
             <groupId>org.bytedeco</groupId>

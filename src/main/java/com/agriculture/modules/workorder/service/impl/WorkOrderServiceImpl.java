@@ -4,6 +4,7 @@ import com.agriculture.modules.workorder.mapper.WorkOrderHistoryMapper;
 import com.agriculture.modules.workorder.mapper.WorkOrderMapper;
 import com.agriculture.modules.workorder.dto.CallbackDTO;
 import com.agriculture.modules.workorder.dto.WorkOrderCreateDTO;
+import com.agriculture.modules.workorder.dto.WorkOrderManualCreateDTO;
 import com.agriculture.modules.workorder.entity.*;
 import com.agriculture.modules.grid.entity.Grid;
 import com.agriculture.modules.user.entity.SysUser;
@@ -109,6 +110,31 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         return voPage;
     }
 
+    /**
+     * 带企业隔离的分页查询
+     */
+    @Override
+    public IPage<WorkOrderVO> listWorkOrders(String status, String severity,
+                                              LocalDateTime startDate, LocalDateTime endDate,
+                                              int page, int size, String companyId) {
+        LambdaQueryWrapper<WorkOrder> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(StringUtils.hasText(companyId), WorkOrder::getCompanyId, companyId)
+               .eq(StringUtils.hasText(status), WorkOrder::getStatus, status)
+               .eq(StringUtils.hasText(severity), WorkOrder::getSeverity, severity)
+               .ge(startDate != null, WorkOrder::getCreatedAt, startDate)
+               .le(endDate != null, WorkOrder::getCreatedAt, endDate)
+               .orderByDesc(WorkOrder::getCreatedAt);
+
+        Page<WorkOrder> pageParam = new Page<>(page, size);
+        Page<WorkOrder> result = baseMapper.selectPage(pageParam, wrapper);
+
+        Page<WorkOrderVO> voPage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
+        voPage.setRecords(result.getRecords().stream()
+                .map(this::toVO)
+                .collect(Collectors.toList()));
+        return voPage;
+    }
+
     @Override
     public WorkOrderDetailVO getWorkOrderDetail(String id) {
         WorkOrder workOrder = baseMapper.selectById(id);
@@ -139,7 +165,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
 
     @Override
     @Transactional
-    public String createWorkOrder(WorkOrderCreateDTO dto, String operatorId, String operatorName) {
+    public String createWorkOrder(WorkOrderCreateDTO dto, String operatorId, String operatorName, String companyId) {
         // 校验 Inference 存在
         Inference inference = inferenceMapper.selectById(dto.getInferenceId());
         if (inference == null) {
@@ -163,6 +189,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         workOrder.setInferenceId(dto.getInferenceId());
         workOrder.setAssignedTo(dto.getAssignedTo());
         workOrder.setCreatedBy(operatorId);
+        workOrder.setCompanyId(companyId);
         workOrder.setCallbackToken(UUID.randomUUID().toString().replace("-", ""));
         workOrder.setTokenExpireAt(LocalDateTime.now().plusDays(7));
         workOrder.setTokenUsed((byte) 0);
@@ -180,6 +207,54 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         workOrderHistoryMapper.insert(history);
 
         // 推送工单创建到 WebSocket
+        try {
+            Map<String, Object> wsData = new HashMap<>();
+            wsData.put("workorderId", workOrder.getId());
+            wsData.put("oldStatus", null);
+            wsData.put("newStatus", "PENDING");
+            wsData.put("operatorName", operatorName);
+            wsData.put("type", workOrder.getType());
+            wsData.put("severity", workOrder.getSeverity());
+            wsData.put("updatedAt", LocalDateTime.now().toString());
+            webSocketService.sendWorkorderChange(wsData);
+        } catch (Exception e) {
+            // 推送失败不影响主流程
+        }
+
+        return workOrder.getId();
+    }
+
+    @Override
+    @Transactional
+    public String createManualWorkOrder(WorkOrderManualCreateDTO dto, String operatorId, String operatorName, String companyId) {
+        WorkOrder workOrder = new WorkOrder();
+        workOrder.setTitle(dto.getTitle());
+        workOrder.setSeverity(dto.getSeverity());
+        workOrder.setStatus("PENDING");
+        workOrder.setType(dto.getType());
+        workOrder.setGridLabel(dto.getGridLabel());
+        workOrder.setPestName(dto.getPestName());
+        workOrder.setConfidence(dto.getConfidence() != null ? BigDecimal.valueOf(dto.getConfidence()) : null);
+        workOrder.setAssignedTo(dto.getAssignedTo());
+        workOrder.setCreatedBy(operatorId);
+        workOrder.setCompanyId(companyId);
+        workOrder.setCallbackToken(UUID.randomUUID().toString().replace("-", ""));
+        workOrder.setTokenExpireAt(LocalDateTime.now().plusDays(7));
+        workOrder.setTokenUsed((byte) 0);
+        workOrder.setCreatedAt(LocalDateTime.now());
+        workOrder.setUpdatedAt(LocalDateTime.now());
+        baseMapper.insert(workOrder);
+
+        // 记录初始状态历史
+        WorkOrderHistory history = new WorkOrderHistory();
+        history.setWorkorderId(workOrder.getId());
+        history.setStatus("PENDING");
+        history.setOperatorId(operatorId);
+        history.setOperatorName(operatorName);
+        history.setCreatedAt(LocalDateTime.now());
+        workOrderHistoryMapper.insert(history);
+
+        // 推送 WebSocket
         try {
             Map<String, Object> wsData = new HashMap<>();
             wsData.put("workorderId", workOrder.getId());
@@ -265,6 +340,94 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         response.setWorkorderId(workOrder.getId());
         response.setNewStatus(newStatus);
         return response;
+    }
+
+    @Override
+    @Transactional
+    public void updateStatus(String id, String status, String comment, String operatorId, String operatorName) {
+        WorkOrder workOrder = baseMapper.selectById(id);
+        if (workOrder == null) {
+            throw new BusinessException(404, "工单不存在");
+        }
+
+        // 校验状态流转合法性
+        String oldStatus = workOrder.getStatus();
+        if (!isValidTransition(oldStatus, status)) {
+            throw new BusinessException("非法的状态变更: " + oldStatus + " -> " + status);
+        }
+
+        workOrder.setStatus(status);
+        workOrder.setUpdatedAt(LocalDateTime.now());
+        baseMapper.updateById(workOrder);
+
+        // 记录状态历史
+        WorkOrderHistory history = new WorkOrderHistory();
+        history.setWorkorderId(id);
+        history.setStatus(status);
+        history.setOperatorId(operatorId);
+        history.setOperatorName(operatorName);
+        history.setComment(comment);
+        history.setCreatedAt(LocalDateTime.now());
+        workOrderHistoryMapper.insert(history);
+
+        // 推送 WebSocket
+        try {
+            Map<String, Object> wsData = new HashMap<>();
+            wsData.put("workorderId", id);
+            wsData.put("oldStatus", oldStatus);
+            wsData.put("newStatus", status);
+            wsData.put("operatorName", operatorName);
+            wsData.put("updatedAt", LocalDateTime.now().toString());
+            webSocketService.sendWorkorderChange(wsData);
+        } catch (Exception e) {
+            // 推送失败不影响主流程
+        }
+    }
+
+    @Override
+    public void updateSeverity(String id, String severity) {
+        WorkOrder workOrder = baseMapper.selectById(id);
+        if (workOrder == null) {
+            throw new BusinessException(404, "工单不存在");
+        }
+        // 仅允许在非终态时修改严重程度
+        if ("DONE".equals(workOrder.getStatus()) || "IGNORED".equals(workOrder.getStatus())) {
+            throw new BusinessException("已完成或已忽略的工单不能修改严重程度");
+        }
+        workOrder.setSeverity(severity);
+        workOrder.setUpdatedAt(LocalDateTime.now());
+        baseMapper.updateById(workOrder);
+    }
+
+    @Override
+    @Transactional
+    public void deleteWorkOrder(String id) {
+        WorkOrder workOrder = baseMapper.selectById(id);
+        if (workOrder == null) {
+            throw new BusinessException(404, "工单不存在");
+        }
+        // 删除关联的历史记录
+        LambdaQueryWrapper<WorkOrderHistory> hw = new LambdaQueryWrapper<>();
+        hw.eq(WorkOrderHistory::getWorkorderId, id);
+        workOrderHistoryMapper.delete(hw);
+        // 删除工单
+        baseMapper.deleteById(id);
+    }
+
+    /**
+     * 校验状态流转是否合法
+     */
+    private boolean isValidTransition(String from, String to) {
+        switch (from) {
+            case "PENDING":
+                return "PROCESSING".equals(to) || "IGNORED".equals(to) || "ESCALATED".equals(to);
+            case "PROCESSING":
+                return "DONE".equals(to) || "ESCALATED".equals(to);
+            case "IGNORED":
+                return "PENDING".equals(to); // 恢复待处理
+            default:
+                return false;
+        }
     }
 
     private WorkOrderVO toVO(WorkOrder workOrder) {

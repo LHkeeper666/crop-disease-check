@@ -2,7 +2,10 @@ package com.agriculture.modules.user.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.agriculture.modules.user.mapper.SysUserMapper;
+import cn.hutool.crypto.digest.BCrypt;
 import com.agriculture.modules.user.dto.AdminUpdateUserDTO;
+import com.agriculture.modules.user.dto.ChangePasswordDTO;
+import com.agriculture.modules.user.dto.UpdateStatusDTO;
 import com.agriculture.modules.user.dto.UpdateUserDTO;
 import com.agriculture.modules.user.dto.UserQueryDTO;
 import com.agriculture.modules.user.entity.SysUser;
@@ -171,5 +174,66 @@ public class UserServiceImpl implements UserService {
         user.setDeleted((byte) 1);
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(String userId, ChangePasswordDTO dto) {
+        SysUser user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        // 校验原密码
+        if (!BCrypt.checkpw(dto.getOldPassword(), user.getPassword())) {
+            throw new BusinessException(40020, "原密码不正确");
+        }
+
+        // 校验新密码与确认密码一致
+        if (!dto.getNewPassword().equals(dto.getConfirmPassword())) {
+            throw new BusinessException(40022, "两次输入的密码不一致");
+        }
+
+        // 校验新密码不能与原密码相同
+        if (BCrypt.checkpw(dto.getNewPassword(), user.getPassword())) {
+            throw new BusinessException("新密码不能与原密码相同");
+        }
+
+        // 更新密码
+        user.setPassword(BCrypt.hashpw(dto.getNewPassword()));
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(user);
+    }
+
+    @Override
+    @Transactional
+    public void updateUserStatus(String id, UpdateStatusDTO dto) {
+        SysUser user = userMapper.selectById(id);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        user.setStatus(dto.getStatus());
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(user);
+    }
+
+    @Override
+    @Transactional
+    public String resetPassword(String id) {
+        SysUser user = userMapper.selectById(id);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        // 生成随机密码
+        String newPassword = cn.hutool.core.util.RandomUtil.randomString(12);
+
+        // 更新密码
+        user.setPassword(BCrypt.hashpw(newPassword));
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(user);
+
+        return newPassword;
     }
 }

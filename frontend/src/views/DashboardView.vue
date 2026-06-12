@@ -87,6 +87,8 @@ const now = ref(new Date())
 let clockTimer: ReturnType<typeof setInterval>
 onMounted(() => {
   clockTimer = setInterval(() => { now.value = new Date() }, 1000)
+  // 加载工单数据（供热力图、报警面板、趋势图使用）
+  woStore.fetchOrders()
 })
 onUnmounted(() => {
   clearInterval(clockTimer)

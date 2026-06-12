@@ -53,6 +53,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/auth/register",
                         "/auth/refresh",
                         "/company/validate-invite",
+                        "/workorder/callback",
+                        "/workorder/callback/page",
                         "/doc.html",
                         "/webjars/**",
                         "/swagger-resources/**",
