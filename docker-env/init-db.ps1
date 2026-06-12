@@ -13,6 +13,10 @@ $charset = "utf8mb4"
 $createTableSql = "..\src\main\resources\db\create_table.sql"
 $initDataSql    = "..\src\main\resources\db\init_data.sql"
 
+Write-Host "=== 0. 停止现有服务 ===" -ForegroundColor Cyan
+docker compose --profile infra --profile app down
+
+Write-Host ""
 Write-Host "=== 1. 启动中间件 (Docker Compose --profile infra) ===" -ForegroundColor Cyan
 docker compose --profile infra up -d
 
