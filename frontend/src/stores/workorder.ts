@@ -54,7 +54,7 @@ export const useWorkOrderStore = defineStore('workorder', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // 每个网格最高危险等级（仅统计活跃工单: PENDING / PROCESSING）
+  // 每个网格最高危险等级（未完成且未忽略的工单）
   const gridSeverityMap = computed(() => {
     const map: Record<string, string> = {}
     for (const o of orders.value) {
@@ -67,12 +67,11 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     return map
   })
 
-  // 报警列表（来源于活跃工单）
+  // 报警列表（未完成且未忽略的工单）
   const alerts = computed(() => {
     return orders.value
-      .filter(o => o.status === 'PENDING' || o.status === 'PROCESSING')
+      .filter(o => o.status !== 'DONE' && o.status !== 'IGNORED')
       .sort((a, b) => severityLevel[b.severity] - severityLevel[a.severity])
-      .slice(0, 6)
       .map(o => ({
         id: o.id,
         severity: o.severity,

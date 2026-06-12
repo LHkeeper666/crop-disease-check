@@ -218,7 +218,6 @@ async function saveEdit() {
       name: editForm.value.name,
       role: editForm.value.role,
       phone: editForm.value.phone || undefined,
-      email: editForm.value.email || undefined,
     })
     showEditModal.value = false
     editingUser.value = null
@@ -238,29 +237,56 @@ function closeEdit() {
 // Reset password
 const showResetConfirm = ref(false)
 const resettingUser = ref<UserSimpleVO | null>(null)
-const resetNewPassword = ref('')
+const resetPasswordInput = ref('')
+const resetPasswordConfirm = ref('')
+const resetSaving = ref(false)
+const resetError = ref('')
+
+function openResetConfirm(user: UserSimpleVO) {
+  resettingUser.value = user
+  resetPasswordInput.value = ''
+  resetPasswordConfirm.value = ''
+  resetError.value = ''
+  showResetConfirm.value = true
+}
 
 async function confirmResetPassword() {
+  resetError.value = ''
+  if (!resetPasswordInput.value) {
+    resetError.value = '请输入新密码'
+    return
+  }
+  if (resetPasswordInput.value.length < 6) {
+    resetError.value = '密码长度不少于6位'
+    return
+  }
+  if (!/(?=.*[a-zA-Z])(?=.*\d)/.test(resetPasswordInput.value)) {
+    resetError.value = '密码必须包含字母和数字'
+    return
+  }
+  if (resetPasswordInput.value !== resetPasswordConfirm.value) {
+    resetError.value = '两次输入的密码不一致'
+    return
+  }
   if (!resettingUser.value) return
+  resetSaving.value = true
   try {
-    const result = await resetUserPassword(resettingUser.value.id)
-    resetNewPassword.value = result.newPassword
-  } catch (e: any) {
-    alert('重置失败: ' + e.message)
+    await resetUserPassword(resettingUser.value.id, resetPasswordInput.value)
     closeResetConfirm()
+    alert('密码重置成功')
+  } catch (e: any) {
+    resetError.value = '重置失败: ' + e.message
+  } finally {
+    resetSaving.value = false
   }
 }
 
 function closeResetConfirm() {
   showResetConfirm.value = false
   resettingUser.value = null
-  resetNewPassword.value = ''
-}
-
-function openResetConfirm(user: UserSimpleVO) {
-  resettingUser.value = user
-  resetNewPassword.value = ''
-  showResetConfirm.value = true
+  resetPasswordInput.value = ''
+  resetPasswordConfirm.value = ''
+  resetError.value = ''
 }
 
 // Toggle disable/enable
@@ -517,13 +543,10 @@ async function toggleUserStatus(user: UserSimpleVO) {
             </div>
             <div>
               <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">邮箱</label>
-              <input
-                v-model="editForm.email"
-                type="email"
-                placeholder="请输入邮箱地址"
-                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
-              />
-              <div v-if="editForm.role === 'EXPERT'" class="text-[10px] text-amber mt-1">专家邮箱必须真实，用于接收系统邮件通知</div>
+              <div class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-slate-500 text-sm font-mono">
+                {{ editForm.email || '未设置' }}
+              </div>
+              <div class="text-[10px] text-slate-600 mt-1">邮箱不可修改（与账号绑定）</div>
             </div>
           </div>
 
@@ -546,51 +569,74 @@ async function toggleUserStatus(user: UserSimpleVO) {
       </div>
     </Teleport>
 
-    <!-- Reset Password Confirm Modal -->
+    <!-- Reset Password Modal -->
     <Teleport to="body">
       <div
         v-if="showResetConfirm && resettingUser"
         class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
         @click.self="closeResetConfirm"
       >
-        <div class="glass rounded-2xl p-6 w-full max-w-[400px] mx-4 shadow-2xl border border-amber/20">
-          <div class="text-center">
-            <div class="w-16 h-16 rounded-full bg-amber/10 flex items-center justify-center mx-auto mb-4">
-              <svg class="w-8 h-8 text-amber" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
-              </svg>
+        <div class="glass rounded-2xl p-6 w-full max-w-[420px] mx-4 shadow-2xl border border-amber/20">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h2 class="text-lg font-bold text-white">重置密码</h2>
+              <p class="text-xs text-slate-500 font-mono">RESET PASSWORD</p>
             </div>
-            <template v-if="!resetNewPassword">
-              <h3 class="text-lg font-bold text-white mb-2">确认重置密码</h3>
-              <p class="text-sm text-slate-400 mb-2">您即将重置以下用户的密码：</p>
-              <p class="text-sm font-mono text-white bg-white/5 rounded-lg px-3 py-2 mb-6">{{ resettingUser.username }}</p>
-              <div class="flex gap-3">
-                <button
-                  class="flex-1 px-4 py-3 rounded-xl bg-amber/10 border border-amber/20 text-amber text-sm hover:bg-amber/20 transition-colors"
-                  @click="confirmResetPassword"
-                >
-                  确认重置
-                </button>
-                <button
-                  class="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
-                  @click="closeResetConfirm"
-                >
-                  取消
-                </button>
-              </div>
-            </template>
-            <template v-else>
-              <h3 class="text-lg font-bold text-white mb-2">重置成功</h3>
-              <p class="text-sm text-slate-400 mb-2">新密码为：</p>
-              <p class="text-lg font-mono text-amber bg-amber/10 rounded-lg px-4 py-3 mb-4 select-all">{{ resetNewPassword }}</p>
-              <p class="text-xs text-slate-500 mb-6">请记录此密码，关闭后无法再次查看</p>
-              <button
-                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
-                @click="closeResetConfirm"
-              >
-                关闭
-              </button>
-            </template>
+            <button
+              class="w-8 h-8 rounded-lg bg-sakura/10 hover:bg-sakura/20 flex items-center justify-center text-sakura hover:text-white transition-colors"
+              @click="closeResetConfirm"
+            >
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="rounded-xl bg-white/[0.03] border border-white/[0.04] p-3 mb-4">
+            <p class="text-xs text-slate-400">
+              用户：<span class="text-white font-mono">{{ resettingUser.username }}</span>
+            </p>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">新密码</label>
+              <input
+                v-model="resetPasswordInput"
+                type="password"
+                placeholder="6位以上，包含字母和数字"
+                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-amber/50 focus:ring-1 focus:ring-amber/20 transition-all"
+              />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">确认密码</label>
+              <input
+                v-model="resetPasswordConfirm"
+                type="password"
+                placeholder="请再次输入新密码"
+                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-amber/50 focus:ring-1 focus:ring-amber/20 transition-all"
+              />
+            </div>
+          </div>
+
+          <div v-if="resetError" class="mt-3 px-3 py-2 rounded-lg bg-sakura/10 border border-sakura/20 text-sakura text-xs">
+            {{ resetError }}
+          </div>
+
+          <div class="flex gap-3 mt-6">
+            <button
+              class="flex-1 px-4 py-3 rounded-xl bg-amber/10 border border-amber/20 text-amber text-sm hover:bg-amber/20 transition-colors disabled:opacity-40"
+              :disabled="resetSaving"
+              @click="confirmResetPassword"
+            >
+              {{ resetSaving ? '重置中...' : '确认重置' }}
+            </button>
+            <button
+              class="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
+              @click="closeResetConfirm"
+            >
+              取消
+            </button>
           </div>
         </div>
       </div>

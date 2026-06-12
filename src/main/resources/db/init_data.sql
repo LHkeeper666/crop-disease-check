@@ -416,11 +416,13 @@ INSERT INTO work_order (title, severity, status, type, grid_label, pest_name, co
 ('草莓白粉病防治-D1区', 'MEDIUM', 'PENDING', 'disease', 'D1', '草莓白粉病', 0.93, 'inf007', 'u008', 'u002', NULL, 'cb_token_007', '2026-06-16 00:00:00', 0, 'comp001'),
 ('棉铃虫防治-B3区', 'HIGH', 'DONE', 'pest', 'B3', '棉铃虫', 0.89, 'inf009', 'u004', 'u006', '虫害较重，已执行综合防治', 'cb_token_008', '2026-06-15 00:00:00', 1, 'comp001'),
 ('辣椒疫病蔓延预警-C区', 'CRITICAL', 'ESCALATED', 'disease', 'C1', '辣椒疫病', 0.97, 'inf005', 'u007', 'u006', '疫病有蔓延趋势，建议扩大防治范围', 'cb_token_009', '2026-06-12 00:00:00', 0, 'comp001'),
-('黄瓜白粉虱监测-B1区', 'LOW', 'PENDING', 'pest', 'B1', '白粉虱', 0.52, 'inf008', NULL, 'u002', '待确认后安排处理', NULL, NULL, 0, 'comp001');
+('黄瓜白粉虱监测-B1区', 'LOW', 'PENDING', 'pest', 'B1', '白粉虱', 0.52, 'inf008', NULL, 'u002', '待确认后安排处理', NULL, NULL, 0, 'comp001'),
+('南瓜白粉病防治-C3区', 'MEDIUM', 'PENDING', 'disease', 'C3', '南瓜白粉病', 0.45, 'inf010', NULL, 'u005', NULL, NULL, NULL, 0, 'comp001'),
+('蓟马防治-C2区', 'MEDIUM', 'PENDING', 'pest', 'C2', '蓟马', 0.68, 'inf011', NULL, 'u006', NULL, NULL, NULL, 0, 'comp001');
 
 
 -- ========================================
--- 15. 工单状态历史数据 (workorder_id 对应自增ID: 1-10)
+-- 15. 工单状态历史数据 (workorder_id 对应自增ID: 1-12)
 -- ========================================
 
 INSERT INTO work_order_history (workorder_id, status, operator_id, operator_name, comment) VALUES
@@ -453,7 +455,13 @@ INSERT INTO work_order_history (workorder_id, status, operator_id, operator_name
 (8, 'DONE', 'u004', '王员工', '防治完成，已安装杀虫灯'),
 
 (9, 'PENDING', 'u006', '钱昆虫专家', '创建工单：辣椒疫病蔓延预警'),
-(9, 'ESCALATED', 'u007', '孙经理', '疫病蔓延风险高，升级为区域联防');
+(9, 'ESCALATED', 'u007', '孙经理', '疫病蔓延风险高，升级为区域联防'),
+
+(10, 'PENDING', 'u002', '李专家', '创建工单：黄瓜白粉虱监测'),
+
+(11, 'PENDING', 'u005', '赵植保专家', '创建工单：南瓜白粉病防治'),
+
+(12, 'PENDING', 'u006', '钱昆虫专家', '创建工单：蓟马防治');
 
 
 -- ========================================

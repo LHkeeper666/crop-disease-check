@@ -82,9 +82,10 @@ export async function updateUserStatus(id: string, status: string): Promise<void
 }
 
 /** 重置用户密码（ADMIN） */
-export async function resetUserPassword(id: string): Promise<{ newPassword: string }> {
-  return request<{ newPassword: string }>(`${BASE}/${id}/reset-password`, {
+export async function resetUserPassword(id: string, newPassword: string): Promise<void> {
+  return request<void>(`${BASE}/${id}/reset-password`, {
     method: 'POST',
+    body: JSON.stringify({ newPassword }),
   })
 }
 

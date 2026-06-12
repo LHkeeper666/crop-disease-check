@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
 import GlassCard from '../components/GlassCard.vue'
 import DataMetric from '../components/DataMetric.vue'
@@ -7,7 +7,7 @@ import { useWorkOrderStore } from '../stores/workorder'
 import { useDashboardSettingsStore } from '../stores/dashboardSettings'
 import { useAuthStore } from '../stores/auth'
 import { fetchCameras, type CameraVO } from '../api/camera'
-import { fetchStatisticsOverview, type GridHeatmapItem } from '../api/statistics'
+import { fetchStatisticsOverview, type GridHeatmapItem, type DailyTrend } from '../api/statistics'
 import { fetchGrids, type GridVO } from '../api/grid'
 
 const auth = useAuthStore()
@@ -16,6 +16,7 @@ const dashSettings = useDashboardSettingsStore()
 const env = dashSettings.env
 const cameras = ref<CameraVO[]>([])
 const gridHeatmap = ref<GridHeatmapItem[]>([])
+const dailyTrend = ref<DailyTrend[]>([])
 const woStore = useWorkOrderStore()
 
 // Editable metadata (persisted)
@@ -132,9 +133,11 @@ onMounted(() => {
   fetchGrids().then(list => {
     dbGrids.value = list
   }).catch(e => console.error('[Dashboard] 加载网格失败:', e.message))
-  // 加载网格热力图数据（统计评分）
+  // 加载统计数据（热力图 + 7日趋势）
   fetchStatisticsOverview().then(ov => {
     gridHeatmap.value = ov.gridHeatmap || []
+    dailyTrend.value = ov.dailyTrend || []
+    renderTrendChart()
   }).catch(e => console.error('[Dashboard] 加载统计数据失败:', e.message))
 })
 onUnmounted(() => {
@@ -218,16 +221,20 @@ onUnmounted(() => {
   stopAutoRotation()
 })
 
-// ECharts — trend chart (dynamic from store)
+// ECharts — trend chart (from statistics API, same as Reports)
 const trendChartRef = ref<HTMLDivElement>()
 let trendChart: echarts.ECharts | null = null
 
 function renderTrendChart() {
-  if (!trendChartRef.value) return
+  if (!trendChartRef.value || dailyTrend.value.length === 0) return
   if (!trendChart) {
     trendChart = echarts.init(trendChartRef.value)
   }
-  const data = woStore.trendData
+  const data = {
+    dates: dailyTrend.value.map(d => d.date.slice(5)),
+    disease: dailyTrend.value.map(d => d.diseaseCount),
+    pest: dailyTrend.value.map(d => d.pestCount),
+  }
   trendChart.setOption({
     backgroundColor: 'transparent',
     grid: { top: 20, right: 15, bottom: 25, left: 40 },
@@ -269,18 +276,6 @@ function renderTrendChart() {
     },
   })
 }
-
-onMounted(() => {
-  renderTrendChart()
-})
-
-// Watch for order changes and re-render chart
-watch(() => woStore.orders.length, () => {
-  renderTrendChart()
-})
-watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), () => {
-  renderTrendChart()
-})
 </script>
 
 <template>
