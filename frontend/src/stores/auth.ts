@@ -182,12 +182,12 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // 用户注册（调用真实后端API）
-  async function register(email: string, username: string, password: string): Promise<{ ok: boolean; message?: string }> {
+  async function register(email: string, username: string, password: string, code: string): Promise<{ ok: boolean; message?: string }> {
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, username, password }),
+        body: JSON.stringify({ email, username, password, code }),
       })
       const data = await res.json()
       if (data.code === 200) {

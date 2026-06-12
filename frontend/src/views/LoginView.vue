@@ -200,7 +200,7 @@ async function handleRegister() {
   }
   clearMessages()
   loading.value = true
-  const result = await auth.register(regEmail.value, regUsername.value, regPassword.value)
+  const result = await auth.register(regEmail.value, regUsername.value, regPassword.value, regOtp.value)
   loading.value = false
   if (result.ok) {
     successMsg.value = '注册成功，请登录'
