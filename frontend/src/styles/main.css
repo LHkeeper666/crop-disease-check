@@ -142,6 +142,28 @@ html, body, #app {
 .glow-red { animation: border-glow-red 2s infinite; }
 .glow-amber { animation: border-glow-amber 2s infinite; }
 
+/* Rotating conic-gradient border */
+@property --border-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.border-glow-animated {
+  --border-angle: 0deg;
+  border: 1px solid transparent;
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  background-image:
+    linear-gradient(var(--color-glass), var(--color-glass)),
+    conic-gradient(from var(--border-angle), #FF6A00, #4ADE80, #FFB300, #4ADE80, #FF6A00);
+  animation: border-spin 4s linear infinite;
+}
+
+@keyframes border-spin {
+  to { --border-angle: 360deg; }
+}
+
 /* Select dropdown styling */
 select {
   color-scheme: dark;

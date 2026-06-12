@@ -181,7 +181,7 @@ async function handleLogin() {
       router.push('/dashboard')
     }
   } else {
-    errorMsg.value = '用户名或密码错误'
+    errorMsg.value = result.message || '用户名或密码错误'
   }
 }
 
