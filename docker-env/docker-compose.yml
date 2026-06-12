@@ -44,7 +44,7 @@ services:
   # ----------------------------------------------------------
   redis:
     image: redis:7-alpine
-    container_name: docker start 你的redis容器名
+    container_name: agri-monitor-redis  
     restart: always
     ports:
       - "6379:6379"
