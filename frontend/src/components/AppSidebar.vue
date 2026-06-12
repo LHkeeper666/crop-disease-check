@@ -35,6 +35,10 @@ const navItems = [
     path: '/agent', label: '智慧大脑',
     icon: 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z',
   },
+  {
+    path: '/handbook', label: '图鉴展示',
+    icon: 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25',
+  },
 ]
 
 function handleLogout() {
@@ -44,14 +48,14 @@ function handleLogout() {
 </script>
 
 <template>
-  <aside class="w-64 h-full flex flex-col glass border-r border-white/5">
+  <aside class="xl:w-64 w-[68px] h-full flex flex-col glass border-r border-white/5 transition-all duration-300 shrink-0">
     <!-- Logo -->
-    <div class="px-6 py-5 border-b border-white/5">
+    <div class="px-4 xl:px-6 py-5 border-b border-white/5">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-cyber-green to-cyber-green-dark flex items-center justify-center text-base font-bold text-white">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-cyber-green to-cyber-green-dark flex items-center justify-center text-base font-bold text-white shrink-0">
           TF
         </div>
-        <div>
+        <div class="hidden xl:block">
           <div class="text-sm font-semibold text-white tracking-wide">TreeForge</div>
           <div class="text-[10px] text-slate-500 font-mono">AGRI-TELEMETRY v1.0</div>
         </div>
@@ -59,7 +63,7 @@ function handleLogout() {
     </div>
 
     <!-- Navigation -->
-    <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+    <nav class="flex-1 px-2 xl:px-3 py-4 space-y-1 overflow-y-auto">
       <button
         v-for="item in navItems"
         :key="item.path"
@@ -67,22 +71,23 @@ function handleLogout() {
         :class="route.path === item.path
           ? 'bg-white/10 text-white border border-white/10'
           : 'text-slate-400 hover:text-white hover:bg-white/5'"
+        :title="item.label"
         @click="router.push(item.path)"
       >
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" :d="item.icon" />
         </svg>
-        <span>{{ item.label }}</span>
+        <span class="hidden xl:inline">{{ item.label }}</span>
       </button>
     </nav>
 
     <!-- User card -->
-    <div class="px-4 py-4 border-t border-white/5">
+    <div class="px-3 xl:px-4 py-4 border-t border-white/5">
       <div class="flex items-center gap-3 mb-3">
-        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-sunset-from to-sunset-to flex items-center justify-center text-xs font-bold text-white">
+        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-sunset-from to-sunset-to flex items-center justify-center text-xs font-bold text-white shrink-0">
           {{ auth.userName.charAt(0) }}
         </div>
-        <div class="flex-1 min-w-0">
+        <div class="hidden xl:block flex-1 min-w-0">
           <div class="text-sm text-white truncate">{{ auth.userName }}</div>
           <div class="text-[10px] text-slate-500 font-mono">{{ auth.userRole }}</div>
         </div>
@@ -91,7 +96,10 @@ function handleLogout() {
         class="w-full text-xs text-slate-500 hover:text-sakura transition-colors py-1.5 rounded-lg hover:bg-sakura/5"
         @click="handleLogout"
       >
-        退出登录
+        <span class="hidden xl:inline">退出登录</span>
+        <svg class="w-4 h-4 mx-auto xl:hidden" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+        </svg>
       </button>
     </div>
   </aside>

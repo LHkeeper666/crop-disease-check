@@ -142,9 +142,9 @@ onUnmounted(() => stopTimer())
     </header>
 
     <!-- ============ Center content ============ -->
-    <div class="absolute inset-0 z-20 flex items-center">
+    <div class="absolute inset-0 z-20 flex items-center justify-center lg:justify-start">
       <!-- Left side: big title + slide info -->
-      <div class="flex-1 pl-10 pr-6 max-w-2xl">
+      <div class="flex-1 pl-6 lg:pl-10 pr-4 lg:pr-6 max-w-2xl hidden lg:block">
         <!-- Tag -->
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FF6A00]/10 border border-[#FF6A00]/20 mb-6">
           <span class="w-1.5 h-1.5 rounded-full bg-[#FF6A00] animate-pulse" />
@@ -241,7 +241,7 @@ onUnmounted(() => stopTimer())
       </div>
 
       <!-- ============ Right: Login card ============ -->
-      <div class="mr-10 w-[520px] shrink-0">
+      <div class="mr-6 lg:mr-10 w-full max-w-[520px] shrink-0">
         <div class="rounded-2xl bg-[#111827]/70 backdrop-blur-2xl border border-white/[0.06] shadow-2xl overflow-hidden">
           <!-- Card header -->
           <div class="px-8 pt-6 pb-0">

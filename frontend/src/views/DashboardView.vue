@@ -4,21 +4,34 @@ import * as echarts from 'echarts'
 import GlassCard from '../components/GlassCard.vue'
 import DataMetric from '../components/DataMetric.vue'
 import { useWorkOrderStore } from '../stores/workorder'
-import { mockEnvironmentData, mockGrowthMetrics, mockCameras, mockGridHeatmap } from '../mock/data'
+import { mockCameras, mockGridHeatmap } from '../mock/data'
+import { useDashboardSettingsStore } from '../stores/dashboardSettings'
+import { useAuthStore } from '../stores/auth'
 
-const env = mockEnvironmentData
+const auth = useAuthStore()
+const isAdmin = computed(() => auth.userRole === 'ADMIN')
+const dashSettings = useDashboardSettingsStore()
+const env = dashSettings.env
 const cameras = mockCameras
 const woStore = useWorkOrderStore()
 
-// Editable metadata
-const meta = reactive({
-  sectorId: 'GH-A1',
-  cropSpecies: 'Solanum lycopersicum',
-  plantingDate: '2026-03-15',
-  location: '34.2614N, 108.9423E',
-  area: '2400 m²',
-})
-const editingMeta = ref(false)
+// Editable metadata (persisted)
+const meta = dashSettings.meta
+// Double-click editing for metadata
+const editingField = ref<string | null>(null)
+function startEditMeta(field: string) {
+  editingField.value = field
+}
+function stopEditMeta() {
+  editingField.value = null
+}
+
+function updateGrowthValue(idx: number, text: string) {
+  const num = parseFloat(text)
+  if (!isNaN(num)) {
+    dashSettings.growth[idx].value = num
+  }
+}
 
 // 9个网格基础数据
 const gridLabels = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3']
@@ -255,20 +268,20 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
       </div>
     </div>
 
-    <!-- 3-column layout -->
-    <div class="flex-1 flex gap-4 min-h-0 overflow-hidden">
+    <!-- 3-column layout: fixed ratio 19% | 50% | 31% -->
+    <div class="flex-1 min-h-0 overflow-hidden" style="display: grid; grid-template-columns: 19fr 50fr 31fr; gap: 1rem;">
       <!-- LEFT PANEL -->
-      <div class="w-72 flex flex-col gap-4 shrink-0 overflow-y-auto">
+      <div class="flex flex-col gap-3 min-w-0 overflow-y-auto">
         <!-- Environmental Grid 2x2 -->
-        <div class="grid grid-cols-2 gap-3">
-          <DataMetric label="空气温度" :value="env.airTemp.value" unit="°C" :status="env.airTemp.status" />
-          <DataMetric label="土壤湿度" :value="env.soilMoisture.value" unit="%" :status="env.soilMoisture.status" />
-          <DataMetric label="空气湿度" :value="env.humidity.value" unit="%" :status="env.humidity.status" />
-          <DataMetric label="光照强度" :value="env.lightLevel.value" unit="lux" :status="env.lightLevel.status" />
+        <div class="grid grid-cols-2 gap-2 border-glow-animated rounded-xl p-2">
+          <DataMetric label="空气温度" :value="env.airTemp.value" unit="°C" :status="env.airTemp.status" :editable="isAdmin" @update:value="env.airTemp.value = $event" />
+          <DataMetric label="土壤湿度" :value="env.soilMoisture.value" unit="%" :status="env.soilMoisture.status" :editable="isAdmin" @update:value="env.soilMoisture.value = $event" />
+          <DataMetric label="空气湿度" :value="env.humidity.value" unit="%" :status="env.humidity.status" :editable="isAdmin" @update:value="env.humidity.value = $event" />
+          <DataMetric label="光照强度" :value="env.lightLevel.value" unit="lux" :status="env.lightLevel.status" :editable="isAdmin" @update:value="env.lightLevel.value = $event" />
         </div>
 
         <!-- Confidence Threshold -->
-        <GlassCard>
+        <GlassCard class="shrink-0">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs text-slate-400 tracking-wider">检测阈值</span>
             <span class="text-sm font-mono font-bold" :class="confidenceThreshold >= 0.7 ? 'text-cyber-green' : confidenceThreshold >= 0.4 ? 'text-amber' : 'text-sakura'">
@@ -324,7 +337,7 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
       </div>
 
       <!-- CENTER PANEL -->
-      <div class="flex-1 flex flex-col gap-4 min-w-0 overflow-hidden">
+      <div class="flex flex-col gap-3 min-w-0 overflow-hidden">
         <!-- 2.5D Heatmap -->
         <GlassCard class="flex-1 min-h-0 flex flex-col">
           <div class="flex items-center justify-between mb-4">
@@ -384,81 +397,62 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
           </div>
         </GlassCard>
 
-        <!-- Metadata Matrix (editable) -->
-        <div class="grid grid-cols-5 gap-3 shrink-0">
-          <div class="glass rounded-lg px-3 py-2 text-center relative group">
+        <!-- Metadata Matrix — admin double-click to edit, auto-persists -->
+        <div class="grid grid-cols-5 gap-2 shrink-0">
+          <!-- 区域 -->
+          <div class="glass rounded-lg px-3 py-2 text-center" :class="isAdmin ? 'cursor-pointer hover:border-white/20 transition-colors' : ''" @dblclick="isAdmin && startEditMeta('sectorId')">
             <div class="text-[10px] text-slate-500 mb-0.5">区域</div>
-            <template v-if="!editingMeta">
-              <div class="text-xs font-mono text-white">{{ meta.sectorId }}</div>
-            </template>
-            <template v-else>
-              <input v-model="meta.sectorId" class="w-full text-xs font-mono text-white bg-transparent border-b border-cyber-green/50 text-center outline-none" />
-            </template>
+            <input v-if="editingField === 'sectorId'" v-model="meta.sectorId" class="w-full text-xs font-mono text-white bg-transparent border-b border-cyber-green/50 text-center outline-none" @blur="stopEditMeta()" @keyup.enter="stopEditMeta()" autofocus />
+            <div v-else class="text-xs font-mono text-white truncate">{{ meta.sectorId }}</div>
           </div>
-          <div class="glass rounded-lg px-3 py-2 text-center">
+          <!-- 作物 -->
+          <div class="glass rounded-lg px-3 py-2 text-center" :class="isAdmin ? 'cursor-pointer hover:border-white/20 transition-colors' : ''" @dblclick="isAdmin && startEditMeta('cropSpecies')">
             <div class="text-[10px] text-slate-500 mb-0.5">作物</div>
-            <template v-if="!editingMeta">
-              <div class="text-xs font-mono text-white truncate">{{ meta.cropSpecies.split(' ')[0] }}</div>
-            </template>
-            <template v-else>
-              <input v-model="meta.cropSpecies" class="w-full text-xs font-mono text-white bg-transparent border-b border-cyber-green/50 text-center outline-none" />
-            </template>
+            <input v-if="editingField === 'cropSpecies'" v-model="meta.cropSpecies" class="w-full text-xs font-mono text-white bg-transparent border-b border-cyber-green/50 text-center outline-none" @blur="stopEditMeta()" @keyup.enter="stopEditMeta()" autofocus />
+            <div v-else class="text-xs font-mono text-white truncate">{{ meta.cropSpecies.split(' ')[0] }}</div>
           </div>
-          <div class="glass rounded-lg px-3 py-2 text-center">
+          <!-- 定植日期 -->
+          <div class="glass rounded-lg px-3 py-2 text-center" :class="isAdmin ? 'cursor-pointer hover:border-white/20 transition-colors' : ''" @dblclick="isAdmin && startEditMeta('plantingDate')">
             <div class="text-[10px] text-slate-500 mb-0.5">定植日期</div>
-            <template v-if="!editingMeta">
-              <div class="text-xs font-mono text-white">{{ meta.plantingDate }}</div>
-            </template>
-            <template v-else>
-              <input v-model="meta.plantingDate" type="date" class="w-full text-xs font-mono text-white bg-transparent border-b border-cyber-green/50 text-center outline-none" />
-            </template>
+            <input v-if="editingField === 'plantingDate'" v-model="meta.plantingDate" type="date" class="w-full text-xs font-mono text-white bg-transparent border-b border-cyber-green/50 text-center outline-none" @blur="stopEditMeta()" @keyup.enter="stopEditMeta()" autofocus />
+            <div v-else class="text-xs font-mono text-white">{{ meta.plantingDate }}</div>
           </div>
-          <div class="glass rounded-lg px-3 py-2 text-center">
+          <!-- 位置 -->
+          <div class="glass rounded-lg px-3 py-2 text-center" :class="isAdmin ? 'cursor-pointer hover:border-white/20 transition-colors' : ''" @dblclick="isAdmin && startEditMeta('location')">
             <div class="text-[10px] text-slate-500 mb-0.5">位置</div>
-            <template v-if="!editingMeta">
-              <div class="text-[10px] font-mono text-white leading-tight">{{ meta.location }}</div>
-            </template>
-            <template v-else>
-              <input v-model="meta.location" class="w-full text-xs font-mono text-white bg-transparent border-b border-cyber-green/50 text-center outline-none" />
-            </template>
+            <input v-if="editingField === 'location'" v-model="meta.location" class="w-full text-xs font-mono text-white bg-transparent border-b border-cyber-green/50 text-center outline-none" @blur="stopEditMeta()" @keyup.enter="stopEditMeta()" autofocus />
+            <div v-else class="text-[10px] font-mono text-white leading-tight">{{ meta.location }}</div>
           </div>
-          <div class="glass rounded-lg px-3 py-2 text-center">
+          <!-- 面积 -->
+          <div class="glass rounded-lg px-3 py-2 text-center" :class="isAdmin ? 'cursor-pointer hover:border-white/20 transition-colors' : ''" @dblclick="isAdmin && startEditMeta('area')">
             <div class="text-[10px] text-slate-500 mb-0.5">面积</div>
-            <template v-if="!editingMeta">
-              <div class="text-xs font-mono text-white">{{ meta.area }}</div>
-            </template>
-            <template v-else>
-              <input v-model="meta.area" class="w-full text-xs font-mono text-white bg-transparent border-b border-cyber-green/50 text-center outline-none" />
-            </template>
+            <input v-if="editingField === 'area'" v-model="meta.area" class="w-full text-xs font-mono text-white bg-transparent border-b border-cyber-green/50 text-center outline-none" @blur="stopEditMeta()" @keyup.enter="stopEditMeta()" autofocus />
+            <div v-else class="text-xs font-mono text-white">{{ meta.area }}</div>
           </div>
-        </div>
-        <!-- Edit button -->
-        <div class="flex justify-end shrink-0">
-          <button
-            class="px-3 py-1 rounded-lg text-[10px] font-mono transition-colors"
-            :class="editingMeta ? 'bg-cyber-green/10 text-cyber-green border border-cyber-green/20' : 'bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10'"
-            @click="editingMeta = !editingMeta"
-          >
-            {{ editingMeta ? '保存' : '编辑信息' }}
-          </button>
         </div>
       </div>
 
       <!-- RIGHT PANEL -->
-      <div class="w-[34rem] flex flex-col gap-4 shrink-0 overflow-y-auto">
-        <!-- Growth Metrics -->
-        <GlassCard>
+      <div class="flex flex-col gap-3 min-w-0 overflow-y-auto">
+        <!-- Growth Metrics — double-click value to edit -->
+        <GlassCard class="border-glow-animated">
           <div class="text-xs text-slate-400 tracking-wider mb-3">生长指标</div>
           <div class="space-y-2.5">
-            <div v-for="m in mockGrowthMetrics" :key="m.label" class="flex items-center gap-3">
-              <span class="text-[10px] text-slate-500 w-14 shrink-0">{{ m.label }}</span>
+            <div v-for="(m, idx) in dashSettings.growth" :key="m.label" class="flex items-center gap-3">
+              <span class="text-[10px] text-white w-14 shrink-0">{{ m.label }}</span>
               <div class="flex-1 h-2 rounded-full bg-white/5 overflow-hidden">
                 <div
                   class="h-full rounded-full transition-all duration-1000"
-                  :style="{ width: `${Math.min((m.value / (m.label.includes('CO') ? 600 : m.label.includes('pH') ? 14 : m.label === 'EC' ? 3 : m.label.includes('温度') ? 40 : 300)) * 100, 100)}%`, backgroundColor: m.color }"
+                  :style="{ width: `${Math.min((m.value / m.max) * 100, 100)}%`, backgroundColor: m.color }"
                 />
               </div>
-              <span class="text-xs font-mono text-white w-20 text-right shrink-0">{{ m.value }} {{ m.unit }}</span>
+              <span
+                class="text-xs font-mono text-white w-20 text-right shrink-0"
+                :class="isAdmin ? 'cursor-pointer hover:text-cyber-green transition-colors' : ''"
+                @dblclick="isAdmin && (($event.target as HTMLElement).contentEditable = 'true', ($event.target as HTMLElement).focus())"
+                @blur="($event.target as HTMLElement).contentEditable = 'false'; updateGrowthValue(idx, ($event.target as HTMLElement).textContent ?? '')"
+                @keyup.enter="($event.target as HTMLElement).blur()"
+              >{{ m.value }} {{ m.unit }}</span>
             </div>
           </div>
         </GlassCard>
@@ -475,7 +469,7 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
             <span class="text-xs text-slate-400 tracking-wider">实时监控</span>
             <span class="text-[10px] font-mono text-cyber-green">{{ cameras.filter(c => c.status === 'ONLINE').length }}/{{ cameras.length }} 在线</span>
           </div>
-          <div class="grid grid-cols-3 gap-2 flex-1 min-h-0">
+          <div class="grid grid-cols-2 xl:grid-cols-3 gap-2 flex-1 min-h-0">
             <div
               v-for="camera in cameras"
               :key="camera.id"

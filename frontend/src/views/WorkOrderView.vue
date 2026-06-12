@@ -181,7 +181,7 @@ function sendEmailToExpert() {
     </div>
 
     <!-- Stats -->
-    <div class="grid grid-cols-4 gap-3 shrink-0">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
       <div class="glass rounded-xl px-4 py-3 flex items-center gap-3">
         <div class="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-lg font-mono font-bold text-white">{{ stats.total }}</div>
         <div>
@@ -326,7 +326,7 @@ function sendEmailToExpert() {
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
         @click.self="closeCreateModal"
       >
-        <div class="glass rounded-2xl p-6 w-[480px] shadow-2xl border border-white/10">
+        <div class="glass rounded-2xl p-6 w-full max-w-[480px] mx-4 shadow-2xl border border-white/10">
           <div class="flex items-center justify-between mb-6">
             <div>
               <h2 class="text-lg font-bold text-white">手动创建工单</h2>
@@ -451,7 +451,7 @@ function sendEmailToExpert() {
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
         @click.self="closeDetail"
       >
-        <div class="glass rounded-2xl p-6 w-[520px] shadow-2xl border border-white/10">
+        <div class="glass rounded-2xl p-6 w-full max-w-[520px] mx-4 shadow-2xl border border-white/10">
           <div class="flex items-center justify-between mb-6">
             <div class="flex items-center gap-3">
               <div class="w-12 h-12 rounded-xl flex items-center justify-center font-mono font-bold text-white text-lg" :class="severityConfig[selectedOrder.severity]?.color">
@@ -622,7 +622,7 @@ function sendEmailToExpert() {
         class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
         @click.self="closeDeleteConfirm"
       >
-        <div class="glass rounded-2xl p-6 w-[400px] shadow-2xl border border-sakura/20">
+        <div class="glass rounded-2xl p-6 w-full max-w-[400px] mx-4 shadow-2xl border border-sakura/20">
           <div class="text-center">
             <div class="w-16 h-16 rounded-full bg-sakura/10 flex items-center justify-center mx-auto mb-4">
               <svg class="w-8 h-8 text-sakura" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
