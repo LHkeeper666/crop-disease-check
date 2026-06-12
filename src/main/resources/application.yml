@@ -19,6 +19,7 @@ spring:
     redis:
       host: localhost
       port: 6379
+      password: agri_redis_2026
       database: 0
       password: agri_redis_2026
 

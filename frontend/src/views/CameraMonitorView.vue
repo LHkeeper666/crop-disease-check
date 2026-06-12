@@ -22,7 +22,7 @@ async function fetchCameras() {
   fetchError.value = ''
   try {
     const token = localStorage.getItem('treeforge_token')
-    const res = await fetch('/api/v1/camera/list', {
+    const res = await fetch('/api/camera/list', {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!res.ok) throw new Error('加载摄像头列表失败')
