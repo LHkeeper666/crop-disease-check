@@ -238,7 +238,7 @@ class WorkOrderControllerTest {
             dto.setAssignedTo("user-expert-001");
 
             when(workOrderService.createWorkOrder(any(WorkOrderCreateDTO.class), eq("u-001"), eq("系统管理员"), eq("company-001")))
-                    .thenReturn(2L);
+                    .thenReturn(1L);
 
             mockMvc.perform(post("/workorder/create")
                             .requestAttr("userId", "u-001")
@@ -246,7 +246,7 @@ class WorkOrderControllerTest {
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
-                    .andExpect(jsonPath("$.data").value(2))
+                    .andExpect(jsonPath("$.data").value(1))
                     .andExpect(jsonPath("$.message").value("工单创建成功"));
         }
 
@@ -263,7 +263,7 @@ class WorkOrderControllerTest {
             dto.setConfidence(0.95);
 
             when(workOrderService.createManualWorkOrder(any(WorkOrderManualCreateDTO.class), eq("u-001"), eq("系统管理员"), eq("company-001")))
-                    .thenReturn(3L);
+                    .thenReturn(2L);
 
             mockMvc.perform(post("/workorder/create-manual")
                             .requestAttr("userId", "u-001")
@@ -271,7 +271,7 @@ class WorkOrderControllerTest {
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
-                    .andExpect(jsonPath("$.data").value(3))
+                    .andExpect(jsonPath("$.data").value(2))
                     .andExpect(jsonPath("$.message").value("工单创建成功"));
         }
 
