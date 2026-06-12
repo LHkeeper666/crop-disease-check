@@ -2,7 +2,6 @@
 import { ref, computed, onMounted } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
 import { useAuthStore } from '../stores/auth'
-import { fetchCameras, updateCamera, type CameraVO } from '../api/camera'
 import { fetchGrids, updateGrid, type GridVO } from '../api/grid'
 import { fetchUsers, updateUser, updateUserStatus, resetUserPassword, type UserSimpleVO } from '../api/user'
 
@@ -11,21 +10,25 @@ const isAdmin = computed(() => auth.userRole === 'ADMIN')
 
 const activeTab = ref<'cameras' | 'grids' | 'users'>('cameras')
 
-// --- 摄像头 ---
-const cameras = ref<CameraVO[]>([])
-const cameraLoading = ref(false)
-
-async function loadCameras() {
-  cameraLoading.value = true
-  try {
-    const page = await fetchCameras({ size: 100 })
-    cameras.value = page.records
-  } catch (e: any) {
-    console.error('[Device] 加载摄像头失败:', e.message)
-  } finally {
-    cameraLoading.value = false
-  }
+// ==================== Camera state ====================
+interface CameraItem {
+  id: string
+  name: string
+  rtspUrl: string
+  rtspUrlSub?: string
+  locationX?: number
+  locationY?: number
+  direction?: number
+  status: string
+  coverageGrids?: string[]
+  captureResolution?: string
+  captureQuality?: number
+  reconnectInterval?: number
 }
+
+const cameras = ref<CameraItem[]>([])
+const cameraLoading = ref(false)
+const cameraError = ref('')
 
 // --- 网格 ---
 const grids = ref<GridVO[]>([])
@@ -100,12 +103,6 @@ async function loadUsers() {
   }
 }
 
-onMounted(() => {
-  loadCameras()
-  loadGrids()
-  loadUsers()
-})
-
 const cameraSearch = ref('')
 const userSearch = ref('')
 
@@ -114,57 +111,166 @@ const filteredCameras = computed(() => {
   const keyword = cameraSearch.value.toLowerCase()
   return cameras.value.filter(cam =>
     cam.name.toLowerCase().includes(keyword) ||
+    (cam.coverageGrids?.join(',').toLowerCase().includes(keyword) ?? false) ||
     cam.rtspUrl.toLowerCase().includes(keyword)
   )
 })
 
-// Camera edit modal
+// ==================== Camera API ====================
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('treeforge_token')
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  }
+}
+
+async function fetchCameras() {
+  cameraLoading.value = true
+  cameraError.value = ''
+  try {
+    const res = await fetch('/api/camera/list?size=100', {
+      headers: getAuthHeaders(),
+    })
+    if (!res.ok) throw new Error('加载摄像头列表失败')
+    const data = await res.json()
+    if (data.code !== 200) throw new Error(data.message || '加载失败')
+    const records = data.data?.records || []
+    cameras.value = records.map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      rtspUrl: c.rtspUrl || '',
+      rtspUrlSub: c.rtspUrlSub || '',
+      locationX: c.locationX,
+      locationY: c.locationY,
+      direction: c.direction,
+      status: c.status || 'OFFLINE',
+      coverageGrids: c.coverageGrids || [],
+      captureResolution: c.captureResolution || '640x640',
+      captureQuality: c.captureQuality ?? 85,
+      reconnectInterval: c.reconnectInterval ?? 30,
+    }))
+  } catch (e: any) {
+    cameraError.value = e.message || '加载摄像头失败'
+  } finally {
+    cameraLoading.value = false
+  }
+}
+
+async function createCamera(form: typeof cameraForm.value) {
+  const res = await fetch('/api/camera', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      name: form.name.trim(),
+      rtspUrl: form.rtspUrl.trim(),
+      rtspUrlSub: form.rtspUrlSub.trim() || undefined,
+      locationX: form.locationX ? parseFloat(form.locationX) : undefined,
+      locationY: form.locationY ? parseFloat(form.locationY) : undefined,
+      direction: form.direction ? parseFloat(form.direction) : undefined,
+      coverageGrids: form.grid
+        ? form.grid.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : undefined,
+      captureResolution: form.captureResolution,
+      captureQuality: parseInt(form.captureQuality) || 85,
+      reconnectInterval: parseInt(form.reconnectInterval) || 30,
+    }),
+  })
+  const data = await res.json()
+  if (data.code !== 200) throw new Error(data.message || '新增失败')
+}
+
+async function updateCamera(id: string, form: typeof cameraForm.value) {
+  const res = await fetch(`/api/camera/${id}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      name: form.name.trim(),
+      rtspUrl: form.rtspUrl.trim(),
+      rtspUrlSub: form.rtspUrlSub.trim() || undefined,
+      locationX: form.locationX ? parseFloat(form.locationX) : undefined,
+      locationY: form.locationY ? parseFloat(form.locationY) : undefined,
+      direction: form.direction ? parseFloat(form.direction) : undefined,
+      coverageGrids: form.grid
+        ? form.grid.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : undefined,
+      captureResolution: form.captureResolution,
+      captureQuality: parseInt(form.captureQuality) || 85,
+      reconnectInterval: parseInt(form.reconnectInterval) || 30,
+    }),
+  })
+  const data = await res.json()
+  if (data.code !== 200) throw new Error(data.message || '更新失败')
+}
+
+async function deleteCamera(id: string) {
+  const res = await fetch(`/api/camera/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  })
+  const data = await res.json()
+  if (data.code !== 200) throw new Error(data.message || '删除失败')
+}
+
+// ==================== Camera modal ====================
 const showCameraModal = ref(false)
-const editingCamera = ref<CameraVO | null>(null)
+const editingCamera = ref<CameraItem | null>(null)
+const isCreateMode = ref(false)
 const cameraForm = ref({
   name: '', rtspUrl: '', rtspUrlSub: '',
   locationX: '', locationY: '', direction: '0',
-  captureResolution: '640x640',
+  grid: '', captureResolution: '640x640',
   captureQuality: '85', reconnectInterval: '30',
 })
 const cameraSaving = ref(false)
+const cameraSaveError = ref('')
 
-function openEditCamera(cam: CameraVO) {
+function openCreateCamera() {
+  isCreateMode.value = true
+  editingCamera.value = null
+  cameraForm.value = {
+    name: '', rtspUrl: '', rtspUrlSub: '',
+    locationX: '', locationY: '', direction: '0',
+    grid: '', captureResolution: '640x640',
+    captureQuality: '85', reconnectInterval: '30',
+  }
+  cameraSaveError.value = ''
+  showCameraModal.value = true
+}
+
+function openEditCamera(cam: CameraItem) {
+  isCreateMode.value = false
   editingCamera.value = cam
   cameraForm.value = {
     name: cam.name,
     rtspUrl: cam.rtspUrl,
     rtspUrlSub: cam.rtspUrlSub || '',
-    locationX: String(cam.locationX || ''),
-    locationY: String(cam.locationY || ''),
-    direction: String(cam.direction || 0),
+    locationX: String(cam.locationX ?? ''),
+    locationY: String(cam.locationY ?? ''),
+    direction: String(cam.direction ?? 0),
+    grid: cam.coverageGrids?.join(', ') || '',
     captureResolution: cam.captureResolution || '640x640',
-    captureQuality: String(cam.captureQuality || 85),
-    reconnectInterval: String(cam.reconnectInterval || 30),
+    captureQuality: String(cam.captureQuality ?? 85),
+    reconnectInterval: String(cam.reconnectInterval ?? 30),
   }
+  cameraSaveError.value = ''
   showCameraModal.value = true
 }
 
 async function saveCamera() {
-  if (!editingCamera.value || !cameraForm.value.name.trim() || !cameraForm.value.rtspUrl.trim()) return
+  if (!cameraForm.value.name.trim() || !cameraForm.value.rtspUrl.trim()) return
   cameraSaving.value = true
+  cameraSaveError.value = ''
   try {
-    await updateCamera(editingCamera.value.id, {
-      name: cameraForm.value.name,
-      rtspUrl: cameraForm.value.rtspUrl,
-      rtspUrlSub: cameraForm.value.rtspUrlSub || undefined,
-      locationX: parseFloat(cameraForm.value.locationX) || undefined,
-      locationY: parseFloat(cameraForm.value.locationY) || undefined,
-      direction: parseFloat(cameraForm.value.direction) || undefined,
-      captureResolution: cameraForm.value.captureResolution,
-      captureQuality: parseInt(cameraForm.value.captureQuality) || 85,
-      reconnectInterval: parseInt(cameraForm.value.reconnectInterval) || 30,
-    })
+    if (isCreateMode.value) {
+      await createCamera(cameraForm.value)
+    } else {
+      await updateCamera(editingCamera.value!.id, cameraForm.value)
+    }
     showCameraModal.value = false
-    editingCamera.value = null
-    await loadCameras()
+    await fetchCameras()
   } catch (e: any) {
-    alert('保存失败: ' + e.message)
+    cameraSaveError.value = e.message || '操作失败'
   } finally {
     cameraSaving.value = false
   }
@@ -175,7 +281,46 @@ function closeCameraModal() {
   editingCamera.value = null
 }
 
-// --- 用户管理 ---
+// Delete confirm
+const showDeleteConfirm = ref(false)
+const deletingCamera = ref<CameraItem | null>(null)
+const deleteLoading = ref(false)
+const deleteError = ref('')
+
+function openDeleteConfirm(cam: CameraItem) {
+  deletingCamera.value = cam
+  deleteError.value = ''
+  showDeleteConfirm.value = true
+}
+
+async function confirmDelete() {
+  if (!deletingCamera.value) return
+  deleteLoading.value = true
+  deleteError.value = ''
+  try {
+    await deleteCamera(deletingCamera.value.id)
+    showDeleteConfirm.value = false
+    deletingCamera.value = null
+    await fetchCameras()
+  } catch (e: any) {
+    deleteError.value = e.message || '删除失败'
+  } finally {
+    deleteLoading.value = false
+  }
+}
+
+function closeDeleteConfirm() {
+  showDeleteConfirm.value = false
+  deletingCamera.value = null
+}
+
+onMounted(() => {
+  fetchCameras()
+  loadGrids()
+  loadUsers()
+})
+
+// ==================== User management ====================
 const filteredUsers = computed(() => {
   if (!userSearch.value) return users.value
   const keyword = userSearch.value.toLowerCase()
@@ -218,6 +363,7 @@ async function saveEdit() {
       name: editForm.value.name,
       role: editForm.value.role,
       phone: editForm.value.phone || undefined,
+      email: editForm.value.email || undefined,
     })
     showEditModal.value = false
     editingUser.value = null
@@ -237,56 +383,29 @@ function closeEdit() {
 // Reset password
 const showResetConfirm = ref(false)
 const resettingUser = ref<UserSimpleVO | null>(null)
-const resetPasswordInput = ref('')
-const resetPasswordConfirm = ref('')
-const resetSaving = ref(false)
-const resetError = ref('')
-
-function openResetConfirm(user: UserSimpleVO) {
-  resettingUser.value = user
-  resetPasswordInput.value = ''
-  resetPasswordConfirm.value = ''
-  resetError.value = ''
-  showResetConfirm.value = true
-}
+const resetNewPassword = ref('')
 
 async function confirmResetPassword() {
-  resetError.value = ''
-  if (!resetPasswordInput.value) {
-    resetError.value = '请输入新密码'
-    return
-  }
-  if (resetPasswordInput.value.length < 6) {
-    resetError.value = '密码长度不少于6位'
-    return
-  }
-  if (!/(?=.*[a-zA-Z])(?=.*\d)/.test(resetPasswordInput.value)) {
-    resetError.value = '密码必须包含字母和数字'
-    return
-  }
-  if (resetPasswordInput.value !== resetPasswordConfirm.value) {
-    resetError.value = '两次输入的密码不一致'
-    return
-  }
   if (!resettingUser.value) return
-  resetSaving.value = true
   try {
-    await resetUserPassword(resettingUser.value.id, resetPasswordInput.value)
-    closeResetConfirm()
-    alert('密码重置成功')
+    const result = await resetUserPassword(resettingUser.value.id)
+    resetNewPassword.value = result.newPassword
   } catch (e: any) {
-    resetError.value = '重置失败: ' + e.message
-  } finally {
-    resetSaving.value = false
+    alert('重置失败: ' + e.message)
+    closeResetConfirm()
   }
 }
 
 function closeResetConfirm() {
   showResetConfirm.value = false
   resettingUser.value = null
-  resetPasswordInput.value = ''
-  resetPasswordConfirm.value = ''
-  resetError.value = ''
+  resetNewPassword.value = ''
+}
+
+function openResetConfirm(user: UserSimpleVO) {
+  resettingUser.value = user
+  resetNewPassword.value = ''
+  showResetConfirm.value = true
 }
 
 // Toggle disable/enable
@@ -336,55 +455,76 @@ async function toggleUserStatus(user: UserSimpleVO) {
     <GlassCard class="flex-1 min-h-0 overflow-hidden flex flex-col">
       <!-- Cameras -->
       <div v-if="activeTab === 'cameras'" class="flex-1 overflow-y-auto">
-      <div class="flex justify-between items-center mb-4">
-        <span class="text-xs text-slate-400 font-mono">{{ filteredCameras.length }} 台设备</span>
-        <div class="flex gap-3">
-          <input
-            v-model="cameraSearch"
-            type="text"
-            placeholder="搜索摄像头名称"
-            class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50"
-          />
+        <!-- Error -->
+        <div v-if="cameraError" class="mb-4 px-3 py-2 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/20 text-[#EF4444] text-xs">
+          {{ cameraError }}
+          <button class="ml-2 underline" @click="fetchCameras">重试</button>
         </div>
-      </div>
-        <div v-if="cameraLoading" class="py-8 text-center text-slate-500 text-sm">加载中...</div>
-        <table v-else class="w-full text-sm">
-          <thead>
-            <tr class="text-left text-xs text-slate-500 uppercase tracking-wider border-b border-white/5">
-              <th class="pb-3 pr-4">名称</th>
-              <th class="pb-3 pr-4">状态</th>
-              <th class="pb-3 pr-4">分辨率</th>
-              <th class="pb-3 pr-4">RTSP 地址</th>
-              <th class="pb-3">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="cam in filteredCameras" :key="cam.id" class="border-b border-white/5 hover:bg-white/5 transition-colors">
-              <td class="py-3 pr-4 text-white font-medium">{{ cam.name }}</td>
-              <td class="py-3 pr-4">
-                <span class="px-2 py-0.5 rounded-md text-[10px] font-mono border" :class="statusColors[cam.status]">
-                  {{ cam.status }}
-                </span>
-              </td>
-              <td class="py-3 pr-4 text-slate-400 font-mono text-xs">{{ cam.captureResolution }}</td>
-              <td class="py-3 pr-4 text-slate-500 font-mono text-xs truncate max-w-48">{{ cam.rtspUrl }}</td>
-              <td class="py-3">
-                <button class="text-xs text-cyber-green hover:underline" @click.stop="openEditCamera(cam)">编辑</button>
-              </td>
-            </tr>
-            <tr v-if="filteredCameras.length === 0">
-              <td colspan="5" class="py-8 text-center text-slate-500 text-sm">
-                没有找到匹配的摄像头
-              </td>
-            </tr>
-          </tbody>
-        </table>
+
+        <!-- Loading -->
+        <div v-if="cameraLoading" class="flex items-center justify-center py-16">
+          <div class="text-slate-500 text-sm">加载中...</div>
+        </div>
+
+        <template v-else>
+          <div class="flex justify-between items-center mb-4">
+            <span class="text-xs text-slate-400 font-mono">{{ filteredCameras.length }} 台设备</span>
+            <div class="flex gap-3">
+              <input
+                v-model="cameraSearch"
+                type="text"
+                placeholder="搜索摄像头名称或网格"
+                class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50"
+              />
+              <button
+                class="px-3 py-1.5 rounded-lg text-xs font-mono bg-[#FF6A00]/10 border border-[#FF6A00]/20 text-[#FF6A00] hover:bg-[#FF6A00]/20 transition-colors"
+                @click="openCreateCamera"
+              >
+                + 新增摄像头
+              </button>
+            </div>
+          </div>
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left text-xs text-slate-500 uppercase tracking-wider border-b border-white/5">
+                <th class="pb-3 pr-4">名称</th>
+                <th class="pb-3 pr-4">状态</th>
+                <th class="pb-3 pr-4">覆盖网格</th>
+                <th class="pb-3 pr-4">RTSP 地址</th>
+                <th class="pb-3">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="cam in filteredCameras" :key="cam.id" class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                <td class="py-3 pr-4 text-white font-medium">{{ cam.name }}</td>
+                <td class="py-3 pr-4">
+                  <span class="px-2 py-0.5 rounded-md text-[10px] font-mono border" :class="statusColors[cam.status]">
+                    {{ cam.status }}
+                  </span>
+                </td>
+                <td class="py-3 pr-4 text-slate-400 font-mono text-xs">{{ cam.coverageGrids?.join(', ') || '-' }}</td>
+                <td class="py-3 pr-4 text-slate-500 font-mono text-xs truncate max-w-48">{{ cam.rtspUrl }}</td>
+                <td class="py-3">
+                  <div class="flex gap-2">
+                    <button class="text-xs text-cyber-green hover:underline" @click.stop="openEditCamera(cam)">编辑</button>
+                    <button class="text-xs text-sakura hover:underline" @click.stop="openDeleteConfirm(cam)">删除</button>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="filteredCameras.length === 0">
+                <td colspan="5" class="py-8 text-center text-slate-500 text-sm">
+                  {{ cameraSearch ? '没有找到匹配的摄像头' : '暂无摄像头设备，请点击上方按钮新增' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
       </div>
 
       <!-- Grids -->
       <div v-if="activeTab === 'grids'" class="flex-1 overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
-          <span class="text-xs text-slate-400 font-mono">{{ grids.length }} 个网格</span>
+          <span class="text-xs text-slate-400 font-mono">网格区域管理</span>
         </div>
         <div v-if="gridLoading" class="py-8 text-center text-slate-500 text-sm">加载中...</div>
         <div v-else class="grid grid-cols-2 lg:grid-cols-3 gap-4">
@@ -415,6 +555,9 @@ async function toggleUserStatus(user: UserSimpleVO) {
               </div>
             </div>
           </div>
+        </div>
+        <div class="text-sm text-slate-500 text-center py-16">
+          网格区域功能开发中...
         </div>
       </div>
 
@@ -543,10 +686,13 @@ async function toggleUserStatus(user: UserSimpleVO) {
             </div>
             <div>
               <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">邮箱</label>
-              <div class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-slate-500 text-sm font-mono">
-                {{ editForm.email || '未设置' }}
-              </div>
-              <div class="text-[10px] text-slate-600 mt-1">邮箱不可修改（与账号绑定）</div>
+              <input
+                v-model="editForm.email"
+                type="email"
+                placeholder="请输入邮箱地址"
+                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+              />
+              <div v-if="editForm.role === 'EXPERT'" class="text-[10px] text-amber mt-1">专家邮箱必须真实，用于接收系统邮件通知</div>
             </div>
           </div>
 
@@ -569,74 +715,51 @@ async function toggleUserStatus(user: UserSimpleVO) {
       </div>
     </Teleport>
 
-    <!-- Reset Password Modal -->
+    <!-- Reset Password Confirm Modal -->
     <Teleport to="body">
       <div
         v-if="showResetConfirm && resettingUser"
         class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
         @click.self="closeResetConfirm"
       >
-        <div class="glass rounded-2xl p-6 w-full max-w-[420px] mx-4 shadow-2xl border border-amber/20">
-          <div class="flex items-center justify-between mb-6">
-            <div>
-              <h2 class="text-lg font-bold text-white">重置密码</h2>
-              <p class="text-xs text-slate-500 font-mono">RESET PASSWORD</p>
-            </div>
-            <button
-              class="w-8 h-8 rounded-lg bg-sakura/10 hover:bg-sakura/20 flex items-center justify-center text-sakura hover:text-white transition-colors"
-              @click="closeResetConfirm"
-            >
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <path d="M18 6L6 18M6 6l12 12" />
+        <div class="glass rounded-2xl p-6 w-full max-w-[400px] mx-4 shadow-2xl border border-amber/20">
+          <div class="text-center">
+            <div class="w-16 h-16 rounded-full bg-amber/10 flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-amber" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
               </svg>
-            </button>
-          </div>
-
-          <div class="rounded-xl bg-white/[0.03] border border-white/[0.04] p-3 mb-4">
-            <p class="text-xs text-slate-400">
-              用户：<span class="text-white font-mono">{{ resettingUser.username }}</span>
-            </p>
-          </div>
-
-          <div class="space-y-4">
-            <div>
-              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">新密码</label>
-              <input
-                v-model="resetPasswordInput"
-                type="password"
-                placeholder="6位以上，包含字母和数字"
-                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-amber/50 focus:ring-1 focus:ring-amber/20 transition-all"
-              />
             </div>
-            <div>
-              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">确认密码</label>
-              <input
-                v-model="resetPasswordConfirm"
-                type="password"
-                placeholder="请再次输入新密码"
-                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-amber/50 focus:ring-1 focus:ring-amber/20 transition-all"
-              />
-            </div>
-          </div>
-
-          <div v-if="resetError" class="mt-3 px-3 py-2 rounded-lg bg-sakura/10 border border-sakura/20 text-sakura text-xs">
-            {{ resetError }}
-          </div>
-
-          <div class="flex gap-3 mt-6">
-            <button
-              class="flex-1 px-4 py-3 rounded-xl bg-amber/10 border border-amber/20 text-amber text-sm hover:bg-amber/20 transition-colors disabled:opacity-40"
-              :disabled="resetSaving"
-              @click="confirmResetPassword"
-            >
-              {{ resetSaving ? '重置中...' : '确认重置' }}
-            </button>
-            <button
-              class="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
-              @click="closeResetConfirm"
-            >
-              取消
-            </button>
+            <template v-if="!resetNewPassword">
+              <h3 class="text-lg font-bold text-white mb-2">确认重置密码</h3>
+              <p class="text-sm text-slate-400 mb-2">您即将重置以下用户的密码：</p>
+              <p class="text-sm font-mono text-white bg-white/5 rounded-lg px-3 py-2 mb-6">{{ resettingUser.username }}</p>
+              <div class="flex gap-3">
+                <button
+                  class="flex-1 px-4 py-3 rounded-xl bg-amber/10 border border-amber/20 text-amber text-sm hover:bg-amber/20 transition-colors"
+                  @click="confirmResetPassword"
+                >
+                  确认重置
+                </button>
+                <button
+                  class="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
+                  @click="closeResetConfirm"
+                >
+                  取消
+                </button>
+              </div>
+            </template>
+            <template v-else>
+              <h3 class="text-lg font-bold text-white mb-2">重置成功</h3>
+              <p class="text-sm text-slate-400 mb-2">新密码为：</p>
+              <p class="text-lg font-mono text-amber bg-amber/10 rounded-lg px-4 py-3 mb-4 select-all">{{ resetNewPassword }}</p>
+              <p class="text-xs text-slate-500 mb-6">请记录此密码，关闭后无法再次查看</p>
+              <button
+                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
+                @click="closeResetConfirm"
+              >
+                关闭
+              </button>
+            </template>
           </div>
         </div>
       </div>
@@ -718,7 +841,7 @@ async function toggleUserStatus(user: UserSimpleVO) {
       </div>
     </Teleport>
 
-    <!-- Camera Edit Modal -->
+    <!-- Camera Create/Edit Modal -->
     <Teleport to="body">
       <div
         v-if="showCameraModal"
@@ -728,8 +851,8 @@ async function toggleUserStatus(user: UserSimpleVO) {
         <div class="glass rounded-2xl p-6 w-full max-w-[560px] mx-4 shadow-2xl border border-white/10 max-h-[85vh] overflow-y-auto">
           <div class="flex items-center justify-between mb-6">
             <div>
-              <h2 class="text-lg font-bold text-white">编辑摄像头</h2>
-              <p class="text-xs text-slate-500 font-mono">EDIT CAMERA</p>
+              <h2 class="text-lg font-bold text-white">{{ isCreateMode ? '新增摄像头' : '编辑摄像头' }}</h2>
+              <p class="text-xs text-slate-500 font-mono">{{ isCreateMode ? 'CREATE CAMERA' : 'EDIT CAMERA' }}</p>
             </div>
             <button
               class="w-8 h-8 rounded-lg bg-sakura/10 hover:bg-sakura/20 flex items-center justify-center text-sakura hover:text-white transition-colors"
@@ -739,6 +862,11 @@ async function toggleUserStatus(user: UserSimpleVO) {
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>
+          </div>
+
+          <!-- Error -->
+          <div v-if="cameraSaveError" class="mb-4 px-3 py-2 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/20 text-[#EF4444] text-xs">
+            {{ cameraSaveError }}
           </div>
 
           <div class="space-y-4">
@@ -802,6 +930,16 @@ async function toggleUserStatus(user: UserSimpleVO) {
               </div>
             </div>
 
+            <div>
+              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">覆盖网格</label>
+              <input
+                v-model="cameraForm.grid"
+                type="text"
+                placeholder="g001,g002（逗号分隔）"
+                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+              />
+            </div>
+
             <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">抓拍分辨率</label>
@@ -843,7 +981,7 @@ async function toggleUserStatus(user: UserSimpleVO) {
               :disabled="!cameraForm.name.trim() || !cameraForm.rtspUrl.trim() || cameraSaving"
               @click="saveCamera"
             >
-              {{ cameraSaving ? '保存中...' : '保存修改' }}
+              {{ cameraSaving ? '保存中...' : (isCreateMode ? '确认新增' : '保存修改') }}
             </button>
             <button
               class="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
@@ -851,6 +989,50 @@ async function toggleUserStatus(user: UserSimpleVO) {
             >
               取消
             </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Delete Confirm Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showDeleteConfirm && deletingCamera"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        @click.self="closeDeleteConfirm"
+      >
+        <div class="glass rounded-2xl p-6 w-[400px] shadow-2xl border border-sakura/20">
+          <div class="text-center">
+            <div class="w-16 h-16 rounded-full bg-sakura/10 flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-sakura" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+              </svg>
+            </div>
+            <h3 class="text-lg font-bold text-white mb-2">确认删除摄像头</h3>
+            <p class="text-sm text-slate-400 mb-2">您即将删除以下摄像头：</p>
+            <p class="text-sm font-mono text-white bg-white/5 rounded-lg px-3 py-2 mb-2">{{ deletingCamera.name }}</p>
+            <p class="text-xs text-slate-500 mb-6">删除后将断开RTSP连接并清理关联资源，此操作不可撤销</p>
+
+            <!-- Error -->
+            <div v-if="deleteError" class="mb-4 px-3 py-2 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/20 text-[#EF4444] text-xs text-left">
+              {{ deleteError }}
+            </div>
+
+            <div class="flex gap-3">
+              <button
+                class="flex-1 px-4 py-3 rounded-xl bg-sakura/10 border border-sakura/20 text-sakura text-sm hover:bg-sakura/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                :disabled="deleteLoading"
+                @click="confirmDelete"
+              >
+                {{ deleteLoading ? '删除中...' : '确认删除' }}
+              </button>
+              <button
+                class="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
+                @click="closeDeleteConfirm"
+              >
+                取消
+              </button>
+            </div>
           </div>
         </div>
       </div>

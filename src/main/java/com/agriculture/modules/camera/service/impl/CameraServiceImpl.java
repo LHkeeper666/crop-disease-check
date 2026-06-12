@@ -14,6 +14,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -60,7 +61,23 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
         }
         wrapper.orderByDesc(Camera::getCreatedAt);
 
-        return page(new Page<>(page, size), wrapper);
+        Page<Camera> result = page(new Page<>(page, size), wrapper);
+
+        // 填充覆盖网格关联
+        List<String> cameraIds = result.getRecords().stream()
+                .map(Camera::getId).collect(Collectors.toList());
+        if (!cameraIds.isEmpty()) {
+            LambdaQueryWrapper<CameraGrid> gridWrapper = new LambdaQueryWrapper<>();
+            gridWrapper.in(CameraGrid::getCameraId, cameraIds);
+            Map<String, List<String>> gridMap = cameraGridMapper.selectList(gridWrapper)
+                    .stream().collect(Collectors.groupingBy(
+                            CameraGrid::getCameraId,
+                            Collectors.mapping(CameraGrid::getGridId, Collectors.toList())));
+            result.getRecords().forEach(c ->
+                    c.setCoverageGrids(gridMap.getOrDefault(c.getId(), Collections.emptyList())));
+        }
+
+        return result;
     }
 
     @Override
@@ -365,5 +382,49 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
                 }
             }
         }, "rtsp-connect-" + cameraId).start();
+    }
+
+    @Override
+    public void reconnect(String cameraId) {
+        Camera camera = getById(cameraId);
+        if (camera == null) {
+            throw new BusinessException(40087, "摄像头不存在");
+        }
+        if (camera.getRtspUrl() == null || camera.getRtspUrl().isEmpty()) {
+            throw new BusinessException(40084, "摄像头RTSP地址未配置");
+        }
+        log.info("手动重连摄像头: cameraId={}", cameraId);
+        tryConnectAsync(cameraId, camera.getRtspUrl());
+    }
+
+    /**
+     * 定时重连OFFLINE摄像头（每30秒）
+     */
+    @Scheduled(fixedDelay = 30000, initialDelay = 10000)
+    public void autoReconnectOfflineCameras() {
+        LambdaQueryWrapper<Camera> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Camera::getStatus, "OFFLINE");
+        wrapper.isNotNull(Camera::getRtspUrl);
+        wrapper.ne(Camera::getRtspUrl, "");
+        java.util.List<Camera> offlineCameras = list(wrapper);
+
+        for (Camera camera : offlineCameras) {
+            try {
+                java.net.URI uri = new java.net.URI(camera.getRtspUrl());
+                String host = uri.getHost();
+                int port = uri.getPort() > 0 ? uri.getPort() : 554;
+
+                try (java.net.Socket socket = new java.net.Socket()) {
+                    socket.connect(new java.net.InetSocketAddress(host, port), 3000);
+                    camera.setStatus("ONLINE");
+                    camera.setLastOnlineAt(LocalDateTime.now());
+                    updateById(camera);
+                    recordConnectionStart(camera.getId());
+                    log.info("自动重连成功: cameraId={}, name={}", camera.getId(), camera.getName());
+                }
+            } catch (Exception ignored) {
+                // 仍然离线，不更新状态
+            }
+        }
     }
 }

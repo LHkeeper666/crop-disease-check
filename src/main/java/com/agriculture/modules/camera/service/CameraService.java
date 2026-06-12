@@ -44,4 +44,9 @@ public interface CameraService extends IService<Camera> {
      * 更新抓拍配置
      */
     void updateCaptureConfig(String id, CameraCaptureConfigRequest request);
+
+    /**
+     * 手动重连摄像头RTSP
+     */
+    void reconnect(String cameraId);
 }

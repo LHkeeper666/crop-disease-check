@@ -77,6 +77,16 @@ public class CameraController {
     // ==================== 状态与流 ====================
 
     /**
+     * 手动重连RTSP
+     */
+    @PostMapping("/{id}/reconnect")
+    @RequireRole({"ADMIN"})
+    public Result<Void> reconnect(@PathVariable String id) {
+        cameraService.reconnect(id);
+        return Result.success("正在尝试重新连接RTSP流", null);
+    }
+
+    /**
      * 5.5 获取摄像头实时状态
      */
     @GetMapping("/{id}/status")

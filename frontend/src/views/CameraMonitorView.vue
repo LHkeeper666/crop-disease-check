@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
 import CameraMonitor from '../components/CameraMonitor.vue'
 
@@ -33,7 +33,7 @@ async function fetchCameras() {
       id: c.id,
       name: c.name,
       status: c.status || 'OFFLINE',
-      streamUrl: c.status === 'ONLINE' ? `/api/v1/stream/${c.id}.m3u8` : undefined,
+      streamUrl: c.status === 'ONLINE' ? `/api/stream/${c.id}.m3u8` : undefined,
       grid: c.coverageGrids?.join(', ') || '',
     }))
     if (cameras.value.length > 0 && !selectedCamera.value) {
@@ -55,8 +55,19 @@ function handleStatusChange(cameraId: string, newStatus: string) {
   if (cam) cam.status = newStatus
 }
 
+let refreshTimer: ReturnType<typeof setInterval> | null = null
+
 onMounted(() => {
   fetchCameras()
+  // 每10秒刷新摄像头状态，自动发现重连成功的摄像头
+  refreshTimer = setInterval(fetchCameras, 10000)
+})
+
+onUnmounted(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
 })
 </script>
 

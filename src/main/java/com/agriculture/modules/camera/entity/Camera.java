@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -104,12 +105,6 @@ public class Camera implements Serializable {
     private LocalDateTime lastOnlineAt;
 
     /**
-     * 所属企业ID
-     */
-    @TableField("company_id")
-    private String companyId;
-
-    /**
      * 创建时间
      */
     @TableField("created_at")
@@ -126,4 +121,10 @@ public class Camera implements Serializable {
      */
     @TableField("deleted")
     private Byte deleted;
+
+    /**
+     * 覆盖网格ID列表（非数据库字段）
+     */
+    @TableField(exist = false)
+    private List<String> coverageGrids;
 }

@@ -123,3 +123,9 @@ capture:
   save-path: ./captures
   timeout-ms: 10000
   transport: tcp
+
+# HLS视频流配置
+hls:
+  output-path: ./hls
+  segment-time: 4
+  list-size: 5

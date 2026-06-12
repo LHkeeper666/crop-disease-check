@@ -135,9 +135,40 @@ function clearCanvas() {
   pestCount.value = 0
 }
 
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('treeforge_token')
+  return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+}
+
+async function startBackendMonitor() {
+  try {
+    await fetch(`/api/camera/${props.cameraId}/monitor`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ enabled: true, intervalSeconds: 5, confidence: 0.5 }),
+    })
+  } catch (e) {
+    console.warn('启动后端监测失败:', e)
+  }
+}
+
+async function stopBackendMonitor() {
+  try {
+    await fetch(`/api/camera/${props.cameraId}/monitor`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ enabled: false }),
+    })
+  } catch (e) {
+    console.warn('停止后端监测失败:', e)
+  }
+}
+
 async function startMonitoring() {
   if (!props.active || !props.streamUrl) return
   initHls()
+  // 启动后端定时抽帧推理
+  startBackendMonitor()
   try {
     await connectWs()
     subscription = subscribeTopic(`/topic/camera/${props.cameraId}/detect`, (msg) => {
@@ -156,6 +187,8 @@ function stopMonitoring() {
   disconnectWs()
   clearCanvas()
   status.value = 'OFFLINE'
+  // 停止后端定时抽帧推理
+  stopBackendMonitor()
 }
 
 watch(() => props.active, (val) => {
