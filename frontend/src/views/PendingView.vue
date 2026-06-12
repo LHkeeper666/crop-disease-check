@@ -17,14 +17,13 @@ async function handleJoin() {
   }
   isValidating.value = true
   result.value = null
-  await new Promise(r => setTimeout(r, 600))
-  const validation = auth.validateInviteCode(inviteCode.value.trim())
+  const validation = await auth.validateInviteCode(inviteCode.value.trim())
   if (!validation.success) {
     result.value = validation
     isValidating.value = false
     return
   }
-  const joined = auth.joinCompany(inviteCode.value.trim())
+  const joined = await auth.joinCompany(inviteCode.value.trim())
   isValidating.value = false
   if (joined) {
     result.value = { success: true, message: `已加入 ${validation.companyName}，正在跳转...`, companyName: validation.companyName }

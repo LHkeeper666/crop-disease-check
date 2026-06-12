@@ -1,25 +1,69 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
 import { useAuthStore } from '../stores/auth'
-import { mockCameras, mockGridHeatmap } from '../mock/data'
+import { fetchCameras, updateCamera, type CameraVO } from '../api/camera'
+import { fetchGrids, type GridVO } from '../api/grid'
+import { fetchUsers, updateUser, updateUserStatus, resetUserPassword, type UserSimpleVO } from '../api/user'
 
 const auth = useAuthStore()
 
 const activeTab = ref<'cameras' | 'grids' | 'users'>('cameras')
 
-const cameras = ref(mockCameras)
-const grids = ref(mockGridHeatmap)
+// --- 摄像头 ---
+const cameras = ref<CameraVO[]>([])
+const cameraLoading = ref(false)
 
-// Users from auth store (company-scoped)
-const users = computed(() => auth.getAllUsers())
-
-// Pending users from auth store
-const pendingUsers = computed(() => auth.getPendingUsers())
-
-function approveAsRole(userId: string, role: 'ADMIN' | 'EXPERT' | 'MANAGER') {
-  auth.updateUser(userId, { approved: true, companyId: 'company-001', role })
+async function loadCameras() {
+  cameraLoading.value = true
+  try {
+    const page = await fetchCameras({ size: 100 })
+    cameras.value = page.records
+  } catch (e: any) {
+    console.error('[Device] 加载摄像头失败:', e.message)
+  } finally {
+    cameraLoading.value = false
+  }
 }
+
+// --- 网格 ---
+const grids = ref<GridVO[]>([])
+const gridLoading = ref(false)
+
+async function loadGrids() {
+  gridLoading.value = true
+  try {
+    grids.value = await fetchGrids()
+  } catch (e: any) {
+    console.error('[Device] 加载网格失败:', e.message)
+  } finally {
+    gridLoading.value = false
+  }
+}
+
+// --- 用户 ---
+const users = ref<UserSimpleVO[]>([])
+const userLoading = ref(false)
+const userTotal = ref(0)
+
+async function loadUsers() {
+  userLoading.value = true
+  try {
+    const page = await fetchUsers({ size: 200 })
+    users.value = page.records
+    userTotal.value = page.total
+  } catch (e: any) {
+    console.error('[Device] 加载用户失败:', e.message)
+  } finally {
+    userLoading.value = false
+  }
+}
+
+onMounted(() => {
+  loadCameras()
+  loadGrids()
+  loadUsers()
+})
 
 const cameraSearch = ref('')
 const userSearch = ref('')
@@ -29,21 +73,22 @@ const filteredCameras = computed(() => {
   const keyword = cameraSearch.value.toLowerCase()
   return cameras.value.filter(cam =>
     cam.name.toLowerCase().includes(keyword) ||
-    cam.grid.toLowerCase().includes(keyword)
+    cam.rtspUrl.toLowerCase().includes(keyword)
   )
 })
 
 // Camera edit modal
 const showCameraModal = ref(false)
-const editingCamera = ref<any>(null)
+const editingCamera = ref<CameraVO | null>(null)
 const cameraForm = ref({
   name: '', rtspUrl: '', rtspUrlSub: '',
   locationX: '', locationY: '', direction: '0',
-  grid: '', captureResolution: '640x640',
+  captureResolution: '640x640',
   captureQuality: '85', reconnectInterval: '30',
 })
+const cameraSaving = ref(false)
 
-function openEditCamera(cam: any) {
+function openEditCamera(cam: CameraVO) {
   editingCamera.value = cam
   cameraForm.value = {
     name: cam.name,
@@ -52,7 +97,6 @@ function openEditCamera(cam: any) {
     locationX: String(cam.locationX || ''),
     locationY: String(cam.locationY || ''),
     direction: String(cam.direction || 0),
-    grid: cam.grid,
     captureResolution: cam.captureResolution || '640x640',
     captureQuality: String(cam.captureQuality || 85),
     reconnectInterval: String(cam.reconnectInterval || 30),
@@ -60,26 +104,29 @@ function openEditCamera(cam: any) {
   showCameraModal.value = true
 }
 
-function saveCamera() {
-  if (!cameraForm.value.name.trim() || !cameraForm.value.rtspUrl.trim()) return
-  const idx = cameras.value.findIndex(c => c.id === editingCamera.value.id)
-  if (idx !== -1) {
-    cameras.value[idx] = {
-      ...cameras.value[idx],
+async function saveCamera() {
+  if (!editingCamera.value || !cameraForm.value.name.trim() || !cameraForm.value.rtspUrl.trim()) return
+  cameraSaving.value = true
+  try {
+    await updateCamera(editingCamera.value.id, {
       name: cameraForm.value.name,
       rtspUrl: cameraForm.value.rtspUrl,
-      rtspUrlSub: cameraForm.value.rtspUrlSub,
-      locationX: parseFloat(cameraForm.value.locationX) || 0,
-      locationY: parseFloat(cameraForm.value.locationY) || 0,
-      direction: parseFloat(cameraForm.value.direction) || 0,
-      grid: cameraForm.value.grid,
+      rtspUrlSub: cameraForm.value.rtspUrlSub || undefined,
+      locationX: parseFloat(cameraForm.value.locationX) || undefined,
+      locationY: parseFloat(cameraForm.value.locationY) || undefined,
+      direction: parseFloat(cameraForm.value.direction) || undefined,
       captureResolution: cameraForm.value.captureResolution,
       captureQuality: parseInt(cameraForm.value.captureQuality) || 85,
       reconnectInterval: parseInt(cameraForm.value.reconnectInterval) || 30,
-    }
+    })
+    showCameraModal.value = false
+    editingCamera.value = null
+    await loadCameras()
+  } catch (e: any) {
+    alert('保存失败: ' + e.message)
+  } finally {
+    cameraSaving.value = false
   }
-  showCameraModal.value = false
-  editingCamera.value = null
 }
 
 function closeCameraModal() {
@@ -87,12 +134,13 @@ function closeCameraModal() {
   editingCamera.value = null
 }
 
+// --- 用户管理 ---
 const filteredUsers = computed(() => {
   if (!userSearch.value) return users.value
   const keyword = userSearch.value.toLowerCase()
   return users.value.filter(user =>
     user.username.toLowerCase().includes(keyword) ||
-    user.name.toLowerCase().includes(keyword)
+    (user.name || '').toLowerCase().includes(keyword)
   )
 })
 
@@ -106,29 +154,39 @@ const roleLabels: Record<string, string> = {
   ADMIN: '管理员',
   EXPERT: '农技专家',
   MANAGER: '员工',
+  VISITOR: '访客',
 }
 
 // Edit user modal
 const showEditModal = ref(false)
-const editingUser = ref<any>(null)
+const editingUser = ref<UserSimpleVO | null>(null)
 const editForm = ref({ name: '', role: '', phone: '', email: '' })
+const editSaving = ref(false)
 
-function openEdit(user: any) {
+function openEdit(user: UserSimpleVO) {
   editingUser.value = user
-  editForm.value = { name: user.name, role: user.role, phone: user.phone || '', email: user.email || '' }
+  editForm.value = { name: user.name || '', role: user.role, phone: user.phone || '', email: user.email || '' }
   showEditModal.value = true
 }
 
-function saveEdit() {
+async function saveEdit() {
   if (!editingUser.value) return
-  auth.updateUser(editingUser.value.id, {
-    name: editForm.value.name,
-    role: editForm.value.role as any,
-    phone: editForm.value.phone,
-    email: editForm.value.email,
-  })
-  showEditModal.value = false
-  editingUser.value = null
+  editSaving.value = true
+  try {
+    await updateUser(editingUser.value.id, {
+      name: editForm.value.name,
+      role: editForm.value.role,
+      phone: editForm.value.phone || undefined,
+      email: editForm.value.email || undefined,
+    })
+    showEditModal.value = false
+    editingUser.value = null
+    await loadUsers()
+  } catch (e: any) {
+    alert('保存失败: ' + e.message)
+  } finally {
+    editSaving.value = false
+  }
 }
 
 function closeEdit() {
@@ -138,30 +196,41 @@ function closeEdit() {
 
 // Reset password
 const showResetConfirm = ref(false)
-const resettingUser = ref<any>(null)
+const resettingUser = ref<UserSimpleVO | null>(null)
+const resetNewPassword = ref('')
 
-function openResetConfirm(user: any) {
-  resettingUser.value = user
-  showResetConfirm.value = true
-}
-
-function confirmResetPassword() {
+async function confirmResetPassword() {
   if (!resettingUser.value) return
-  // In real app, call backend API to reset password
-  // Mock: just show success
-  resettingUser.value = null
-  showResetConfirm.value = false
-  alert('密码已重置为默认密码：123456')
+  try {
+    const result = await resetUserPassword(resettingUser.value.id)
+    resetNewPassword.value = result.newPassword
+  } catch (e: any) {
+    alert('重置失败: ' + e.message)
+    closeResetConfirm()
+  }
 }
 
 function closeResetConfirm() {
   showResetConfirm.value = false
   resettingUser.value = null
+  resetNewPassword.value = ''
+}
+
+function openResetConfirm(user: UserSimpleVO) {
+  resettingUser.value = user
+  resetNewPassword.value = ''
+  showResetConfirm.value = true
 }
 
 // Toggle disable/enable
-function toggleUserStatus(user: any) {
-  auth.toggleUserStatus(user.id)
+async function toggleUserStatus(user: UserSimpleVO) {
+  const newStatus = user.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
+  try {
+    await updateUserStatus(user.id, newStatus)
+    await loadUsers()
+  } catch (e: any) {
+    alert('操作失败: ' + e.message)
+  }
 }
 </script>
 
@@ -206,17 +275,18 @@ function toggleUserStatus(user: any) {
           <input
             v-model="cameraSearch"
             type="text"
-            placeholder="搜索摄像头名称或网格"
+            placeholder="搜索摄像头名称"
             class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50"
           />
         </div>
       </div>
-        <table class="w-full text-sm">
+        <div v-if="cameraLoading" class="py-8 text-center text-slate-500 text-sm">加载中...</div>
+        <table v-else class="w-full text-sm">
           <thead>
             <tr class="text-left text-xs text-slate-500 uppercase tracking-wider border-b border-white/5">
               <th class="pb-3 pr-4">名称</th>
               <th class="pb-3 pr-4">状态</th>
-              <th class="pb-3 pr-4">覆盖网格</th>
+              <th class="pb-3 pr-4">分辨率</th>
               <th class="pb-3 pr-4">RTSP 地址</th>
               <th class="pb-3">操作</th>
             </tr>
@@ -229,7 +299,7 @@ function toggleUserStatus(user: any) {
                   {{ cam.status }}
                 </span>
               </td>
-              <td class="py-3 pr-4 text-slate-400 font-mono text-xs">{{ cam.grid }}</td>
+              <td class="py-3 pr-4 text-slate-400 font-mono text-xs">{{ cam.captureResolution }}</td>
               <td class="py-3 pr-4 text-slate-500 font-mono text-xs truncate max-w-48">{{ cam.rtspUrl }}</td>
               <td class="py-3">
                 <button class="text-xs text-cyber-green hover:underline" @click.stop="openEditCamera(cam)">编辑</button>
@@ -249,33 +319,25 @@ function toggleUserStatus(user: any) {
         <div class="flex justify-between items-center mb-4">
           <span class="text-xs text-slate-400 font-mono">{{ grids.length }} 个网格</span>
         </div>
-        <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div v-if="gridLoading" class="py-8 text-center text-slate-500 text-sm">加载中...</div>
+        <div v-else class="grid grid-cols-2 lg:grid-cols-3 gap-4">
           <div
             v-for="grid in grids"
-            :key="grid.label"
+            :key="grid.id"
             class="glass rounded-xl p-4 hover:border-white/20 transition-all cursor-pointer"
           >
             <div class="flex items-center justify-between mb-3">
               <span class="text-lg font-mono font-bold text-white">{{ grid.label }}</span>
-              <span
-                class="w-3 h-3 rounded-full"
-                :class="grid.score >= 0.8 ? 'bg-sakura pulse-red' : grid.score >= 0.5 ? 'bg-amber' : 'bg-cyber-green pulse-green'"
-              />
+              <span class="w-3 h-3 rounded-full bg-cyber-green pulse-green" />
             </div>
             <div class="space-y-1.5 text-xs">
               <div class="flex justify-between">
-                <span class="text-slate-500">风险评分</span>
-                <span class="font-mono text-white">{{ (grid.score * 100).toFixed(0) }}%</span>
+                <span class="text-slate-500">作物类型</span>
+                <span class="font-mono text-white">{{ grid.cropType || '-' }}</span>
               </div>
-              <div class="h-1.5 rounded-full bg-white/5 overflow-hidden">
-                <div
-                  class="h-full rounded-full transition-all"
-                  :class="grid.score >= 0.8 ? 'bg-sakura' : grid.score >= 0.5 ? 'bg-amber' : 'bg-cyber-green'"
-                  :style="{ width: `${grid.score * 100}%` }"
-                />
-              </div>
-              <div v-if="grid.pest" class="text-slate-400">
-                虫害: <span class="text-white">{{ grid.pest }}</span>
+              <div class="flex justify-between">
+                <span class="text-slate-500">面积</span>
+                <span class="font-mono text-white">{{ grid.areaM2 ? grid.areaM2 + ' m²' : '-' }}</span>
               </div>
             </div>
           </div>
@@ -284,54 +346,6 @@ function toggleUserStatus(user: any) {
 
       <!-- Users -->
       <div v-if="activeTab === 'users'" class="flex-1 overflow-y-auto space-y-4">
-        <!-- Pending users section -->
-        <div v-if="pendingUsers.length > 0">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="w-2 h-2 rounded-full bg-amber pulse-amber" />
-            <span class="text-xs text-amber font-mono">待审核用户 ({{ pendingUsers.length }})</span>
-          </div>
-          <div class="space-y-2">
-            <div
-              v-for="user in pendingUsers"
-              :key="user.id"
-              class="glass rounded-xl p-4 border border-amber/20"
-            >
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 rounded-lg bg-amber/10 flex items-center justify-center text-amber font-mono font-bold">
-                    {{ user.username.charAt(0).toUpperCase() }}
-                  </div>
-                  <div>
-                    <div class="text-sm text-white font-medium">{{ user.username }}</div>
-                    <div class="text-[10px] text-slate-500 font-mono">{{ user.email || '未填写邮箱' }}</div>
-                  </div>
-                </div>
-                <div class="flex gap-2">
-                  <button
-                    class="px-3 py-1.5 rounded-lg text-xs bg-cyber-green/10 text-cyber-green border border-cyber-green/20 hover:bg-cyber-green/20 transition-colors"
-                    @click="approveAsRole(user.id, 'MANAGER')"
-                  >
-                    通过为员工
-                  </button>
-                  <button
-                    class="px-3 py-1.5 rounded-lg text-xs bg-blue-400/10 text-blue-400 border border-blue-400/20 hover:bg-blue-400/20 transition-colors"
-                    @click="approveAsRole(user.id, 'EXPERT')"
-                  >
-                    通过为专家
-                  </button>
-                  <button
-                    class="px-3 py-1.5 rounded-lg text-xs bg-orange-400/10 text-orange-400 border border-orange-400/20 hover:bg-orange-400/20 transition-colors"
-                    @click="approveAsRole(user.id, 'ADMIN')"
-                  >
-                    通过为管理员
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Approved users -->
         <div>
           <div class="flex justify-between items-center mb-3">
             <span class="text-xs text-slate-400 font-mono">已注册用户 {{ filteredUsers.length }} 位</span>
@@ -344,7 +358,8 @@ function toggleUserStatus(user: any) {
               />
             </div>
           </div>
-          <table class="w-full text-sm">
+          <div v-if="userLoading" class="py-8 text-center text-slate-500 text-sm">加载中...</div>
+          <table v-else class="w-full text-sm">
             <thead>
               <tr class="text-left text-xs text-slate-500 uppercase tracking-wider border-b border-white/5">
                 <th class="pb-3 pr-4">用户名</th>
@@ -364,8 +379,8 @@ function toggleUserStatus(user: any) {
                 </td>
                 <td class="py-3 pr-4 text-xs text-slate-400 font-mono">{{ user.email || '-' }}</td>
                 <td class="py-3 pr-4">
-                  <span class="px-2 py-0.5 rounded-md text-[10px] font-mono border" :class="user.approved ? 'text-cyber-green bg-cyber-green/10 border-cyber-green/20' : 'text-slate-400 bg-white/5 border-white/10'">
-                    {{ user.approved ? '正常' : '已禁用' }}
+                  <span class="px-2 py-0.5 rounded-md text-[10px] font-mono border" :class="user.status === 'ACTIVE' ? 'text-cyber-green bg-cyber-green/10 border-cyber-green/20' : 'text-slate-400 bg-white/5 border-white/10'">
+                    {{ user.status === 'ACTIVE' ? '正常' : '已禁用' }}
                   </span>
                 </td>
                 <td class="py-3">
@@ -374,10 +389,10 @@ function toggleUserStatus(user: any) {
                     <button class="text-xs text-amber hover:underline" @click.stop="openResetConfirm(user)">重置密码</button>
                     <button
                       class="text-xs hover:underline"
-                      :class="user.approved ? 'text-sakura' : 'text-cyber-green'"
+                      :class="user.status === 'ACTIVE' ? 'text-sakura' : 'text-cyber-green'"
                       @click.stop="toggleUserStatus(user)"
                     >
-                      {{ user.approved ? '禁用' : '启用' }}
+                      {{ user.status === 'ACTIVE' ? '禁用' : '启用' }}
                     </button>
                   </div>
                   <span v-else class="text-xs text-slate-600">-</span>
@@ -440,6 +455,7 @@ function toggleUserStatus(user: any) {
                 <option value="ADMIN">管理员</option>
                 <option value="EXPERT">农技专家</option>
                 <option value="MANAGER">员工</option>
+                <option value="VISITOR">访客</option>
               </select>
             </div>
             <div>
@@ -465,10 +481,11 @@ function toggleUserStatus(user: any) {
 
           <div class="flex gap-3 mt-6">
             <button
-              class="flex-1 px-4 py-3 rounded-xl bg-cyber-green/10 border border-cyber-green/20 text-cyber-green text-sm hover:bg-cyber-green/20 transition-colors"
+              class="flex-1 px-4 py-3 rounded-xl bg-cyber-green/10 border border-cyber-green/20 text-cyber-green text-sm hover:bg-cyber-green/20 transition-colors disabled:opacity-40"
+              :disabled="editSaving"
               @click="saveEdit"
             >
-              保存
+              {{ editSaving ? '保存中...' : '保存' }}
             </button>
             <button
               class="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
@@ -495,24 +512,37 @@ function toggleUserStatus(user: any) {
                 <path d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
               </svg>
             </div>
-            <h3 class="text-lg font-bold text-white mb-2">确认重置密码</h3>
-            <p class="text-sm text-slate-400 mb-2">您即将重置以下用户的密码：</p>
-            <p class="text-sm font-mono text-white bg-white/5 rounded-lg px-3 py-2 mb-2">{{ resettingUser.username }}</p>
-            <p class="text-xs text-slate-500 mb-6">重置后默认密码为 <span class="text-amber font-mono">123456</span>，用户需登录后自行修改</p>
-            <div class="flex gap-3">
+            <template v-if="!resetNewPassword">
+              <h3 class="text-lg font-bold text-white mb-2">确认重置密码</h3>
+              <p class="text-sm text-slate-400 mb-2">您即将重置以下用户的密码：</p>
+              <p class="text-sm font-mono text-white bg-white/5 rounded-lg px-3 py-2 mb-6">{{ resettingUser.username }}</p>
+              <div class="flex gap-3">
+                <button
+                  class="flex-1 px-4 py-3 rounded-xl bg-amber/10 border border-amber/20 text-amber text-sm hover:bg-amber/20 transition-colors"
+                  @click="confirmResetPassword"
+                >
+                  确认重置
+                </button>
+                <button
+                  class="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
+                  @click="closeResetConfirm"
+                >
+                  取消
+                </button>
+              </div>
+            </template>
+            <template v-else>
+              <h3 class="text-lg font-bold text-white mb-2">重置成功</h3>
+              <p class="text-sm text-slate-400 mb-2">新密码为：</p>
+              <p class="text-lg font-mono text-amber bg-amber/10 rounded-lg px-4 py-3 mb-4 select-all">{{ resetNewPassword }}</p>
+              <p class="text-xs text-slate-500 mb-6">请记录此密码，关闭后无法再次查看</p>
               <button
-                class="flex-1 px-4 py-3 rounded-xl bg-amber/10 border border-amber/20 text-amber text-sm hover:bg-amber/20 transition-colors"
-                @click="confirmResetPassword"
-              >
-                确认重置
-              </button>
-              <button
-                class="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
+                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
                 @click="closeResetConfirm"
               >
-                取消
+                关闭
               </button>
-            </div>
+            </template>
           </div>
         </div>
       </div>
@@ -560,7 +590,6 @@ function toggleUserStatus(user: any) {
                 placeholder="rtsp://192.168.1.101:554/stream1"
                 class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
               />
-              <div class="text-[10px] text-slate-600 mt-1">用于抓拍和推理，格式 rtsp://host:port/path</div>
             </div>
 
             <div>
@@ -571,7 +600,6 @@ function toggleUserStatus(user: any) {
                 placeholder="rtsp://192.168.1.101:554/stream2（可选）"
                 class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
               />
-              <div class="text-[10px] text-slate-600 mt-1">低分辨率流，用于前端实时预览以降低带宽</div>
             </div>
 
             <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
@@ -602,16 +630,6 @@ function toggleUserStatus(user: any) {
                   class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
                 />
               </div>
-            </div>
-
-            <div>
-              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">覆盖网格</label>
-              <input
-                v-model="cameraForm.grid"
-                type="text"
-                placeholder="A1,A2,A3（逗号分隔）"
-                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
-              />
             </div>
 
             <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
@@ -652,10 +670,10 @@ function toggleUserStatus(user: any) {
           <div class="flex gap-3 mt-6">
             <button
               class="flex-1 px-4 py-3 rounded-xl bg-cyber-green/10 border border-cyber-green/20 text-cyber-green text-sm hover:bg-cyber-green/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              :disabled="!cameraForm.name.trim() || !cameraForm.rtspUrl.trim()"
+              :disabled="!cameraForm.name.trim() || !cameraForm.rtspUrl.trim() || cameraSaving"
               @click="saveCamera"
             >
-              保存修改
+              {{ cameraSaving ? '保存中...' : '保存修改' }}
             </button>
             <button
               class="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"

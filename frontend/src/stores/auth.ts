@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { validateInviteCode as apiValidateInvite, joinCompany as apiJoinCompany } from '../api/company'
 
 export interface UserInfo {
   id: string
@@ -13,7 +14,7 @@ export interface UserInfo {
   approved: boolean
 }
 
-// 企业邀请码 → 企业信息
+// 企业邀请码 → 企业信息（本地 mock 回退用）
 const companyInvites: Record<string, { companyId: string; companyName: string }> = {
   TF2026: { companyId: 'company-001', companyName: 'TreeForge 智慧农场' },
   AG2026: { companyId: 'company-002', companyName: '绿丰农业科技' },
@@ -110,7 +111,18 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // Validate invitation code and approve user
-  function validateInviteCode(code: string): { success: boolean; companyName?: string; message: string } {
+  async function validateInviteCode(code: string): Promise<{ success: boolean; companyName?: string; message: string }> {
+    // 优先调用后端 API
+    try {
+      const result = await apiValidateInvite(code)
+      if (result.valid) {
+        return { success: true, companyName: result.companyName, message: '' }
+      }
+      return { success: false, message: '邀请码无效' }
+    } catch {
+      // 后端不可用时回退到本地 mock
+      console.warn('[auth] 后端不可用，使用本地邀请码验证')
+    }
     const company = companyInvites[code]
     if (!company) {
       return { success: false, message: '邀请码无效，请联系企业管理员获取' }
@@ -119,7 +131,20 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // Join company via invitation code
-  function joinCompany(code: string): boolean {
+  async function joinCompany(code: string): Promise<boolean> {
+    // 优先调用后端 API
+    try {
+      const result = await apiJoinCompany(code)
+      if (userInfo.value) {
+        userInfo.value.companyId = result.companyId
+        userInfo.value.approved = true
+      }
+      localStorage.removeItem('treeforge_user_pending')
+      return true
+    } catch {
+      // 后端不可用时回退到本地 mock
+      console.warn('[auth] 后端不可用，使用本地加入企业')
+    }
     const company = companyInvites[code]
     if (!company || !userInfo.value) return false
 

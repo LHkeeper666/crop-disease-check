@@ -4,15 +4,17 @@ import * as echarts from 'echarts'
 import GlassCard from '../components/GlassCard.vue'
 import DataMetric from '../components/DataMetric.vue'
 import { useWorkOrderStore } from '../stores/workorder'
-import { mockCameras, mockGridHeatmap } from '../mock/data'
 import { useDashboardSettingsStore } from '../stores/dashboardSettings'
 import { useAuthStore } from '../stores/auth'
+import { fetchCameras, type CameraVO } from '../api/camera'
+import { fetchStatisticsOverview, type GridHeatmapItem } from '../api/statistics'
 
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.userRole === 'ADMIN')
 const dashSettings = useDashboardSettingsStore()
 const env = dashSettings.env
-const cameras = mockCameras
+const cameras = ref<CameraVO[]>([])
+const gridHeatmap = ref<GridHeatmapItem[]>([])
 const woStore = useWorkOrderStore()
 
 // Editable metadata (persisted)
@@ -39,14 +41,14 @@ const gridLabels = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3']
 // 根据工单动态计算每个网格的状态
 const gridCells = computed(() => {
   return gridLabels.map(label => {
-    const base = mockGridHeatmap.find(c => c.label === label)!
+    const base = gridHeatmap.value.find(c => c.gridLabel === label)
     const severity = woStore.gridSeverityMap[label]
     const activeOrder = woStore.orders.find(o => o.gridLabel === label && (o.status === 'PENDING' || o.status === 'PROCESSING'))
     return {
       label,
       severity: severity || null,
       pest: activeOrder?.pestName || '',
-      score: base.score,
+      score: base?.score ?? 0,
     }
   })
 })
@@ -102,6 +104,14 @@ onMounted(() => {
   clockTimer = setInterval(() => { now.value = new Date() }, 1000)
   // 加载工单数据（供热力图、报警面板、趋势图使用）
   woStore.fetchOrders()
+  // 加载摄像头列表
+  fetchCameras({ size: 50 }).then(page => {
+    cameras.value = page.records
+  }).catch(e => console.error('[Dashboard] 加载摄像头失败:', e.message))
+  // 加载网格热力图数据
+  fetchStatisticsOverview().then(ov => {
+    gridHeatmap.value = ov.gridHeatmap || []
+  }).catch(e => console.error('[Dashboard] 加载统计数据失败:', e.message))
 })
 onUnmounted(() => {
   clearInterval(clockTimer)
@@ -509,7 +519,7 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
               <div class="px-2 py-1.5 border-t border-white/5">
                 <div class="text-[10px] text-white truncate">{{ camera.name }}</div>
                 <div class="flex items-center justify-between">
-                  <span class="text-[9px] text-slate-500 font-mono">{{ camera.grid }}</span>
+                  <span class="text-[9px] text-slate-500 font-mono">{{ camera.captureResolution }}</span>
                   <span
                     class="text-[9px] font-mono"
                     :class="camera.status === 'ONLINE' ? 'text-cyber-green' : camera.status === 'OFFLINE' ? 'text-sakura' : 'text-amber'"
