@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
 import { useAuthStore } from '../stores/auth'
 import { fetchCameras, updateCamera, type CameraVO } from '../api/camera'
-import { fetchGrids, type GridVO } from '../api/grid'
+import { fetchGrids, updateGrid, type GridVO } from '../api/grid'
 import { fetchUsers, updateUser, updateUserStatus, resetUserPassword, type UserSimpleVO } from '../api/user'
 
 const auth = useAuthStore()
@@ -39,6 +39,46 @@ async function loadGrids() {
   } finally {
     gridLoading.value = false
   }
+}
+
+// 网格编辑弹窗
+const showGridModal = ref(false)
+const editingGrid = ref<GridVO | null>(null)
+const gridForm = ref({ label: '', cropType: '', greenhouseId: '' })
+const gridSaving = ref(false)
+
+function openEditGrid(grid: GridVO) {
+  editingGrid.value = grid
+  gridForm.value = {
+    label: grid.label,
+    cropType: grid.cropType || '',
+    greenhouseId: grid.greenhouseId || '',
+  }
+  showGridModal.value = true
+}
+
+async function saveGrid() {
+  if (!editingGrid.value || !gridForm.value.label.trim()) return
+  gridSaving.value = true
+  try {
+    await updateGrid(editingGrid.value.id, {
+      label: gridForm.value.label,
+      cropType: gridForm.value.cropType || undefined,
+      greenhouseId: gridForm.value.greenhouseId || undefined,
+    })
+    showGridModal.value = false
+    editingGrid.value = null
+    await loadGrids()
+  } catch (e: any) {
+    alert('保存失败: ' + e.message)
+  } finally {
+    gridSaving.value = false
+  }
+}
+
+function closeGridModal() {
+  showGridModal.value = false
+  editingGrid.value = null
 }
 
 // --- 用户 ---
@@ -324,11 +364,17 @@ async function toggleUserStatus(user: UserSimpleVO) {
           <div
             v-for="grid in grids"
             :key="grid.id"
-            class="glass rounded-xl p-4 hover:border-white/20 transition-all cursor-pointer"
+            class="glass rounded-xl p-4 hover:border-cyber-green/30 transition-all cursor-pointer group"
+            @click="openEditGrid(grid)"
           >
             <div class="flex items-center justify-between mb-3">
               <span class="text-lg font-mono font-bold text-white">{{ grid.label }}</span>
-              <span class="w-3 h-3 rounded-full bg-cyber-green pulse-green" />
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-cyber-green pulse-green" />
+                <svg class="w-3.5 h-3.5 text-slate-600 group-hover:text-cyber-green transition-colors" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                </svg>
+              </div>
             </div>
             <div class="space-y-1.5 text-xs">
               <div class="flex justify-between">
@@ -543,6 +589,82 @@ async function toggleUserStatus(user: UserSimpleVO) {
                 关闭
               </button>
             </template>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Grid Edit Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showGridModal && editingGrid"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+        @click.self="closeGridModal"
+      >
+        <div class="glass rounded-2xl p-6 w-full max-w-[420px] mx-4 shadow-2xl border border-white/10">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h2 class="text-lg font-bold text-white">编辑网格</h2>
+              <p class="text-xs text-slate-500 font-mono">EDIT GRID</p>
+            </div>
+            <button
+              class="w-8 h-8 rounded-lg bg-sakura/10 hover:bg-sakura/20 flex items-center justify-center text-sakura hover:text-white transition-colors"
+              @click="closeGridModal"
+            >
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">网格编号 <span class="text-sakura">*</span></label>
+              <input
+                v-model="gridForm.label"
+                type="text"
+                placeholder="如 A1、B3"
+                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+              />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">作物类型</label>
+              <input
+                v-model="gridForm.cropType"
+                type="text"
+                placeholder="如 番茄、黄瓜"
+                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+              />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">关联大棚 ID</label>
+              <input
+                v-model="gridForm.greenhouseId"
+                type="text"
+                placeholder="可选"
+                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+              />
+            </div>
+            <div class="flex justify-between items-center py-2 px-1 text-xs text-slate-500">
+              <span>网格 ID: {{ editingGrid.id }}</span>
+              <span v-if="editingGrid.areaM2">面积: {{ editingGrid.areaM2 }} m²</span>
+            </div>
+          </div>
+
+          <div class="flex gap-3 mt-6">
+            <button
+              class="flex-1 px-4 py-3 rounded-xl bg-cyber-green/10 border border-cyber-green/20 text-cyber-green text-sm hover:bg-cyber-green/20 transition-colors disabled:opacity-40"
+              :disabled="!gridForm.label.trim() || gridSaving"
+              @click="saveGrid"
+            >
+              {{ gridSaving ? '保存中...' : '保存' }}
+            </button>
+            <button
+              class="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
+              @click="closeGridModal"
+            >
+              取消
+            </button>
           </div>
         </div>
       </div>
