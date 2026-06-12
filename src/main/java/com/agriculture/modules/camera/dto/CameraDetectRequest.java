@@ -3,7 +3,7 @@ package com.agriculture.modules.camera.dto;
 import lombok.Data;
 
 /**
- * 摄像头实时识别请求DTO
+ * 摄像头检测请求DTO
  */
 @Data
 public class CameraDetectRequest {
@@ -19,12 +19,7 @@ public class CameraDetectRequest {
     private Boolean useSubStream = false;
 
     /**
-     * 是否返回标注图base64，默认true
+     * 是否保存抓拍图片到服务器，默认false（定时监测时不保存，减少IO）
      */
-    private Boolean returnAnnotatedImage = true;
-
-    /**
-     * 是否保存抓拍图片到服务器，默认true
-     */
-    private Boolean saveCapture = true;
+    private Boolean saveCapture = false;
 }

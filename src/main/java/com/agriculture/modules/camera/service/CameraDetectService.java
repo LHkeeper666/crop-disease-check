@@ -1,19 +1,29 @@
 package com.agriculture.modules.camera.service;
 
-import com.agriculture.modules.camera.dto.CameraDetectRequest;
-import com.agriculture.modules.camera.dto.CameraDetectResponse;
+import com.agriculture.modules.camera.dto.*;
 
 /**
- * 摄像头实时识别服务接口
+ * 摄像头检测服务接口
  */
 public interface CameraDetectService {
 
     /**
      * 对指定摄像头进行实时抽帧识别
-     *
-     * @param cameraId 摄像头ID
-     * @param request  识别请求参数
-     * @return 识别结果
      */
     CameraDetectResponse detect(String cameraId, CameraDetectRequest request);
+
+    /**
+     * 手动抓拍
+     */
+    CameraCaptureVO capture(String cameraId, CameraCaptureRequest request);
+
+    /**
+     * 批量抓拍
+     */
+    CameraBatchCaptureVO batchCapture(CameraBatchCaptureRequest request);
+
+    /**
+     * 启动/停止摄像头实时监测模式
+     */
+    void toggleMonitor(String cameraId, CameraMonitorRequest request);
 }
