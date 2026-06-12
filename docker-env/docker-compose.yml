@@ -173,6 +173,11 @@ services:
       - RABBITMQ_USER=${RABBITMQ_USER:-agri}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-agri_mq_2026}
       - RABBITMQ_VHOST=/agri
+      # MinIO
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-agri_minio_admin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-agri_minio_2026}
+      - MINIO_BUCKET=agri-monitor
     volumes:
       - ../models/disease:/models/disease:ro
       - ../models/pest:/models/pest:ro
@@ -228,6 +233,7 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-agri_minio_admin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-agri_minio_2026}
+      MINIO_BUCKET: agri-monitor
       # CV 推理微服务
       CV_INFERENCE_URL: http://cv-inference:8000
       # JWT

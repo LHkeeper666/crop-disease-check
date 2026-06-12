@@ -60,6 +60,14 @@ async def lifespan(app: FastAPI):
     logger.info("服务启动中...")
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, model_manager.load)
+
+    # 初始化 MinIO 桶
+    try:
+        from storage import ensure_bucket
+        await loop.run_in_executor(None, ensure_bucket)
+    except Exception as exc:
+        logger.warning("MinIO 初始化失败（本地存储仍可用）: %s", exc)
+
     logger.info("服务就绪，端口 %d", config.PORT)
     yield
     logger.info("服务关闭")
@@ -140,7 +148,7 @@ async def detect_single(req: DetectRequest):
 
     try:
         (disease_dets, pest_dets, disease_ms, pest_ms,
-         anno_b64, anno_path, img_info) = await model_manager.process_one(
+         anno_b64, anno_path, anno_url, img_info) = await model_manager.process_one(
             req.image, req.confidence, req.return_annotated_image,
         )
     except ValueError as exc:
@@ -164,6 +172,7 @@ async def detect_single(req: DetectRequest):
             ),
             annotated_image=anno_b64,
             annotated_path=anno_path,
+            annotated_url=anno_url,
             total_elapsed_ms=total_elapsed,
             image_info=img_info,
         ),
@@ -199,7 +208,7 @@ async def detect_batch(req: BatchDetectRequest):
     for idx, image_input in enumerate(req.images):
         try:
             disease_dets, pest_dets, disease_ms, pest_ms, \
-                anno_b64, anno_path, img_info = await model_manager.process_one(
+                anno_b64, anno_path, anno_url, img_info = await model_manager.process_one(
                     image_input, req.confidence, req.return_annotated_image,
                 )
             results.append(BatchImageResult(
@@ -216,6 +225,7 @@ async def detect_batch(req: BatchDetectRequest):
                 ),
                 annotated_image=anno_b64,
                 annotated_path=anno_path,
+                annotated_url=anno_url,
                 image_info=img_info,
             ))
             success += 1
