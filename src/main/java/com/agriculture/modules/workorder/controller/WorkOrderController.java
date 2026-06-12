@@ -52,7 +52,7 @@ public class WorkOrderController {
     }
 
     @PostMapping("/create")
-    public Result<String> createWorkOrder(@Valid @RequestBody WorkOrderCreateDTO dto,
+    public Result<Long> createWorkOrder(@Valid @RequestBody WorkOrderCreateDTO dto,
                                           HttpServletRequest request) {
         String userId = (String) request.getAttribute("userId");
         SysUser currentUser = sysUserMapper.selectById(userId);
@@ -64,7 +64,7 @@ public class WorkOrderController {
     }
 
     @PostMapping("/create-manual")
-    public Result<String> createManualWorkOrder(@Valid @RequestBody WorkOrderManualCreateDTO dto,
+    public Result<Long> createManualWorkOrder(@Valid @RequestBody WorkOrderManualCreateDTO dto,
                                                 HttpServletRequest request) {
         String userId = (String) request.getAttribute("userId");
         SysUser currentUser = sysUserMapper.selectById(userId);

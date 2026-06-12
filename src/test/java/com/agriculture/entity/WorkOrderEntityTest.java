@@ -89,7 +89,7 @@ class WorkOrderEntityTest {
     @DisplayName("原有字段不受影响")
     void existingFieldsStillWork() {
         WorkOrder entity = new WorkOrder();
-        entity.setId("wo-001");
+        entity.setId(1L);
         entity.setTitle("测试工单");
         entity.setSeverity("HIGH");
         entity.setStatus("PENDING");
@@ -98,7 +98,7 @@ class WorkOrderEntityTest {
         entity.setCreatedAt(LocalDateTime.of(2026, 6, 9, 10, 0, 0));
         entity.setUpdatedAt(LocalDateTime.of(2026, 6, 9, 10, 0, 0));
 
-        assertEquals("wo-001", entity.getId());
+        assertEquals(1L, entity.getId());
         assertEquals("测试工单", entity.getTitle());
         assertEquals("HIGH", entity.getSeverity());
         assertEquals("PENDING", entity.getStatus());
