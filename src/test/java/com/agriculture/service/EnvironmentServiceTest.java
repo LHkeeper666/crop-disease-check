@@ -1,13 +1,13 @@
 package com.agriculture.service;
 
-import com.agriculture.dao.mapper.EnvironmentMapper;
-import com.agriculture.dao.mapper.GreenhouseMapper;
-import com.agriculture.dto.EnvironmentReportDTO;
-import com.agriculture.entity.EnvironmentRecord;
-import com.agriculture.entity.Greenhouse;
-import com.agriculture.exception.BusinessException;
-import com.agriculture.service.impl.EnvironmentServiceImpl;
-import com.agriculture.vo.EnvironmentCurrentVO;
+import com.agriculture.modules.environment.mapper.EnvironmentMapper;
+import com.agriculture.modules.greenhouse.mapper.GreenhouseMapper;
+import com.agriculture.modules.environment.dto.EnvironmentReportDTO;
+import com.agriculture.modules.environment.entity.EnvironmentRecord;
+import com.agriculture.modules.greenhouse.entity.Greenhouse;
+import com.agriculture.common.exception.BusinessException;
+import com.agriculture.modules.environment.service.impl.EnvironmentServiceImpl;
+import com.agriculture.modules.environment.vo.EnvironmentCurrentVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;

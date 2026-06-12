@@ -12,6 +12,7 @@ services:
   # 存储: 用户权限表、设备机位表、智能工单表等
   # ----------------------------------------------------------
   mysql:
+    profiles: [infra]
     image: mysql:8.0
     container_name: agri-monitor-mysql
     restart: always
@@ -43,8 +44,9 @@ services:
   # 用途: 邮箱验证码(5分钟时效)、滑动窗口限流、JWT Token 缓存
   # ----------------------------------------------------------
   redis:
+    profiles: [infra]
     image: redis:7-alpine
-    container_name: docker start 你的redis容器名
+    container_name: agri-monitor-redis
     restart: always
     ports:
       - "6379:6379"
@@ -64,6 +66,7 @@ services:
   # 用途: 突发灾情削峰、异步通知、YOLOv8 推理任务分发
   # ----------------------------------------------------------
   rabbitmq:
+    profiles: [infra]
     image: rabbitmq:3.12-management-alpine
     container_name: agri-monitor-rabbitmq
     restart: always
@@ -89,6 +92,7 @@ services:
   # 用途: 海量历史病虫害日志、设备报警检索
   # ----------------------------------------------------------
   elasticsearch:
+    profiles: [infra]
     image: elasticsearch:8.13.0
     container_name: agri-monitor-es
     restart: always
@@ -120,6 +124,7 @@ services:
   # 用途: 突发灾情现场高清截屏、历史 HTML 简报存储
   # ----------------------------------------------------------
   minio:
+    profiles: [infra]
     image: minio/minio:latest
     container_name: agri-monitor-minio
     restart: always
@@ -146,9 +151,10 @@ services:
   # 与 Java 核心业务服务物理隔离, 显存风险不波及业务主线
   # ----------------------------------------------------------
   cv-inference:
+    profiles: [app]
     build:
-      context: ./cv-inference
-      dockerfile: Dockerfile
+      context: ../inference-service
+      dockerfile: ../docker-env/cv-inference/Dockerfile
       args:
         - HTTP_PROXY=http://host.docker.internal:7897
         - HTTPS_PROXY=http://host.docker.internal:7897
@@ -157,9 +163,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - MODEL_DIR=/models
-      - DISEASE_MODEL=disease_yolov8.onnx
-      - PEST_MODEL=pest_yolov8.onnx
+      - DISEASE_MODEL_PATH=/models/disease/best.pt
+      - PEST_MODEL_PATH=/models/pest/best.pt
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-agri_redis_2026}
@@ -168,9 +173,14 @@ services:
       - RABBITMQ_USER=${RABBITMQ_USER:-agri}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-agri_mq_2026}
       - RABBITMQ_VHOST=/agri
+      # MinIO
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-agri_minio_admin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-agri_minio_2026}
+      - MINIO_BUCKET=agri-monitor
     volumes:
-      - ./cv-inference/models:/models:ro
-      - ./cv-inference/app:/app
+      - ../models/disease:/models/disease:ro
+      - ../models/pest:/models/pest:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -193,6 +203,7 @@ services:
   # 业务端口: 8080, 管理端口: 8081
   # ----------------------------------------------------------
   backend:
+    profiles: [app]
     build:
       context: ..
       dockerfile: docker-env/backend/Dockerfile
@@ -222,6 +233,7 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-agri_minio_admin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-agri_minio_2026}
+      MINIO_BUCKET: agri-monitor
       # CV 推理微服务
       CV_INFERENCE_URL: http://cv-inference:8000
       # JWT
@@ -255,9 +267,10 @@ services:
   # 技术栈: Vue 3.x + Vite + Element Plus + ECharts
   # ----------------------------------------------------------
   frontend:
+    profiles: [app]
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: ../frontend
+      dockerfile: ../docker-env/frontend/Dockerfile
       args:
         - HTTP_PROXY=http://host.docker.internal:7897
         - HTTPS_PROXY=http://host.docker.internal:7897
@@ -277,6 +290,7 @@ services:
   # 用途: 前端静态资源托管 + API 反向代理 + 跨域解决
   # ----------------------------------------------------------
   nginx:
+    profiles: [app]
     image: nginx:1.25-alpine
     container_name: agri-monitor-nginx
     restart: always

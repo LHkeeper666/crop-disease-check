@@ -13,7 +13,9 @@ interface SingleResult {
   disease: { detections: Detection[]; count: number; elapsed_ms: number }
   pest: { detections: Detection[]; count: number; elapsed_ms: number }
   annotated_image: string | null
+  annotated_url: string | null
   total_elapsed_ms: number
+  error?: string | null
 }
 
 interface BatchItem {
@@ -93,7 +95,8 @@ function removeFile(index: number) {
 function clearAll() {
   files.value.forEach(f => {
     URL.revokeObjectURL(f.previewUrl)
-    if (f.annotatedUrl) URL.revokeObjectURL(f.annotatedUrl)
+    // 只 revoke blob URL（base64 转换的），MinIO 远程 URL 无需 revoke
+    if (f.annotatedUrl && f.annotatedUrl.startsWith('blob:')) URL.revokeObjectURL(f.annotatedUrl)
   })
   files.value = []
   activeIndex.value = 0
@@ -165,7 +168,9 @@ async function handleDetect() {
           item.error = r.error
         } else {
           item.result = r
-          if (r.annotated_image) {
+          if (r.annotated_url) {
+            item.annotatedUrl = r.annotated_url
+          } else if (r.annotated_image) {
             item.annotatedUrl = URL.createObjectURL(
               base64ToBlob(r.annotated_image, 'image/jpeg')
             )
@@ -177,7 +182,9 @@ async function handleDetect() {
       const item = files.value[0]
       try {
         item.result = await detectSingle(item)
-        if (item.result.annotated_image) {
+        if (item.result.annotated_url) {
+          item.annotatedUrl = item.result.annotated_url
+        } else if (item.result.annotated_image) {
           item.annotatedUrl = URL.createObjectURL(
             base64ToBlob(item.result.annotated_image, 'image/jpeg')
           )

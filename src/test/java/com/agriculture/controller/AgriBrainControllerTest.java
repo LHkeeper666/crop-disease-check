@@ -1,10 +1,11 @@
 package com.agriculture.controller;
 
-import com.agriculture.dto.ChatRequest;
-import com.agriculture.entity.AiConversation;
-import com.agriculture.exception.GlobalExceptionHandler;
-import com.agriculture.service.AgriBrainService;
-import com.agriculture.service.AiConversationService;
+import com.agriculture.modules.agriBrain.dto.ChatRequest;
+import com.agriculture.modules.agriBrain.entity.AiConversation;
+import com.agriculture.common.exception.GlobalExceptionHandler;
+import com.agriculture.modules.agriBrain.controller.AgriBrainController;
+import com.agriculture.modules.agriBrain.service.AgriBrainService;
+import com.agriculture.modules.agriBrain.service.AiConversationService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;

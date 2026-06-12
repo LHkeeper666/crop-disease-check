@@ -186,9 +186,10 @@ class ModelManager:
     ):
         """单张图片完整处理：解码 → 推理 → 标注 → 持久化。
         返回: (disease_dets, pest_dets, disease_ms, pest_ms,
-                annotated_b64, annotated_path, img_info)
+                annotated_b64, annotated_path, annotated_url, img_info)
         """
         from annotator import draw_annotated_image, encode_image_to_jpeg
+        from storage import upload_bytes
 
         image_bgr, img_info = await self._load_image(image_input)
         disease_dets, pest_dets, disease_ms, pest_ms, _ = \
@@ -196,16 +197,25 @@ class ModelManager:
 
         annotated_b64: Optional[str] = None
         annotated_path: Optional[str] = None
+        annotated_url: Optional[str] = None
 
         if disease_dets or pest_dets:
             annotated_bgr = draw_annotated_image(image_bgr, disease_dets, pest_dets)
             jpeg_bytes = encode_image_to_jpeg(annotated_bgr, config.ANNOTATED_JPEG_QUALITY)
 
-            # 存本地
             filename = f"{uuid.uuid4().hex[:8]}_annotated.jpg"
+
+            # 存本地
             save_path = config.ANNOTATED_DIR / filename
             save_path.write_bytes(jpeg_bytes)
             annotated_path = str(save_path)
+
+            # 上传 MinIO
+            try:
+                object_name = f"annotated/{filename}"
+                annotated_url = upload_bytes(jpeg_bytes, object_name)
+            except Exception as exc:
+                logger.warning("MinIO 上传失败（不影响本地存储）: %s", exc)
 
             # 返回 base64
             if return_annotated:
@@ -216,7 +226,7 @@ class ModelManager:
             self._patch_pest_cn(d)
 
         return disease_dets, pest_dets, disease_ms, pest_ms, \
-            annotated_b64, annotated_path, img_info
+            annotated_b64, annotated_path, annotated_url, img_info
 
 
 # ============================================================

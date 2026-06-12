@@ -20,14 +20,37 @@ CREATE TABLE sys_user (
     role          VARCHAR(20) NOT NULL DEFAULT 'VISITOR' COMMENT '角色: ADMIN/EXPERT/MANAGER/VISITOR',
     phone         VARCHAR(20) COMMENT '手机号',
     email         VARCHAR(128) COMMENT '邮箱',
+    avatar        VARCHAR(255) COMMENT '用户头像路径',
+    company_id    VARCHAR(36) COMMENT '所属企业ID',
+    approved      TINYINT DEFAULT 0 COMMENT '是否已通过审批加入企业: 0=否 1=是',
     status        VARCHAR(20) DEFAULT 'ACTIVE' COMMENT '状态: ACTIVE/DISABLED',
     last_login_at DATETIME COMMENT '最后登录时间',
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     deleted       TINYINT DEFAULT 0 COMMENT '逻辑删除',
     INDEX idx_role (role),
-    INDEX idx_status (status)
+    INDEX idx_status (status),
+    INDEX idx_company (company_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
+
+
+-- ========================================
+-- 1.5 企业/租户模块
+-- ========================================
+
+-- 企业表
+DROP TABLE IF EXISTS company;
+CREATE TABLE company (
+    id            VARCHAR(36) PRIMARY KEY COMMENT '企业UUID',
+    name          VARCHAR(128) NOT NULL COMMENT '企业名称',
+    invite_code   VARCHAR(32) NOT NULL UNIQUE COMMENT '邀请码',
+    expire_at     DATETIME COMMENT '邀请码过期时间',
+    member_limit  INT DEFAULT 50 COMMENT '成员上限',
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted       TINYINT DEFAULT 0 COMMENT '逻辑删除',
+    INDEX idx_invite_code (invite_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='企业表';
 
 
 -- ========================================

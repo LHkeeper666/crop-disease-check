@@ -34,3 +34,10 @@ PORT = int(os.getenv("PORT", "8000"))
 
 # ---- 中文类名映射文件 ----
 CLASS_NAMES_ZH_PATH = BASE_DIR / "class_names_zh.json"
+
+# ---- MinIO 对象存储 ----
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "agri_minio_admin")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "agri_minio_2026")
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "agri-monitor")
+MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"

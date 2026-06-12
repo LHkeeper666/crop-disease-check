@@ -79,6 +79,7 @@ class SingleDetectData(BaseModel):
     pest: ModelResult = Field(default_factory=ModelResult)
     annotated_image: Optional[str] = Field(None, description="标注图 base64 (未开启则 null)")
     annotated_path: Optional[str] = Field(None, description="标注图本地存储路径")
+    annotated_url: Optional[str] = Field(None, description="标注图 MinIO 访问 URL")
     total_elapsed_ms: float = Field(0.0, description="总耗时(ms)")
     image_info: Optional[ImageInfo] = None
 
@@ -91,6 +92,7 @@ class BatchImageResult(BaseModel):
     pest: ModelResult = Field(default_factory=ModelResult)
     annotated_image: Optional[str] = None
     annotated_path: Optional[str] = None
+    annotated_url: Optional[str] = None
     image_info: Optional[ImageInfo] = None
     error: Optional[str] = None
 
