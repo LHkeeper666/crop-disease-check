@@ -14,6 +14,7 @@ import ReportsView from './views/ReportsView.vue'
 import AgentView from './views/AgentView.vue'
 import DetectionView from './views/DetectionView.vue'
 import CameraMonitorView from './views/CameraMonitorView.vue'
+import HandbookView from './views/HandbookView.vue'
 
 const routes = [
   { path: '/login', name: 'Login', component: LoginView, meta: { public: true } },
@@ -30,6 +31,7 @@ const routes = [
       { path: 'detection', name: 'Detection', component: DetectionView },
       { path: 'monitor', name: 'Monitor', component: CameraMonitorView },
       { path: 'agent', name: 'Agent', component: AgentView },
+      { path: 'handbook', name: 'Handbook', component: HandbookView },
     ],
   },
 ]

@@ -218,7 +218,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Stats cards -->
-    <div class="grid grid-cols-5 gap-3 shrink-0">
+    <div class="grid grid-cols-3 xl:grid-cols-5 gap-3 shrink-0">
       <div class="glass rounded-xl px-4 py-3 text-center">
         <div class="text-2xl font-mono font-bold text-white">{{ stats.totalReports }}</div>
         <div class="text-[10px] text-slate-500 mt-1">总上报数</div>
@@ -244,7 +244,7 @@ onBeforeUnmount(() => {
     <!-- Main content: left disease+pest modules, right trend -->
     <div class="flex gap-4 flex-1 min-h-0 overflow-hidden">
       <!-- Left: Disease + Pest modules -->
-      <div class="w-[420px] flex flex-col gap-4 shrink-0">
+      <div class="xl:w-[420px] lg:w-[320px] w-[260px] flex flex-col gap-4 shrink-0">
         <!-- Disease module -->
         <GlassCard class="flex-1 min-h-0 flex flex-col">
           <div class="text-xs text-slate-400 tracking-wider mb-2 shrink-0">病害分布</div>

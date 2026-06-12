@@ -144,7 +144,7 @@ onMounted(() => {
       </div>
 
       <!-- Detail sidebar -->
-      <GlassCard v-if="selectedCamera" class="w-64 shrink-0 flex flex-col">
+      <GlassCard v-if="selectedCamera" class="xl:w-64 lg:w-52 w-44 shrink-0 flex flex-col">
         <div class="text-xs text-slate-400 tracking-wider mb-3">摄像头详情</div>
         <div class="space-y-3 flex-1 overflow-y-auto">
           <div>

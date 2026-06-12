@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
+import TypewriterText from '../components/TypewriterText.vue'
 
 // ============ Agriculture Expert System Prompt ============
 const AGRI_EXPERT_SYSTEM_PROMPT = `你是一位资深农业遥测专家 AI 助手，隶属于 TreeForge 智慧农业遥测平台。你的知识涵盖以下领域：
@@ -433,7 +434,13 @@ function scrollToBottom() {
               ? 'bg-cyber-green/10 border border-cyber-green/20 text-white'
               : 'bg-white/5 border border-white/10 text-slate-300'"
           >
-            {{ msg.content }}
+            <TypewriterText
+              v-if="msg.role === 'assistant'"
+              :text="msg.content"
+              :speed="12"
+              :on-complete="() => nextTick(() => scrollToBottom())"
+            />
+            <template v-else>{{ msg.content }}</template>
           </div>
 
           <!-- User avatar -->

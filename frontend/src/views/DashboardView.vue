@@ -258,9 +258,9 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
     <!-- 3-column layout -->
     <div class="flex-1 flex gap-4 min-h-0 overflow-hidden">
       <!-- LEFT PANEL -->
-      <div class="w-72 flex flex-col gap-4 shrink-0 overflow-y-auto">
+      <div class="xl:w-72 lg:w-56 w-44 flex flex-col gap-4 shrink-0 overflow-y-auto">
         <!-- Environmental Grid 2x2 -->
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 border-glow-animated rounded-xl p-3">
           <DataMetric label="空气温度" :value="env.airTemp.value" unit="°C" :status="env.airTemp.status" />
           <DataMetric label="土壤湿度" :value="env.soilMoisture.value" unit="%" :status="env.soilMoisture.status" />
           <DataMetric label="空气湿度" :value="env.humidity.value" unit="%" :status="env.humidity.status" />
@@ -385,7 +385,7 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
         </GlassCard>
 
         <!-- Metadata Matrix (editable) -->
-        <div class="grid grid-cols-5 gap-3 shrink-0">
+        <div class="grid grid-cols-3 xl:grid-cols-5 gap-3 shrink-0">
           <div class="glass rounded-lg px-3 py-2 text-center relative group">
             <div class="text-[10px] text-slate-500 mb-0.5">区域</div>
             <template v-if="!editingMeta">
@@ -445,13 +445,13 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
       </div>
 
       <!-- RIGHT PANEL -->
-      <div class="w-[34rem] flex flex-col gap-4 shrink-0 overflow-y-auto">
+      <div class="xl:w-[34rem] lg:w-[26rem] w-[20rem] flex flex-col gap-4 shrink-0 overflow-y-auto">
         <!-- Growth Metrics -->
-        <GlassCard>
+        <GlassCard class="border-glow-animated">
           <div class="text-xs text-slate-400 tracking-wider mb-3">生长指标</div>
           <div class="space-y-2.5">
             <div v-for="m in mockGrowthMetrics" :key="m.label" class="flex items-center gap-3">
-              <span class="text-[10px] text-slate-500 w-14 shrink-0">{{ m.label }}</span>
+              <span class="text-[10px] text-white w-14 shrink-0">{{ m.label }}</span>
               <div class="flex-1 h-2 rounded-full bg-white/5 overflow-hidden">
                 <div
                   class="h-full rounded-full transition-all duration-1000"
@@ -475,7 +475,7 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
             <span class="text-xs text-slate-400 tracking-wider">实时监控</span>
             <span class="text-[10px] font-mono text-cyber-green">{{ cameras.filter(c => c.status === 'ONLINE').length }}/{{ cameras.length }} 在线</span>
           </div>
-          <div class="grid grid-cols-3 gap-2 flex-1 min-h-0">
+          <div class="grid grid-cols-2 xl:grid-cols-3 gap-2 flex-1 min-h-0">
             <div
               v-for="camera in cameras"
               :key="camera.id"

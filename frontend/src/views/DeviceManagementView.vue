@@ -249,7 +249,7 @@ function toggleUserStatus(user: any) {
         <div class="flex justify-between items-center mb-4">
           <span class="text-xs text-slate-400 font-mono">{{ grids.length }} 个网格</span>
         </div>
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
           <div
             v-for="grid in grids"
             :key="grid.label"
@@ -399,7 +399,7 @@ function toggleUserStatus(user: any) {
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
         @click.self="closeEdit"
       >
-        <div class="glass rounded-2xl p-6 w-[420px] shadow-2xl border border-white/10">
+        <div class="glass rounded-2xl p-6 w-full max-w-[420px] mx-4 shadow-2xl border border-white/10">
           <div class="flex items-center justify-between mb-6">
             <div>
               <h2 class="text-lg font-bold text-white">编辑用户</h2>
@@ -488,7 +488,7 @@ function toggleUserStatus(user: any) {
         class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
         @click.self="closeResetConfirm"
       >
-        <div class="glass rounded-2xl p-6 w-[400px] shadow-2xl border border-amber/20">
+        <div class="glass rounded-2xl p-6 w-full max-w-[400px] mx-4 shadow-2xl border border-amber/20">
           <div class="text-center">
             <div class="w-16 h-16 rounded-full bg-amber/10 flex items-center justify-center mx-auto mb-4">
               <svg class="w-8 h-8 text-amber" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -525,7 +525,7 @@ function toggleUserStatus(user: any) {
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
         @click.self="closeCameraModal"
       >
-        <div class="glass rounded-2xl p-6 w-[560px] shadow-2xl border border-white/10 max-h-[85vh] overflow-y-auto">
+        <div class="glass rounded-2xl p-6 w-full max-w-[560px] mx-4 shadow-2xl border border-white/10 max-h-[85vh] overflow-y-auto">
           <div class="flex items-center justify-between mb-6">
             <div>
               <h2 class="text-lg font-bold text-white">编辑摄像头</h2>
@@ -574,7 +574,7 @@ function toggleUserStatus(user: any) {
               <div class="text-[10px] text-slate-600 mt-1">低分辨率流，用于前端实时预览以降低带宽</div>
             </div>
 
-            <div class="grid grid-cols-3 gap-4">
+            <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">经度</label>
                 <input
@@ -614,7 +614,7 @@ function toggleUserStatus(user: any) {
               />
             </div>
 
-            <div class="grid grid-cols-3 gap-4">
+            <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">抓拍分辨率</label>
                 <select
