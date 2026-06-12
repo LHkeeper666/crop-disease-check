@@ -152,12 +152,14 @@ async function handleSendOtp() {
   }
   clearMessages()
   loading.value = true
-  const ok = await auth.sendOtp(regEmail.value)
+  const result = await auth.sendOtp(regEmail.value)
   loading.value = false
-  if (ok) {
+  if (result.ok) {
     otpSent.value = true
     startCooldown()
-    successMsg.value = '验证码已发送（演示模式，见下方提示）'
+    successMsg.value = '验证码已发送，请查收邮箱'
+  } else {
+    errorMsg.value = result.message || '发送验证码失败'
   }
 }
 
@@ -198,21 +200,14 @@ async function handleRegister() {
   }
   clearMessages()
   loading.value = true
-  const ok = await auth.register(regEmail.value, regUsername.value, regPassword.value)
+  const result = await auth.register(regEmail.value, regUsername.value, regPassword.value)
   loading.value = false
-  if (ok) {
-    // Auto login after registration, then redirect to pending
-    const loginResult = await auth.login(regUsername.value, regPassword.value)
-    if (loginResult.success && loginResult.pending) {
-      localStorage.setItem('treeforge_user_pending', 'true')
-      router.push('/pending')
-    } else {
-      successMsg.value = '注册成功，请登录'
-      activeTab.value = 'login'
-      loginUsername.value = regUsername.value
-    }
+  if (result.ok) {
+    successMsg.value = '注册成功，请登录'
+    activeTab.value = 'login'
+    loginUsername.value = regUsername.value
   } else {
-    errorMsg.value = '该用户名已被注册'
+    errorMsg.value = result.message || '注册失败'
   }
 }
 </script>
@@ -312,22 +307,6 @@ async function handleRegister() {
         </div>
         <div v-if="successMsg" class="mb-4 px-4 py-2.5 rounded-lg bg-cyber-green/10 border border-cyber-green/20 text-cyber-green text-sm">
           {{ successMsg }}
-        </div>
-
-        <!-- Demo OTP display -->
-        <div v-if="auth.showMockOtp" class="mb-4 px-4 py-3 rounded-lg bg-sunset-from/10 border border-sunset-from/20">
-          <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">DEMO MODE — 模拟验证码</div>
-          <div class="flex items-center gap-3">
-            <span class="text-2xl font-mono font-bold text-sunset tracking-[0.3em]">{{ auth.mockOtp }}</span>
-            <button
-              type="button"
-              class="text-xs text-slate-400 hover:text-white transition-colors"
-              @click="regOtp = auth.mockOtp"
-            >
-              填入
-            </button>
-          </div>
-          <div class="text-[10px] text-slate-600 mt-1 font-mono">30s 后自动隐藏 · 后端完成后将替换为真实邮件发送</div>
         </div>
 
         <!-- Login form -->

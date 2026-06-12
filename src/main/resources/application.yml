@@ -57,8 +57,9 @@ spring:
 
 # MyBatis-Plus配置
 mybatis-plus:
-  mapper-locations: classpath:mapper/**/*.xml
-  type-aliases-package: com.agriculture.entity
+  # mapper XML 文件按模块存放在 mapper/<module>/ 目录下
+  mapper-locations: classpath*:mapper/**/*.xml
+  type-aliases-package: com.agriculture.modules.*.entity
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl

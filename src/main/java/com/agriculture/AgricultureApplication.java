@@ -8,7 +8,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 农作物疾病监测系统启动类
  */
 @SpringBootApplication
-@MapperScan("com.agriculture.dao.mapper")
+@MapperScan({"com.agriculture.dao.mapper", "com.agriculture.modules.*.mapper"})
 public class AgricultureApplication {
 
     public static void main(String[] args) {

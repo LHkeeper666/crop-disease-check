@@ -108,40 +108,40 @@ export const useAuthStore = defineStore('auth', () => {
     return true
   }
 
-  // Demo mode: generate mock OTP
-  const mockOtp = ref('')
-  const showMockOtp = ref(false)
-
-  async function sendOtp(_email: string): Promise<boolean> {
-    await new Promise(r => setTimeout(r, 500))
-    mockOtp.value = String(Math.floor(100000 + Math.random() * 900000))
-    showMockOtp.value = true
-    setTimeout(() => { showMockOtp.value = false }, 30000)
-    return true
-  }
-
-  function hideMockOtp() {
-    showMockOtp.value = false
-  }
-
-  // Register a new user
-  async function register(email: string, username: string, _password: string): Promise<boolean> {
-    await new Promise(r => setTimeout(r, 1000))
-    if (registeredUsersDB.value.find(u => u.username === username)) return false
-    if (mockApprovedUsers.value.find(u => u.username === username)) return false
-
-    const newUser: UserInfo = {
-      id: 'u-' + Date.now(),
-      username,
-      name: username,
-      role: 'MANAGER',
-      phone: '',
-      email,
-      companyId: '',
-      approved: false,
+  // 发送邮箱验证码（调用真实后端API）
+  async function sendOtp(email: string): Promise<{ ok: boolean; message?: string }> {
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, type: 'REGISTER' }),
+      })
+      const data = await res.json()
+      if (data.code === 200) {
+        return { ok: true }
+      }
+      return { ok: false, message: data.message || '发送验证码失败' }
+    } catch {
+      return { ok: false, message: '网络错误，请稍后重试' }
     }
-    registeredUsersDB.value.push(newUser)
-    return true
+  }
+
+  // 用户注册（调用真实后端API）
+  async function register(email: string, username: string, password: string): Promise<{ ok: boolean; message?: string }> {
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, username, password }),
+      })
+      const data = await res.json()
+      if (data.code === 200) {
+        return { ok: true }
+      }
+      return { ok: false, message: data.message || '注册失败' }
+    } catch {
+      return { ok: false, message: '网络错误，请稍后重试' }
+    }
   }
 
   // Get all users for a company (admin user management)
@@ -204,6 +204,6 @@ export const useAuthStore = defineStore('auth', () => {
     token, userInfo, isLoggedIn, userName, userRole, isApproved,
     login, register, validateInviteCode, joinCompany,
     getCompanyUsers, getAllUsers, getPendingUsers, updateUser, toggleUserStatus,
-    sendOtp, logout, mockOtp, showMockOtp, hideMockOtp,
+    sendOtp, logout,
   }
 })

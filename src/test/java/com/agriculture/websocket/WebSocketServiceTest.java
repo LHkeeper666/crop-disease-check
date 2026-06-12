@@ -1,5 +1,9 @@
 package com.agriculture.websocket;
 
+import com.agriculture.common.websocket.WebSocketMessage;
+
+import com.agriculture.common.websocket.WebSocketService;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

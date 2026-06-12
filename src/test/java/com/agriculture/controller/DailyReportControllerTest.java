@@ -1,13 +1,14 @@
 package com.agriculture.controller;
 
-import com.agriculture.exception.GlobalExceptionHandler;
-import com.agriculture.service.DailyReportService;
+import com.agriculture.common.exception.GlobalExceptionHandler;
+import com.agriculture.modules.dailyreport.controller.DailyReportController;
+import com.agriculture.modules.dailyreport.service.DailyReportService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.agriculture.vo.DailyReportDetailVO;
-import com.agriculture.vo.DailyReportSummaryDTO;
-import com.agriculture.vo.DailyReportVO;
+import com.agriculture.modules.dailyreport.vo.DailyReportDetailVO;
+import com.agriculture.modules.dailyreport.vo.DailyReportSummaryDTO;
+import com.agriculture.modules.dailyreport.vo.DailyReportVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -228,7 +229,7 @@ class DailyReportControllerTest {
         @DisplayName("查询不存在的日报返回错误")
         void getDetail_nonExistingId_returnsError() throws Exception {
             when(dailyReportService.getReportDetail("not-exist"))
-                    .thenThrow(new com.agriculture.exception.BusinessException(404, "日报不存在"));
+                    .thenThrow(new com.agriculture.common.exception.BusinessException(404, "日报不存在"));
 
             mockMvc.perform(get("/daily-report/not-exist"))
                     .andExpect(status().isOk())
