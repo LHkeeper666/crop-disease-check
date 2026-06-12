@@ -19,7 +19,6 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: agri_redis_2026
       database: 0
 
   # RabbitMQ 配置 (灾情削峰/异步通知)
