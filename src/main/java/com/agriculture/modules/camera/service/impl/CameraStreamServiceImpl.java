@@ -143,7 +143,7 @@ public class CameraStreamServiceImpl implements CameraStreamService {
         try {
             if (Files.isDirectory(dir)) {
                 Files.list(dir)
-                        .filter(p -> p.toString().endsWith(".m3u8") || p.toString().endsWith(".ts"))
+                        .filter(p -> p.toString().endsWith(".ts") || p.toString().endsWith(".m3u8"))
                         .forEach(p -> {
                             try { Files.deleteIfExists(p); } catch (IOException ignored) {}
                         });

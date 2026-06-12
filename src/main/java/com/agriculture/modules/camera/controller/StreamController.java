@@ -64,14 +64,40 @@ public class StreamController {
     }
 
     /**
-     * 获取HLS分片文件
-     * GET /api/stream/{cameraId}/{segmentName}.ts
+     * 获取HLS分片文件 — 支持两种URL格式:
+     * GET /api/stream/{cameraId}/{segmentName}  （子目录格式）
+     * GET /api/stream/{segmentName}             （平铺格式，从segmentName解析cameraId）
+     *
+     * FFmpeg生成的m3u8中引用裸文件名如 c001-000.ts，
+     * HLS.js相对于m3u8 URL解析后请求 /api/stream/c001-000.ts，
+     * 由第二个pattern匹配，从segmentName前缀提取cameraId。
      */
     @GetMapping("/{cameraId}/{segmentName}")
     public void getSegment(@PathVariable String cameraId,
                            @PathVariable String segmentName,
                            HttpServletResponse response) throws IOException {
-        // 安全校验：只允许访问 .ts 文件
+        serveSegment(cameraId, segmentName, response);
+    }
+
+    @GetMapping("/{segmentName}")
+    public void getSegmentFlat(@PathVariable String segmentName,
+                               HttpServletResponse response) throws IOException {
+        // 安全校验：只允许 .ts 文件
+        if (!segmentName.endsWith(".ts") || segmentName.contains("..") || segmentName.contains("/")) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return;
+        }
+        // 从 segmentName 解析 cameraId，如 "c001-000.ts" → "c001"
+        int dashIdx = segmentName.indexOf('-');
+        if (dashIdx <= 0) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return;
+        }
+        String cameraId = segmentName.substring(0, dashIdx);
+        serveSegment(cameraId, segmentName, response);
+    }
+
+    private void serveSegment(String cameraId, String segmentName, HttpServletResponse response) throws IOException {
         if (!segmentName.endsWith(".ts") || segmentName.contains("..") || segmentName.contains("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             return;
