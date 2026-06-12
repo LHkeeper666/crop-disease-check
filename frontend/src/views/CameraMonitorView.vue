@@ -112,10 +112,10 @@ onMounted(() => {
       <p class="text-[10px] text-slate-600 mt-1">请先在设备管理中添加摄像头</p>
     </div>
 
-    <!-- Camera grid + detail -->
-    <div v-else class="flex-1 min-h-0 flex gap-4">
+    <!-- Camera grid + detail — ratio 78% | 22% -->
+    <div v-else class="flex-1 min-h-0 overflow-hidden" style="display: grid; grid-template-columns: 78fr 22fr; gap: 1rem;">
       <!-- Grid view -->
-      <div class="flex-1 min-w-0 overflow-y-auto">
+      <div class="min-w-0 overflow-y-auto">
         <div
           :style="{
             display: 'grid',
@@ -144,7 +144,7 @@ onMounted(() => {
       </div>
 
       <!-- Detail sidebar -->
-      <GlassCard v-if="selectedCamera" class="xl:w-64 lg:w-52 w-44 shrink-0 flex flex-col">
+      <GlassCard v-if="selectedCamera" class="min-w-0 flex flex-col">
         <div class="text-xs text-slate-400 tracking-wider mb-3">摄像头详情</div>
         <div class="space-y-3 flex-1 overflow-y-auto">
           <div>

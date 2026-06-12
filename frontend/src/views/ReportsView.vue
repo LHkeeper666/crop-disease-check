@@ -241,10 +241,10 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- Main content: left disease+pest modules, right trend -->
-    <div class="flex gap-4 flex-1 min-h-0 overflow-hidden">
+    <!-- Main content: left disease+pest modules, right trend — fixed ratio 35% | 65% -->
+    <div class="flex-1 min-h-0 overflow-hidden" style="display: grid; grid-template-columns: 35fr 65fr; gap: 1rem;">
       <!-- Left: Disease + Pest modules -->
-      <div class="xl:w-[420px] lg:w-[320px] w-[260px] flex flex-col gap-4 shrink-0">
+      <div class="flex flex-col gap-4 min-w-0">
         <!-- Disease module -->
         <GlassCard class="flex-1 min-h-0 flex flex-col">
           <div class="text-xs text-slate-400 tracking-wider mb-2 shrink-0">病害分布</div>
@@ -259,7 +259,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- Right: Trend + Daily reports -->
-      <div class="flex-1 min-w-0 flex flex-col gap-4">
+      <div class="flex flex-col gap-4 min-w-0">
         <!-- Trend chart -->
         <GlassCard class="flex-1 min-h-0 flex flex-col">
           <div class="flex items-center justify-between mb-3 shrink-0">

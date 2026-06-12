@@ -255,12 +255,12 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
       </div>
     </div>
 
-    <!-- 3-column layout -->
-    <div class="flex-1 flex gap-4 min-h-0 overflow-hidden">
+    <!-- 3-column layout: fixed ratio 19% | 50% | 31% -->
+    <div class="flex-1 min-h-0 overflow-hidden" style="display: grid; grid-template-columns: 19fr 50fr 31fr; gap: 1rem;">
       <!-- LEFT PANEL -->
-      <div class="xl:w-72 lg:w-56 w-44 flex flex-col gap-4 shrink-0 overflow-y-auto">
+      <div class="flex flex-col gap-3 min-w-0 overflow-y-auto">
         <!-- Environmental Grid 2x2 -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 border-glow-animated rounded-xl p-3">
+        <div class="grid grid-cols-2 gap-2 border-glow-animated rounded-xl p-2">
           <DataMetric label="空气温度" :value="env.airTemp.value" unit="°C" :status="env.airTemp.status" />
           <DataMetric label="土壤湿度" :value="env.soilMoisture.value" unit="%" :status="env.soilMoisture.status" />
           <DataMetric label="空气湿度" :value="env.humidity.value" unit="%" :status="env.humidity.status" />
@@ -268,7 +268,7 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
         </div>
 
         <!-- Confidence Threshold -->
-        <GlassCard>
+        <GlassCard class="shrink-0">
           <div class="flex items-center justify-between mb-3">
             <span class="text-xs text-slate-400 tracking-wider">检测阈值</span>
             <span class="text-sm font-mono font-bold" :class="confidenceThreshold >= 0.7 ? 'text-cyber-green' : confidenceThreshold >= 0.4 ? 'text-amber' : 'text-sakura'">
@@ -324,7 +324,7 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
       </div>
 
       <!-- CENTER PANEL -->
-      <div class="flex-1 flex flex-col gap-4 min-w-0 overflow-hidden">
+      <div class="flex flex-col gap-3 min-w-0 overflow-hidden">
         <!-- 2.5D Heatmap -->
         <GlassCard class="flex-1 min-h-0 flex flex-col">
           <div class="flex items-center justify-between mb-4">
@@ -385,7 +385,7 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
         </GlassCard>
 
         <!-- Metadata Matrix (editable) -->
-        <div class="grid grid-cols-3 xl:grid-cols-5 gap-3 shrink-0">
+        <div class="grid grid-cols-5 gap-2 shrink-0">
           <div class="glass rounded-lg px-3 py-2 text-center relative group">
             <div class="text-[10px] text-slate-500 mb-0.5">区域</div>
             <template v-if="!editingMeta">
@@ -445,7 +445,7 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
       </div>
 
       <!-- RIGHT PANEL -->
-      <div class="xl:w-[34rem] lg:w-[26rem] w-[20rem] flex flex-col gap-4 shrink-0 overflow-y-auto">
+      <div class="flex flex-col gap-3 min-w-0 overflow-y-auto">
         <!-- Growth Metrics -->
         <GlassCard class="border-glow-animated">
           <div class="text-xs text-slate-400 tracking-wider mb-3">生长指标</div>
