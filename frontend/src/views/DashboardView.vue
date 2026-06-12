@@ -8,6 +8,7 @@ import { useDashboardSettingsStore } from '../stores/dashboardSettings'
 import { useAuthStore } from '../stores/auth'
 import { fetchCameras, type CameraVO } from '../api/camera'
 import { fetchStatisticsOverview, type GridHeatmapItem } from '../api/statistics'
+import { fetchGrids, type GridVO } from '../api/grid'
 
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.userRole === 'ADMIN')
@@ -35,22 +36,41 @@ function updateGrowthValue(idx: number, text: string) {
   }
 }
 
-// 9个网格基础数据
-const gridLabels = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3']
+// 从数据库读取网格列表
+const dbGrids = ref<GridVO[]>([])
 
-// 根据工单动态计算每个网格的状态
+// 合并数据库网格 + 统计热力图 + 工单数据，动态生成网格单元
 const gridCells = computed(() => {
-  return gridLabels.map(label => {
-    const base = gridHeatmap.value.find(c => c.gridLabel === label)
-    const severity = woStore.gridSeverityMap[label]
-    const activeOrder = woStore.orders.find(o => o.gridLabel === label && (o.status === 'PENDING' || o.status === 'PROCESSING'))
-    return {
-      label,
-      severity: severity || null,
-      pest: activeOrder?.pestName || '',
-      score: base?.score ?? 0,
-    }
-  })
+  // 以数据库网格为主，如果没有则用热力图数据
+  if (dbGrids.value.length > 0) {
+    return dbGrids.value.map(g => {
+      const heatmap = gridHeatmap.value.find(h => h.gridLabel === g.label)
+      const severity = woStore.gridSeverityMap[g.label]
+      const activeOrder = woStore.orders.find(o => o.gridLabel === g.label && (o.status === 'PENDING' || o.status === 'PROCESSING'))
+      return {
+        label: g.label,
+        severity: severity || null,
+        pest: activeOrder?.pestName || '',
+        score: heatmap?.score ?? 0,
+        cropType: g.cropType || '',
+      }
+    })
+  }
+  // 回退：用热力图数据
+  if (gridHeatmap.value.length > 0) {
+    return gridHeatmap.value.map(h => {
+      const severity = woStore.gridSeverityMap[h.gridLabel]
+      const activeOrder = woStore.orders.find(o => o.gridLabel === h.gridLabel && (o.status === 'PENDING' || o.status === 'PROCESSING'))
+      return {
+        label: h.gridLabel,
+        severity: severity || null,
+        pest: activeOrder?.pestName || '',
+        score: h.score,
+        cropType: '',
+      }
+    })
+  }
+  return []
 })
 
 // 热力图颜色：5种
@@ -85,9 +105,9 @@ const alerts = computed(() => woStore.alerts)
 const confidenceThreshold = ref(0.5)
 
 // Heatmap cell detail
-const selectedCell = ref<{ label: string; severity: string | null; pest: string; score: number } | null>(null)
+const selectedCell = ref<{ label: string; severity: string | null; pest: string; score: number; cropType?: string } | null>(null)
 
-function selectCell(cell: { label: string; severity: string | null; pest: string; score: number }) {
+function selectCell(cell: { label: string; severity: string | null; pest: string; score: number; cropType?: string }) {
   selectedCell.value = cell
 }
 
@@ -108,7 +128,11 @@ onMounted(() => {
   fetchCameras({ size: 50 }).then(page => {
     cameras.value = page.records
   }).catch(e => console.error('[Dashboard] 加载摄像头失败:', e.message))
-  // 加载网格热力图数据
+  // 加载网格列表（从数据库）
+  fetchGrids().then(list => {
+    dbGrids.value = list
+  }).catch(e => console.error('[Dashboard] 加载网格失败:', e.message))
+  // 加载网格热力图数据（统计评分）
   fetchStatisticsOverview().then(ov => {
     gridHeatmap.value = ov.gridHeatmap || []
   }).catch(e => console.error('[Dashboard] 加载统计数据失败:', e.message))
@@ -559,6 +583,14 @@ watch(() => woStore.orders.map(o => `${o.id}:${o.type}:${o.status}`).join(','), 
               <span class="text-sm font-mono font-bold" :class="getCellLabelColor(selectedCell.severity)">
                 {{ getCellLabel(selectedCell.severity) }}
               </span>
+            </div>
+            <div v-if="selectedCell.cropType" class="flex justify-between items-center py-2 border-b border-white/5">
+              <span class="text-xs text-slate-400">作物类型</span>
+              <span class="text-sm font-mono text-white">{{ selectedCell.cropType }}</span>
+            </div>
+            <div v-if="selectedCell.pest" class="flex justify-between items-center py-2 border-b border-white/5">
+              <span class="text-xs text-slate-400">活跃病虫害</span>
+              <span class="text-sm text-amber">{{ selectedCell.pest }}</span>
             </div>
             <div class="flex justify-between items-center py-2">
               <span class="text-xs text-slate-400">风险评分</span>
