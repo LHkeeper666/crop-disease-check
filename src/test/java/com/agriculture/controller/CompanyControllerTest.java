@@ -76,7 +76,7 @@ class CompanyControllerTest {
             when(companyService.validateInviteCode(any(ValidateInviteDTO.class)))
                     .thenReturn(vo);
 
-            mockMvc.perform(post("/api/company/validate-invite")
+            mockMvc.perform(post("/company/validate-invite")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -91,7 +91,7 @@ class CompanyControllerTest {
             ValidateInviteDTO dto = new ValidateInviteDTO();
             dto.setInviteCode("");
 
-            mockMvc.perform(post("/api/company/validate-invite")
+            mockMvc.perform(post("/company/validate-invite")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest())
@@ -108,7 +108,7 @@ class CompanyControllerTest {
             when(companyService.validateInviteCode(any(ValidateInviteDTO.class)))
                     .thenThrow(new BusinessException(40090, "邀请码不存在"));
 
-            mockMvc.perform(post("/api/company/validate-invite")
+            mockMvc.perform(post("/company/validate-invite")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -125,7 +125,7 @@ class CompanyControllerTest {
             when(companyService.validateInviteCode(any(ValidateInviteDTO.class)))
                     .thenThrow(new BusinessException(40091, "邀请码已过期"));
 
-            mockMvc.perform(post("/api/company/validate-invite")
+            mockMvc.perform(post("/company/validate-invite")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -153,7 +153,7 @@ class CompanyControllerTest {
             when(companyService.joinCompany(any(JoinCompanyDTO.class), anyString()))
                     .thenReturn(vo);
 
-            mockMvc.perform(post("/api/company/join")
+            mockMvc.perform(post("/company/join")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto))
                             .requestAttr("userId", "user-001"))
@@ -173,7 +173,7 @@ class CompanyControllerTest {
             when(companyService.joinCompany(any(JoinCompanyDTO.class), anyString()))
                     .thenThrow(new BusinessException(40092, "用户已加入企业，请勿重复加入"));
 
-            mockMvc.perform(post("/api/company/join")
+            mockMvc.perform(post("/company/join")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto))
                             .requestAttr("userId", "user-001"))
@@ -191,7 +191,7 @@ class CompanyControllerTest {
             when(companyService.joinCompany(any(JoinCompanyDTO.class), anyString()))
                     .thenThrow(new BusinessException(40093, "该企业成员数量已达上限"));
 
-            mockMvc.perform(post("/api/company/join")
+            mockMvc.perform(post("/company/join")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto))
                             .requestAttr("userId", "user-001"))
@@ -220,7 +220,7 @@ class CompanyControllerTest {
             when(companyService.getCompanyInfo(anyString()))
                     .thenReturn(vo);
 
-            mockMvc.perform(get("/api/company/info")
+            mockMvc.perform(get("/company/info")
                             .requestAttr("userId", "user-001"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
@@ -236,7 +236,7 @@ class CompanyControllerTest {
             when(companyService.getCompanyInfo(anyString()))
                     .thenThrow(new BusinessException("用户尚未加入任何企业"));
 
-            mockMvc.perform(get("/api/company/info")
+            mockMvc.perform(get("/company/info")
                             .requestAttr("userId", "user-001"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(500))
@@ -272,7 +272,7 @@ class CompanyControllerTest {
             when(companyService.listMembers(anyString()))
                     .thenReturn(List.of(member1, member2));
 
-            mockMvc.perform(get("/api/company/members")
+            mockMvc.perform(get("/company/members")
                             .requestAttr("userId", "user-001"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
@@ -296,7 +296,7 @@ class CompanyControllerTest {
             when(companyService.refreshInviteCode(anyString()))
                     .thenReturn("NEWCODE");
 
-            mockMvc.perform(post("/api/company/refresh-invite")
+            mockMvc.perform(post("/company/refresh-invite")
                             .requestAttr("userId", "user-001"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
@@ -310,7 +310,7 @@ class CompanyControllerTest {
             when(companyService.refreshInviteCode(anyString()))
                     .thenThrow(new BusinessException("用户尚未加入任何企业"));
 
-            mockMvc.perform(post("/api/company/refresh-invite")
+            mockMvc.perform(post("/company/refresh-invite")
                             .requestAttr("userId", "user-001"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(500))

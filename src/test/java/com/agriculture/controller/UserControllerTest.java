@@ -67,7 +67,7 @@ class UserControllerTest {
 
             doNothing().when(userService).changePassword(anyString(), any(ChangePasswordDTO.class));
 
-            mockMvc.perform(put("/api/users/password")
+            mockMvc.perform(put("/users/password")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto))
                             .requestAttr("userId", "user-001"))
@@ -87,7 +87,7 @@ class UserControllerTest {
             doThrow(new BusinessException(40020, "原密码不正确"))
                     .when(userService).changePassword(anyString(), any(ChangePasswordDTO.class));
 
-            mockMvc.perform(put("/api/users/password")
+            mockMvc.perform(put("/users/password")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto))
                             .requestAttr("userId", "user-001"))
@@ -107,7 +107,7 @@ class UserControllerTest {
             doThrow(new BusinessException(40022, "两次输入的密码不一致"))
                     .when(userService).changePassword(anyString(), any(ChangePasswordDTO.class));
 
-            mockMvc.perform(put("/api/users/password")
+            mockMvc.perform(put("/users/password")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto))
                             .requestAttr("userId", "user-001"))
@@ -124,7 +124,7 @@ class UserControllerTest {
             dto.setNewPassword("NewPass456");
             dto.setConfirmPassword("NewPass456");
 
-            mockMvc.perform(put("/api/users/password")
+            mockMvc.perform(put("/users/password")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto))
                             .requestAttr("userId", "user-001"))
@@ -148,7 +148,7 @@ class UserControllerTest {
 
             doNothing().when(userService).updateUserStatus(anyString(), any(UpdateStatusDTO.class));
 
-            mockMvc.perform(put("/api/users/user-001/status")
+            mockMvc.perform(put("/users/user-001/status")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -164,7 +164,7 @@ class UserControllerTest {
 
             doNothing().when(userService).updateUserStatus(anyString(), any(UpdateStatusDTO.class));
 
-            mockMvc.perform(put("/api/users/user-001/status")
+            mockMvc.perform(put("/users/user-001/status")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -178,7 +178,7 @@ class UserControllerTest {
             UpdateStatusDTO dto = new UpdateStatusDTO();
             dto.setStatus("INVALID");
 
-            mockMvc.perform(put("/api/users/user-001/status")
+            mockMvc.perform(put("/users/user-001/status")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest())
@@ -195,7 +195,7 @@ class UserControllerTest {
             doThrow(new BusinessException("用户不存在"))
                     .when(userService).updateUserStatus(anyString(), any(UpdateStatusDTO.class));
 
-            mockMvc.perform(put("/api/users/non-existent/status")
+            mockMvc.perform(put("/users/non-existent/status")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -215,7 +215,7 @@ class UserControllerTest {
         void resetPassword_success() throws Exception {
             when(userService.resetPassword("user-001")).thenReturn("Abc123456789");
 
-            mockMvc.perform(post("/api/users/user-001/reset-password"))
+            mockMvc.perform(post("/users/user-001/reset-password"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
                     .andExpect(jsonPath("$.data.newPassword").value("Abc123456789"))
@@ -228,7 +228,7 @@ class UserControllerTest {
             when(userService.resetPassword("non-existent"))
                     .thenThrow(new BusinessException("用户不存在"));
 
-            mockMvc.perform(post("/api/users/non-existent/reset-password"))
+            mockMvc.perform(post("/users/non-existent/reset-password"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(500))
                     .andExpect(jsonPath("$.message").value("用户不存在"));

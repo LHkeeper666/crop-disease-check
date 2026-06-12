@@ -81,7 +81,7 @@ class AuthControllerTest {
 
             when(authService.login(any(LoginDTO.class))).thenReturn(loginVO);
 
-            mockMvc.perform(post("/api/auth/login")
+            mockMvc.perform(post("/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -101,7 +101,7 @@ class AuthControllerTest {
             dto.setUsername("");
             dto.setPassword("admin123");
 
-            mockMvc.perform(post("/api/auth/login")
+            mockMvc.perform(post("/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest());
@@ -114,7 +114,7 @@ class AuthControllerTest {
             dto.setUsername("admin");
             dto.setPassword("");
 
-            mockMvc.perform(post("/api/auth/login")
+            mockMvc.perform(post("/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest());
@@ -130,7 +130,7 @@ class AuthControllerTest {
             when(authService.login(any(LoginDTO.class)))
                     .thenThrow(new BusinessException("用户名或密码错误"));
 
-            mockMvc.perform(post("/api/auth/login")
+            mockMvc.perform(post("/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -148,7 +148,7 @@ class AuthControllerTest {
             when(authService.login(any(LoginDTO.class)))
                     .thenThrow(new BusinessException("账号已被禁用"));
 
-            mockMvc.perform(post("/api/auth/login")
+            mockMvc.perform(post("/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -172,7 +172,7 @@ class AuthControllerTest {
 
             doNothing().when(authService).sendOtp(any(SendOtpDTO.class));
 
-            mockMvc.perform(post("/api/auth/send-otp")
+            mockMvc.perform(post("/auth/send-otp")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -189,7 +189,7 @@ class AuthControllerTest {
             dto.setEmail("not-an-email");
             dto.setType("LOGIN");
 
-            mockMvc.perform(post("/api/auth/send-otp")
+            mockMvc.perform(post("/auth/send-otp")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest());
@@ -202,7 +202,7 @@ class AuthControllerTest {
             dto.setEmail("");
             dto.setType("LOGIN");
 
-            mockMvc.perform(post("/api/auth/send-otp")
+            mockMvc.perform(post("/auth/send-otp")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest());
@@ -215,7 +215,7 @@ class AuthControllerTest {
             dto.setEmail("2043412933@qq.com");
             dto.setType("INVALID");
 
-            mockMvc.perform(post("/api/auth/send-otp")
+            mockMvc.perform(post("/auth/send-otp")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest());
@@ -231,7 +231,7 @@ class AuthControllerTest {
             doThrow(new BusinessException("验证码发送过于频繁，请1分钟后重试"))
                     .when(authService).sendOtp(any(SendOtpDTO.class));
 
-            mockMvc.perform(post("/api/auth/send-otp")
+            mockMvc.perform(post("/auth/send-otp")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -266,7 +266,7 @@ class AuthControllerTest {
 
             when(authService.loginByOtp(any(LoginByOtpDTO.class))).thenReturn(loginVO);
 
-            mockMvc.perform(post("/api/auth/login-by-otp")
+            mockMvc.perform(post("/auth/login-by-otp")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -286,7 +286,7 @@ class AuthControllerTest {
             when(authService.loginByOtp(any(LoginByOtpDTO.class)))
                     .thenThrow(new BusinessException("验证码已过期，请重新获取"));
 
-            mockMvc.perform(post("/api/auth/login-by-otp")
+            mockMvc.perform(post("/auth/login-by-otp")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -304,7 +304,7 @@ class AuthControllerTest {
             when(authService.loginByOtp(any(LoginByOtpDTO.class)))
                     .thenThrow(new BusinessException("验证码错误"));
 
-            mockMvc.perform(post("/api/auth/login-by-otp")
+            mockMvc.perform(post("/auth/login-by-otp")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -319,7 +319,7 @@ class AuthControllerTest {
             dto.setEmail("not-an-email");
             dto.setOtp("123456");
 
-            mockMvc.perform(post("/api/auth/login-by-otp")
+            mockMvc.perform(post("/auth/login-by-otp")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest());
@@ -332,7 +332,7 @@ class AuthControllerTest {
             dto.setEmail("2043412933@qq.com");
             dto.setOtp("123");
 
-            mockMvc.perform(post("/api/auth/login-by-otp")
+            mockMvc.perform(post("/auth/login-by-otp")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest());
@@ -352,6 +352,7 @@ class AuthControllerTest {
             dto.setUsername("test");
             dto.setPassword("test123");
             dto.setEmail("2043412933@qq.com");
+            dto.setCode("123456");
 
             UserVO userVO = new UserVO();
             userVO.setId("user-new-001");
@@ -363,7 +364,7 @@ class AuthControllerTest {
 
             when(authService.register(any(RegisterDTO.class))).thenReturn(userVO);
 
-            mockMvc.perform(post("/api/auth/register")
+            mockMvc.perform(post("/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -385,7 +386,7 @@ class AuthControllerTest {
             dto.setPassword("test123");
             dto.setEmail("2043412933@qq.com");
 
-            mockMvc.perform(post("/api/auth/register")
+            mockMvc.perform(post("/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest());
@@ -399,7 +400,7 @@ class AuthControllerTest {
             dto.setPassword("");
             dto.setEmail("2043412933@qq.com");
 
-            mockMvc.perform(post("/api/auth/register")
+            mockMvc.perform(post("/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest());
@@ -413,7 +414,7 @@ class AuthControllerTest {
             dto.setPassword("test123");
             dto.setEmail("not-an-email");
 
-            mockMvc.perform(post("/api/auth/register")
+            mockMvc.perform(post("/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest());
@@ -426,11 +427,12 @@ class AuthControllerTest {
             dto.setUsername("existing_user");
             dto.setPassword("test123");
             dto.setEmail("2043412933@qq.com");
+            dto.setCode("123456");
 
             when(authService.register(any(RegisterDTO.class)))
                     .thenThrow(new BusinessException("用户名已存在"));
 
-            mockMvc.perform(post("/api/auth/register")
+            mockMvc.perform(post("/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -447,6 +449,7 @@ class AuthControllerTest {
             dto.setName("测试用户");
             dto.setPhone("13800138000");
             dto.setEmail("2043412933@qq.com");
+            dto.setCode("123456");
 
             UserVO userVO = new UserVO();
             userVO.setId("user-new-002");
@@ -458,7 +461,7 @@ class AuthControllerTest {
 
             when(authService.register(any(RegisterDTO.class))).thenReturn(userVO);
 
-            mockMvc.perform(post("/api/auth/register")
+            mockMvc.perform(post("/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -479,7 +482,7 @@ class AuthControllerTest {
         void logout_withToken_success() throws Exception {
             doNothing().when(authService).logout(anyString(), anyString());
 
-            mockMvc.perform(post("/api/auth/logout")
+            mockMvc.perform(post("/auth/logout")
                             .header("Authorization", "Bearer eyJhbGciOiJIUzI1NiJ9.token")
                             .requestAttr("userId", "user-001"))
                     .andExpect(status().isOk())
@@ -494,7 +497,7 @@ class AuthControllerTest {
         void logout_noToken_success() throws Exception {
             doNothing().when(authService).logout(any(), any());
 
-            mockMvc.perform(post("/api/auth/logout"))
+            mockMvc.perform(post("/auth/logout"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
                     .andExpect(jsonPath("$.message").value("退出成功"));
@@ -525,7 +528,7 @@ class AuthControllerTest {
 
             when(authService.refreshToken(anyString())).thenReturn(loginVO);
 
-            mockMvc.perform(post("/api/auth/refresh")
+            mockMvc.perform(post("/auth/refresh")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -541,7 +544,7 @@ class AuthControllerTest {
             RefreshTokenDTO dto = new RefreshTokenDTO();
             dto.setRefreshToken("");
 
-            mockMvc.perform(post("/api/auth/refresh")
+            mockMvc.perform(post("/auth/refresh")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest());
@@ -556,7 +559,7 @@ class AuthControllerTest {
             when(authService.refreshToken(anyString()))
                     .thenThrow(new BusinessException("RefreshToken无效或已过期"));
 
-            mockMvc.perform(post("/api/auth/refresh")
+            mockMvc.perform(post("/auth/refresh")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())

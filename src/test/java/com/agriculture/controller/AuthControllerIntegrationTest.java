@@ -44,6 +44,7 @@ class AuthControllerIntegrationTest {
     private static final String TEST_USERNAME = "test";
     private static final String TEST_PASSWORD = "test123";
     private static final String TEST_EMAIL = "2043412933@qq.com";
+    private static final String TEST_OTP = "123456";
 
     /**
      * 清理测试数据 - 用原生SQL硬删除，绕过MyBatis-Plus逻辑删除
@@ -52,6 +53,8 @@ class AuthControllerIntegrationTest {
     void cleanUp() {
         jdbcTemplate.update("DELETE FROM sys_user WHERE username = ?", TEST_USERNAME);
         jdbcTemplate.update("DELETE FROM sys_user WHERE email = ?", TEST_EMAIL);
+        // 预置验证码到Redis（register方法会删除已使用的验证码，每次前置位重新写入）
+        redisTemplate.opsForValue().set("otp:" + TEST_EMAIL + ":REGISTER", TEST_OTP);
     }
 
     // ==================== 注册 → 数据库持久化 ====================
@@ -65,6 +68,7 @@ class AuthControllerIntegrationTest {
         dto.setUsername(TEST_USERNAME);
         dto.setPassword(TEST_PASSWORD);
         dto.setEmail(TEST_EMAIL);
+        dto.setCode(TEST_OTP);
 
         // when
         UserVO result = authService.register(dto);
@@ -136,6 +140,7 @@ class AuthControllerIntegrationTest {
         registerDTO.setUsername(TEST_USERNAME);
         registerDTO.setPassword(TEST_PASSWORD);
         registerDTO.setEmail(TEST_EMAIL);
+        registerDTO.setCode(TEST_OTP);
         UserVO registered = authService.register(registerDTO);
 
         // when - 用正确密码登录
@@ -165,6 +170,7 @@ class AuthControllerIntegrationTest {
         registerDTO.setUsername(TEST_USERNAME);
         registerDTO.setPassword(TEST_PASSWORD);
         registerDTO.setEmail(TEST_EMAIL);
+        registerDTO.setCode(TEST_OTP);
         authService.register(registerDTO);
 
         // when + then
@@ -190,13 +196,16 @@ class AuthControllerIntegrationTest {
         dto.setUsername(TEST_USERNAME);
         dto.setPassword(TEST_PASSWORD);
         dto.setEmail(TEST_EMAIL);
+        dto.setCode(TEST_OTP);
         authService.register(dto);
 
         // when + then - 再注册同名用户
+        redisTemplate.opsForValue().set("otp:another@qq.com:REGISTER", TEST_OTP);
         RegisterDTO duplicate = new RegisterDTO();
         duplicate.setUsername(TEST_USERNAME);
         duplicate.setPassword("another_pwd");
         duplicate.setEmail("another@qq.com");
+        duplicate.setCode(TEST_OTP);
 
         RuntimeException exception = assertThrows(RuntimeException.class,
                 () -> authService.register(duplicate));
