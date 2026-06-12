@@ -10,20 +10,24 @@ USE agriculture_db;
 -- ========================================
 
 -- 管理员账号 (密码: admin123)
-INSERT INTO sys_user (id, username, password, name, role, email, status) VALUES
-('u001', 'admin', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '系统管理员', 'ADMIN', 'admin@agriculture.com', 'ACTIVE');
+INSERT INTO sys_user (id, username, password, name, role, email, status, company_id, approved) VALUES
+('u001', 'admin', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '系统管理员', 'ADMIN', 'admin@agriculture.com', 'ACTIVE', 'comp001', 1);
+
+-- 企业2管理员账号 (密码: admin123)
+INSERT INTO sys_user (id, username, password, name, role, email, status, company_id, approved) VALUES
+('u011', 'admin2', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '绿丰管理员', 'ADMIN', 'admin2@agriculture.com', 'ACTIVE', 'comp002', 1);
 
 -- 示例专家账号
-INSERT INTO sys_user (id, username, password, name, role, phone, email, status) VALUES
-('u002', 'expert01', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '李专家', 'EXPERT', '13800138001', 'expert@agriculture.com', 'ACTIVE');
+INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
+('u002', 'expert01', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '李专家', 'EXPERT', '13800138001', 'expert@agriculture.com', 'ACTIVE', 'comp001', 1);
 
 -- 示例管理者账号
-INSERT INTO sys_user (id, username, password, name, role, phone, email, status) VALUES
-('u003', 'manager01', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '张经理', 'MANAGER', '13800138002', 'manager@agriculture.com', 'ACTIVE');
+INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
+('u003', 'manager01', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '张经理', 'MANAGER', '13800138002', 'manager@agriculture.com', 'ACTIVE', 'comp001', 1);
 
 -- 示例员工账号
-INSERT INTO sys_user (id, username, password, name, role, phone, status) VALUES
-('u004', 'staff01', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '王员工', 'VISITOR', '13800138003', 'ACTIVE');
+INSERT INTO sys_user (id, username, password, name, role, phone, status, company_id, approved) VALUES
+('u004', 'staff01', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '王员工', 'VISITOR', '13800138003', 'ACTIVE', 'comp001', 1);
 
 
 -- ========================================
@@ -31,7 +35,8 @@ INSERT INTO sys_user (id, username, password, name, role, phone, status) VALUES
 -- ========================================
 
 INSERT INTO company (id, name, invite_code, expire_at, member_limit) VALUES
-('comp001', '智慧农业示范园', 'INVITE2026', '2027-12-31 23:59:59', 100);
+('comp001', '智慧农业示范园', 'AG2026', '2027-12-31 23:59:59', 100),
+('comp002', '绿丰农业科技', 'TF2026', '2027-12-31 23:59:59', 100);
 
 
 -- ========================================
@@ -265,19 +270,19 @@ INSERT INTO inspection_camera (plan_id, camera_id) VALUES
 -- ========================================
 
 -- 更多专家
-INSERT INTO sys_user (id, username, password, name, role, phone, email, status) VALUES
-('u005', 'expert02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '赵植保专家', 'EXPERT', '13800138005', 'expert02@agriculture.com', 'ACTIVE'),
-('u006', 'expert03', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '钱昆虫专家', 'EXPERT', '13800138006', 'expert03@agriculture.com', 'ACTIVE');
+INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
+('u005', 'expert02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '赵植保专家', 'EXPERT', '13800138005', 'expert02@agriculture.com', 'ACTIVE', 'comp001', 1),
+('u006', 'expert03', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '钱昆虫专家', 'EXPERT', '13800138006', 'expert03@agriculture.com', 'ACTIVE', 'comp001', 1);
 
 -- 更多管理者
-INSERT INTO sys_user (id, username, password, name, role, phone, email, status) VALUES
-('u007', 'manager02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '孙经理', 'MANAGER', '13800138007', 'manager02@agriculture.com', 'ACTIVE');
+INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
+('u007', 'manager02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '孙经理', 'MANAGER', '13800138007', 'manager02@agriculture.com', 'ACTIVE', 'comp001', 1);
 
 -- 更多员工
-INSERT INTO sys_user (id, username, password, name, role, phone, status) VALUES
-('u008', 'staff02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '刘员工', 'VISITOR', '13800138008', 'ACTIVE'),
-('u009', 'staff03', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '陈员工', 'VISITOR', '13800138009', 'ACTIVE'),
-('u010', 'staff04', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '杨员工', 'VISITOR', '13800138010', 'DISABLED');
+INSERT INTO sys_user (id, username, password, name, role, phone, status, company_id, approved) VALUES
+('u008', 'staff02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '刘员工', 'VISITOR', '13800138008', 'ACTIVE', 'comp001', 1),
+('u009', 'staff03', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '陈员工', 'VISITOR', '13800138009', 'ACTIVE', 'comp001', 1),
+('u010', 'staff04', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '杨员工', 'VISITOR', '13800138010', 'DISABLED', 'comp001', 1);
 
 
 -- ========================================

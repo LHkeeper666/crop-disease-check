@@ -66,7 +66,7 @@ export const useAuthStore = defineStore('auth', () => {
           approved: user.approved ?? true,
         }
         localStorage.setItem('treeforge_token', jwtToken)
-        return { success: true }
+        return { success: true, pending: !user.approved }
       }
       return { success: false, message: data.message || '登录失败' }
     } catch {

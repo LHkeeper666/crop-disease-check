@@ -7,6 +7,7 @@ import { fetchGrids, updateGrid, type GridVO } from '../api/grid'
 import { fetchUsers, updateUser, updateUserStatus, resetUserPassword, type UserSimpleVO } from '../api/user'
 
 const auth = useAuthStore()
+const isAdmin = computed(() => auth.userRole === 'ADMIN')
 
 const activeTab = ref<'cameras' | 'grids' | 'users'>('cameras')
 
@@ -290,8 +291,8 @@ async function toggleUserStatus(user: UserSimpleVO) {
         v-for="tab in [
           { key: 'cameras', label: '摄像头管理' },
           { key: 'grids', label: '网格区域' },
-          { key: 'users', label: '用户管理' },
-        ]"
+          ...(isAdmin ? [{ key: 'users', label: '用户管理' }] : []),
+        ].filter(Boolean)"
         :key="tab.key"
         class="px-4 py-2 rounded-xl text-sm transition-all duration-200"
         :class="activeTab === tab.key ? 'bg-white/10 text-white border border-white/10' : 'text-slate-500 hover:text-white hover:bg-white/5'"
@@ -364,14 +365,15 @@ async function toggleUserStatus(user: UserSimpleVO) {
           <div
             v-for="grid in grids"
             :key="grid.id"
-            class="glass rounded-xl p-4 hover:border-cyber-green/30 transition-all cursor-pointer group"
-            @click="openEditGrid(grid)"
+            class="glass rounded-xl p-4 transition-all group"
+            :class="isAdmin ? 'hover:border-cyber-green/30 cursor-pointer' : 'cursor-default'"
+            @click="isAdmin && openEditGrid(grid)"
           >
             <div class="flex items-center justify-between mb-3">
               <span class="text-lg font-mono font-bold text-white">{{ grid.label }}</span>
               <div class="flex items-center gap-2">
                 <span class="w-3 h-3 rounded-full bg-cyber-green pulse-green" />
-                <svg class="w-3.5 h-3.5 text-slate-600 group-hover:text-cyber-green transition-colors" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <svg v-if="isAdmin" class="w-3.5 h-3.5 text-slate-600 group-hover:text-cyber-green transition-colors" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
                 </svg>
               </div>
