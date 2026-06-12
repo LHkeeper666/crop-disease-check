@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 企业/租户控制器
  */
 @RestController
-@RequestMapping("/api/company")
+@RequestMapping("/company")
 @RequiredArgsConstructor
 public class CompanyController {
 
