@@ -11,19 +11,19 @@ USE agriculture_db;
 
 -- 管理员账号 (密码: admin123)
 INSERT INTO sys_user (id, username, password, name, role, email, status) VALUES
-('u001', 'admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '系统管理员', 'ADMIN', 'admin@agriculture.com', 'ACTIVE');
+('u001', 'admin', '$2a$10$rd6hEBFRubPQP.vgu94rZ.Adl6MNQXmZg82oFJ4QShZat86jXcKaG', '系统管理员', 'ADMIN', 'admin@agriculture.com', 'ACTIVE');
 
 -- 示例专家账号
 INSERT INTO sys_user (id, username, password, name, role, phone, email, status) VALUES
-('u002', 'expert01', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '李专家', 'EXPERT', '13800138001', 'expert@agriculture.com', 'ACTIVE');
+('u002', 'expert01', '$2a$10$rd6hEBFRubPQP.vgu94rZ.Adl6MNQXmZg82oFJ4QShZat86jXcKaG', '李专家', 'EXPERT', '13800138001', 'expert@agriculture.com', 'ACTIVE');
 
 -- 示例管理者账号
 INSERT INTO sys_user (id, username, password, name, role, phone, email, status) VALUES
-('u003', 'manager01', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '张经理', 'MANAGER', '13800138002', 'manager@agriculture.com', 'ACTIVE');
+('u003', 'manager01', '$2a$10$rd6hEBFRubPQP.vgu94rZ.Adl6MNQXmZg82oFJ4QShZat86jXcKaG', '张经理', 'MANAGER', '13800138002', 'manager@agriculture.com', 'ACTIVE');
 
 -- 示例员工账号
 INSERT INTO sys_user (id, username, password, name, role, phone, status) VALUES
-('u004', 'staff01', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '王员工', 'VISITOR', '13800138003', 'ACTIVE');
+('u004', 'staff01', '$2a$10$rd6hEBFRubPQP.vgu94rZ.Adl6MNQXmZg82oFJ4QShZat86jXcKaG', '王员工', 'VISITOR', '13800138003', 'ACTIVE');
 
 
 -- ========================================
