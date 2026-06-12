@@ -45,14 +45,16 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(jwtInterceptor)
-                .addPathPatterns("/api/**")
+                .addPathPatterns("/**")
                 .excludePathPatterns(
-                        "/api/auth/login",
-                        "/api/auth/login-by-otp",
-                        "/api/auth/send-otp",
-                        "/api/auth/register",
-                        "/api/auth/refresh",
-                        "/api/company/validate-invite",
+                        "/auth/login",
+                        "/auth/login-by-otp",
+                        "/auth/send-otp",
+                        "/auth/register",
+                        "/auth/refresh",
+                        "/company/validate-invite",
+                        "/workorder/callback",
+                        "/workorder/callback/page",
                         "/doc.html",
                         "/webjars/**",
                         "/swagger-resources/**",

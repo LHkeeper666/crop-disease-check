@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 网格区域控制器
  */
 @RestController
-@RequestMapping("/api/grid")
+@RequestMapping("/grid")
 @RequiredArgsConstructor
 public class GridController {
 

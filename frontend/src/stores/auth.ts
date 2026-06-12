@@ -39,11 +39,43 @@ export const useAuthStore = defineStore('auth', () => {
   const userRole = computed(() => userInfo.value?.role || 'MANAGER')
   const isApproved = computed(() => userInfo.value?.approved ?? false)
 
-  async function login(username: string, password: string): Promise<{ success: boolean; pending?: boolean }> {
-    if (!username || !password) return { success: false }
-    await new Promise(r => setTimeout(r, 800))
+  async function login(username: string, password: string): Promise<{ success: boolean; pending?: boolean; message?: string }> {
+    if (!username || !password) return { success: false, message: '请输入用户名和密码' }
 
-    // Check registered users
+    // 优先调用真实后端登录接口
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+      const data = await res.json()
+      if (data.code === 200) {
+        const { token: jwtToken, userInfo: user } = data.data
+        token.value = jwtToken
+        userInfo.value = {
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          role: user.role || 'MANAGER',
+          phone: user.phone || '',
+          email: user.email || '',
+          avatar: user.avatar,
+          companyId: user.companyId || '',
+          approved: user.approved ?? true,
+        }
+        localStorage.setItem('treeforge_token', jwtToken)
+        return { success: true }
+      }
+      return { success: false, message: data.message || '登录失败' }
+    } catch {
+      // 后端不可用时回退到本地 mock 登录（离线开发模式）
+      console.warn('[auth] 后端不可用，使用本地 mock 登录')
+    }
+
+    // --- 本地 mock 回退 ---
+    await new Promise(r => setTimeout(r, 300))
+
     const registered = registeredUsersDB.value.find(u => u.username === username)
     if (registered) {
       token.value = 'mock_jwt_token_' + Date.now()
@@ -52,7 +84,6 @@ export const useAuthStore = defineStore('auth', () => {
       return { success: true, pending: !registered.approved }
     }
 
-    // Check mock approved users
     const mockUser = mockApprovedUsers.value.find(u => u.username === username)
     if (mockUser) {
       token.value = 'mock_jwt_token_' + Date.now()
@@ -61,7 +92,6 @@ export const useAuthStore = defineStore('auth', () => {
       return { success: true }
     }
 
-    // Unknown user → register as pending
     const newUser: UserInfo = {
       id: 'u-' + Date.now(),
       username,

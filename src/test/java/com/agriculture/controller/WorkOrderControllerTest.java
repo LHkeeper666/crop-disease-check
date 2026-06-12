@@ -1,12 +1,13 @@
 package com.agriculture.controller;
 
 import com.agriculture.modules.workorder.controller.WorkOrderController;
-import com.agriculture.modules.workorder.dto.CallbackDTO;
-import com.agriculture.modules.workorder.dto.WorkOrderCreateDTO;
+import com.agriculture.modules.workorder.dto.*;
 import com.agriculture.common.exception.BusinessException;
 import com.agriculture.common.exception.GlobalExceptionHandler;
 import com.agriculture.modules.workorder.service.WorkOrderService;
 import com.agriculture.modules.workorder.vo.*;
+import com.agriculture.modules.user.entity.SysUser;
+import com.agriculture.modules.user.mapper.SysUserMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -29,8 +30,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,6 +40,9 @@ class WorkOrderControllerTest {
 
     @Mock
     private WorkOrderService workOrderService;
+
+    @Mock
+    private SysUserMapper sysUserMapper;
 
     @InjectMocks
     private WorkOrderController workOrderController;
@@ -89,6 +92,18 @@ class WorkOrderControllerTest {
         return vo;
     }
 
+    /**
+     * 构造已登录用户 mock：设置 request.attribute("userId") 和 SysUserMapper 返回
+     */
+    private SysUser mockCurrentUser() {
+        SysUser user = new SysUser();
+        user.setId("u-001");
+        user.setName("系统管理员");
+        user.setCompanyId("company-001");
+        when(sysUserMapper.selectById("u-001")).thenReturn(user);
+        return user;
+    }
+
     // ==================== 7.1 工单列表接口 ====================
 
     @Nested
@@ -98,12 +113,14 @@ class WorkOrderControllerTest {
         @Test
         @DisplayName("无条件查询工单列表")
         void listWorkOrders_noParams_returnsPage() throws Exception {
+            mockCurrentUser();
             Page<WorkOrderVO> page = new Page<>(1, 20, 1);
             page.setRecords(List.of(mockWorkOrderVO));
-            when(workOrderService.listWorkOrders(isNull(), isNull(), isNull(), isNull(), eq(1), eq(20)))
+            when(workOrderService.listWorkOrders(isNull(), isNull(), isNull(), isNull(), eq(1), eq(20), eq("company-001")))
                     .thenReturn(page);
 
-            mockMvc.perform(get("/workorder/list"))
+            mockMvc.perform(get("/workorder/list")
+                            .requestAttr("userId", "u-001"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
                     .andExpect(jsonPath("$.data.records[0].id").value("wo-001"))
@@ -118,12 +135,15 @@ class WorkOrderControllerTest {
         @Test
         @DisplayName("按状态筛选")
         void listWorkOrders_filterByStatus() throws Exception {
+            mockCurrentUser();
             Page<WorkOrderVO> page = new Page<>(1, 20, 0);
             page.setRecords(List.of());
-            when(workOrderService.listWorkOrders(eq("PENDING"), isNull(), isNull(), isNull(), eq(1), eq(20)))
+            when(workOrderService.listWorkOrders(eq("PENDING"), isNull(), isNull(), isNull(), eq(1), eq(20), eq("company-001")))
                     .thenReturn(page);
 
-            mockMvc.perform(get("/workorder/list").param("status", "PENDING"))
+            mockMvc.perform(get("/workorder/list")
+                            .requestAttr("userId", "u-001")
+                            .param("status", "PENDING"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
                     .andExpect(jsonPath("$.data.records").isEmpty());
@@ -132,12 +152,15 @@ class WorkOrderControllerTest {
         @Test
         @DisplayName("按严重程度筛选")
         void listWorkOrders_filterBySeverity() throws Exception {
+            mockCurrentUser();
             Page<WorkOrderVO> page = new Page<>(1, 20, 1);
             page.setRecords(List.of(mockWorkOrderVO));
-            when(workOrderService.listWorkOrders(isNull(), eq("CRITICAL"), isNull(), isNull(), eq(1), eq(20)))
+            when(workOrderService.listWorkOrders(isNull(), eq("CRITICAL"), isNull(), isNull(), eq(1), eq(20), eq("company-001")))
                     .thenReturn(page);
 
-            mockMvc.perform(get("/workorder/list").param("severity", "CRITICAL"))
+            mockMvc.perform(get("/workorder/list")
+                            .requestAttr("userId", "u-001")
+                            .param("severity", "CRITICAL"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200));
         }
@@ -145,12 +168,16 @@ class WorkOrderControllerTest {
         @Test
         @DisplayName("分页查询")
         void listWorkOrders_withPagination() throws Exception {
+            mockCurrentUser();
             Page<WorkOrderVO> page = new Page<>(2, 10, 25);
             page.setRecords(List.of(mockWorkOrderVO));
-            when(workOrderService.listWorkOrders(isNull(), isNull(), isNull(), isNull(), eq(2), eq(10)))
+            when(workOrderService.listWorkOrders(isNull(), isNull(), isNull(), isNull(), eq(2), eq(10), eq("company-001")))
                     .thenReturn(page);
 
-            mockMvc.perform(get("/workorder/list").param("page", "2").param("size", "10"))
+            mockMvc.perform(get("/workorder/list")
+                            .requestAttr("userId", "u-001")
+                            .param("page", "2")
+                            .param("size", "10"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
                     .andExpect(jsonPath("$.data.current").value(2))
@@ -195,29 +222,56 @@ class WorkOrderControllerTest {
         }
     }
 
-    // ==================== 7.3 手动创建工单接口 ====================
+    // ==================== 7.3 创建工单接口 ====================
 
     @Nested
-    @DisplayName("7.3 手动创建工单接口")
+    @DisplayName("7.3 创建工单接口")
     class CreateWorkOrder {
 
         @Test
-        @DisplayName("创建工单成功")
+        @DisplayName("基于推理记录创建工单成功")
         void create_validDTO_returnsId() throws Exception {
+            mockCurrentUser();
             WorkOrderCreateDTO dto = new WorkOrderCreateDTO();
             dto.setInferenceId("inf-001");
             dto.setSeverity("HIGH");
             dto.setAssignedTo("user-expert-001");
 
-            when(workOrderService.createWorkOrder(any(WorkOrderCreateDTO.class), anyString(), anyString()))
+            when(workOrderService.createWorkOrder(any(WorkOrderCreateDTO.class), eq("u-001"), eq("系统管理员"), eq("company-001")))
                     .thenReturn("wo-new-001");
 
             mockMvc.perform(post("/workorder/create")
+                            .requestAttr("userId", "u-001")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
                     .andExpect(jsonPath("$.data").value("wo-new-001"))
+                    .andExpect(jsonPath("$.message").value("工单创建成功"));
+        }
+
+        @Test
+        @DisplayName("手动创建工单成功")
+        void createManual_validDTO_returnsId() throws Exception {
+            mockCurrentUser();
+            WorkOrderManualCreateDTO dto = new WorkOrderManualCreateDTO();
+            dto.setTitle("【紧急】Grid-B3 红蜘蛛 工单");
+            dto.setSeverity("CRITICAL");
+            dto.setType("pest");
+            dto.setGridLabel("B3");
+            dto.setPestName("红蜘蛛");
+            dto.setConfidence(0.95);
+
+            when(workOrderService.createManualWorkOrder(any(WorkOrderManualCreateDTO.class), eq("u-001"), eq("系统管理员"), eq("company-001")))
+                    .thenReturn("wo-manual-001");
+
+            mockMvc.perform(post("/workorder/create-manual")
+                            .requestAttr("userId", "u-001")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(200))
+                    .andExpect(jsonPath("$.data").value("wo-manual-001"))
                     .andExpect(jsonPath("$.message").value("工单创建成功"));
         }
 
@@ -229,6 +283,7 @@ class WorkOrderControllerTest {
             dto.setSeverity("");
 
             mockMvc.perform(post("/workorder/create")
+                            .requestAttr("userId", "u-001")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest())
@@ -239,14 +294,16 @@ class WorkOrderControllerTest {
         @Test
         @DisplayName("关联识别记录不存在时返回错误")
         void create_invalidInferenceId_returnsError() throws Exception {
+            mockCurrentUser();
             WorkOrderCreateDTO dto = new WorkOrderCreateDTO();
             dto.setInferenceId("not-exist");
             dto.setSeverity("HIGH");
 
-            when(workOrderService.createWorkOrder(any(WorkOrderCreateDTO.class), anyString(), anyString()))
+            when(workOrderService.createWorkOrder(any(WorkOrderCreateDTO.class), eq("u-001"), eq("系统管理员"), eq("company-001")))
                     .thenThrow(new BusinessException("关联的识别记录不存在"));
 
             mockMvc.perform(post("/workorder/create")
+                            .requestAttr("userId", "u-001")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -255,10 +312,130 @@ class WorkOrderControllerTest {
         }
     }
 
-    // ==================== 7.4 Token 回调接口 ====================
+    // ==================== 7.4 状态更新接口 ====================
 
     @Nested
-    @DisplayName("7.4 Token 回调接口")
+    @DisplayName("7.4 状态更新接口")
+    class UpdateStatus {
+
+        @Test
+        @DisplayName("确认处理工单")
+        void updateStatus_pendingToProcessing_success() throws Exception {
+            mockCurrentUser();
+            StatusUpdateDTO dto = new StatusUpdateDTO();
+            dto.setStatus("PROCESSING");
+
+            mockMvc.perform(put("/workorder/wo-001/status")
+                            .requestAttr("userId", "u-001")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(200))
+                    .andExpect(jsonPath("$.message").value("状态更新成功"));
+        }
+
+        @Test
+        @DisplayName("标记完成工单")
+        void updateStatus_processingToDone_success() throws Exception {
+            mockCurrentUser();
+            StatusUpdateDTO dto = new StatusUpdateDTO();
+            dto.setStatus("DONE");
+            dto.setComment("已处理完毕");
+
+            mockMvc.perform(put("/workorder/wo-001/status")
+                            .requestAttr("userId", "u-001")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(200));
+        }
+
+        @Test
+        @DisplayName("非法状态变更返回错误")
+        void updateStatus_invalidTransition_returnsError() throws Exception {
+            mockCurrentUser();
+            StatusUpdateDTO dto = new StatusUpdateDTO();
+            dto.setStatus("DONE");
+
+            org.mockito.Mockito.doThrow(new BusinessException("非法的状态变更: PENDING -> DONE"))
+                    .when(workOrderService).updateStatus(eq("wo-001"), eq("DONE"), isNull(), eq("u-001"), eq("系统管理员"));
+
+            mockMvc.perform(put("/workorder/wo-001/status")
+                            .requestAttr("userId", "u-001")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(500))
+                    .andExpect(jsonPath("$.message").value("非法的状态变更: PENDING -> DONE"));
+        }
+    }
+
+    // ==================== 7.5 严重程度更新接口 ====================
+
+    @Nested
+    @DisplayName("7.5 严重程度更新接口")
+    class UpdateSeverity {
+
+        @Test
+        @DisplayName("升级严重程度")
+        void updateSeverity_escalate_success() throws Exception {
+            SeverityUpdateDTO dto = new SeverityUpdateDTO();
+            dto.setSeverity("CRITICAL");
+
+            mockMvc.perform(put("/workorder/wo-001/severity")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(200))
+                    .andExpect(jsonPath("$.message").value("严重程度更新成功"));
+        }
+
+        @Test
+        @DisplayName("severity为空时返回400")
+        void updateSeverity_empty_returns400() throws Exception {
+            SeverityUpdateDTO dto = new SeverityUpdateDTO();
+            dto.setSeverity("");
+
+            mockMvc.perform(put("/workorder/wo-001/severity")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(400));
+        }
+    }
+
+    // ==================== 7.6 删除工单接口 ====================
+
+    @Nested
+    @DisplayName("7.6 删除工单接口")
+    class DeleteWorkOrder {
+
+        @Test
+        @DisplayName("删除存在的工单")
+        void delete_existingId_success() throws Exception {
+            mockMvc.perform(delete("/workorder/wo-001"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(200))
+                    .andExpect(jsonPath("$.message").value("工单已删除"));
+        }
+
+        @Test
+        @DisplayName("删除不存在的工单返回404")
+        void delete_nonExistingId_returns404() throws Exception {
+            org.mockito.Mockito.doThrow(new BusinessException(404, "工单不存在"))
+                    .when(workOrderService).deleteWorkOrder("not-exist");
+
+            mockMvc.perform(delete("/workorder/not-exist"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(404))
+                    .andExpect(jsonPath("$.message").value("工单不存在"));
+        }
+    }
+
+    // ==================== 7.7 Token 回调接口 ====================
+
+    @Nested
+    @DisplayName("7.7 Token 回调接口")
     class HandleCallback {
 
         @Test

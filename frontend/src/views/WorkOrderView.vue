@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
 import GlowButton from '../components/GlowButton.vue'
 import { useWorkOrderStore } from '../stores/workorder'
 
 const woStore = useWorkOrderStore()
+
+// 页面加载时从后端拉取工单数据
+onMounted(() => {
+  woStore.fetchOrders()
+})
 
 const filterStatus = ref<string>('ALL')
 const filterSeverity = ref<string>('ALL')
@@ -101,7 +106,7 @@ function closeCreateModal() {
   showCreateModal.value = false
 }
 
-function createOrder() {
+async function createOrder() {
   if (!newOrder.value.title || !newOrder.value.gridLabel) return
 
   const severityPrefix: Record<string, string> = {
@@ -111,29 +116,30 @@ function createOrder() {
     LOW: '【低】',
   }
 
-  const order = {
-    id: `wo-${String(woStore.orders.length + 1).padStart(3, '0')}`,
-    title: `${severityPrefix[newOrder.value.severity]}Grid-${newOrder.value.gridLabel} ${newOrder.value.pestName || '异常检测'}`,
-    severity: newOrder.value.severity as any,
-    status: 'PENDING' as const,
-    type: newOrder.value.type,
-    gridLabel: newOrder.value.gridLabel,
-    pestName: newOrder.value.pestName,
-    confidence: newOrder.value.confidence,
-    assignedToName: newOrder.value.assignedToName || '未分配',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+  try {
+    await woStore.addOrder({
+      title: `${severityPrefix[newOrder.value.severity]}Grid-${newOrder.value.gridLabel} ${newOrder.value.pestName || '异常检测'}`,
+      severity: newOrder.value.severity,
+      type: newOrder.value.type,
+      gridLabel: newOrder.value.gridLabel,
+      pestName: newOrder.value.pestName,
+      confidence: newOrder.value.confidence,
+    })
+    closeCreateModal()
+  } catch {
+    // 错误已在 store 中处理
   }
-
-  woStore.addOrder(order)
-  closeCreateModal()
 }
 
-function updateOrderStatus(orderId: string, newStatus: string) {
-  woStore.updateOrderStatus(orderId, newStatus as any)
-  // 更新选中的工单
-  if (selectedOrder.value?.id === orderId) {
-    selectedOrder.value = woStore.orders.find(o => o.id === orderId)
+async function updateOrderStatus(orderId: string, newStatus: string) {
+  try {
+    await woStore.updateOrderStatus(orderId, newStatus as any)
+    // 更新选中的工单
+    if (selectedOrder.value?.id === orderId) {
+      selectedOrder.value = woStore.orders.find(o => o.id === orderId)
+    }
+  } catch {
+    // 错误已在 store 中处理
   }
 }
 
@@ -146,11 +152,15 @@ function closeDeleteConfirm() {
   showDeleteConfirm.value = false
 }
 
-function deleteOrder() {
+async function deleteOrder() {
   if (!selectedOrder.value) return
-  woStore.removeOrder(selectedOrder.value.id)
-  closeDeleteConfirm()
-  closeDetail()
+  try {
+    await woStore.removeOrder(selectedOrder.value.id)
+    closeDeleteConfirm()
+    closeDetail()
+  } catch {
+    // 错误已在 store 中处理
+  }
 }
 
 function sendEmailToExpert() {
@@ -171,7 +181,7 @@ function sendEmailToExpert() {
     </div>
 
     <!-- Stats -->
-    <div class="grid grid-cols-4 gap-3 shrink-0">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
       <div class="glass rounded-xl px-4 py-3 flex items-center gap-3">
         <div class="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-lg font-mono font-bold text-white">{{ stats.total }}</div>
         <div>
@@ -222,7 +232,20 @@ function sendEmailToExpert() {
 
     <!-- Work order list -->
     <GlassCard class="flex-1 min-h-0 overflow-y-auto">
-      <div class="space-y-3">
+      <!-- Loading state -->
+      <div v-if="woStore.loading && woStore.orders.length === 0" class="flex items-center justify-center h-32">
+        <div class="text-slate-500 text-sm font-mono">加载中...</div>
+      </div>
+      <!-- Error state -->
+      <div v-else-if="woStore.error && woStore.orders.length === 0" class="flex flex-col items-center justify-center h-32 gap-2">
+        <div class="text-sakura text-sm">{{ woStore.error }}</div>
+        <button class="text-xs text-cyber-green hover:underline" @click="woStore.fetchOrders()">重试</button>
+      </div>
+      <!-- Empty state -->
+      <div v-else-if="woStore.orders.length === 0" class="flex items-center justify-center h-32">
+        <div class="text-slate-500 text-sm font-mono">暂无工单数据</div>
+      </div>
+      <div v-else class="space-y-3">
         <div
           v-for="order in filteredOrders"
           :key="order.id"
@@ -303,7 +326,7 @@ function sendEmailToExpert() {
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
         @click.self="closeCreateModal"
       >
-        <div class="glass rounded-2xl p-6 w-[480px] shadow-2xl border border-white/10">
+        <div class="glass rounded-2xl p-6 w-full max-w-[480px] mx-4 shadow-2xl border border-white/10">
           <div class="flex items-center justify-between mb-6">
             <div>
               <h2 class="text-lg font-bold text-white">手动创建工单</h2>
@@ -428,7 +451,7 @@ function sendEmailToExpert() {
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
         @click.self="closeDetail"
       >
-        <div class="glass rounded-2xl p-6 w-[520px] shadow-2xl border border-white/10">
+        <div class="glass rounded-2xl p-6 w-full max-w-[520px] mx-4 shadow-2xl border border-white/10">
           <div class="flex items-center justify-between mb-6">
             <div class="flex items-center gap-3">
               <div class="w-12 h-12 rounded-xl flex items-center justify-center font-mono font-bold text-white text-lg" :class="severityConfig[selectedOrder.severity]?.color">
@@ -559,14 +582,14 @@ function sendEmailToExpert() {
               <button
                 v-if="(selectedOrder.status === 'PENDING' || selectedOrder.status === 'PROCESSING') && severityConfig[selectedOrder.severity]?.level < 4"
                 class="flex-1 min-w-[100px] px-4 py-3 rounded-xl bg-orange-400/10 border border-orange-400/20 text-orange-400 text-sm hover:bg-orange-400/20 transition-colors"
-                @click="woStore.escalateSeverity(selectedOrder.id)"
+                @click="async () => { try { await woStore.escalateSeverity(selectedOrder.id); selectedOrder.value = woStore.orders.find(o => o.id === selectedOrder.id) } catch {} }"
               >
                 升级等级
               </button>
               <button
                 v-if="(selectedOrder.status === 'PENDING' || selectedOrder.status === 'PROCESSING') && severityConfig[selectedOrder.severity]?.level > 1"
                 class="flex-1 min-w-[100px] px-4 py-3 rounded-xl bg-slate-400/10 border border-slate-400/20 text-slate-400 text-sm hover:bg-slate-400/20 transition-colors"
-                @click="woStore.deescalateSeverity(selectedOrder.id)"
+                @click="async () => { try { await woStore.deescalateSeverity(selectedOrder.id); selectedOrder.value = woStore.orders.find(o => o.id === selectedOrder.id) } catch {} }"
               >
                 降级等级
               </button>
@@ -599,7 +622,7 @@ function sendEmailToExpert() {
         class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
         @click.self="closeDeleteConfirm"
       >
-        <div class="glass rounded-2xl p-6 w-[400px] shadow-2xl border border-sakura/20">
+        <div class="glass rounded-2xl p-6 w-full max-w-[400px] mx-4 shadow-2xl border border-sakura/20">
           <div class="text-center">
             <div class="w-16 h-16 rounded-full bg-sakura/10 flex items-center justify-center mx-auto mb-4">
               <svg class="w-8 h-8 text-sakura" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
