@@ -26,10 +26,10 @@ public class WorkOrder implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 工单UUID
+     * 工单ID
      */
     @TableId(value = "id", type = IdType.AUTO)
-    private String id;
+    private Long id;
 
     /**
      * 工单标题

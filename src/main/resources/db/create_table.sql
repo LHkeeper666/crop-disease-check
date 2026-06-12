@@ -258,7 +258,7 @@ CREATE TABLE prevention_plan_version (
 -- 工单表
 DROP TABLE IF EXISTS work_order;
 CREATE TABLE work_order (
-    id              VARCHAR(36) PRIMARY KEY COMMENT '工单UUID',
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '工单ID',
     title           VARCHAR(256) NOT NULL COMMENT '工单标题',
     severity        VARCHAR(20) NOT NULL COMMENT '严重程度: LOW/MEDIUM/HIGH/CRITICAL',
     status          VARCHAR(20) DEFAULT 'PENDING' COMMENT '状态: PENDING/PROCESSING/DONE/IGNORED/ESCALATED',
@@ -289,7 +289,7 @@ CREATE TABLE work_order (
 DROP TABLE IF EXISTS work_order_history;
 CREATE TABLE work_order_history (
     id            BIGINT PRIMARY KEY AUTO_INCREMENT,
-    workorder_id  VARCHAR(36) NOT NULL COMMENT '工单ID',
+    workorder_id  BIGINT NOT NULL COMMENT '工单ID',
     status        VARCHAR(20) NOT NULL COMMENT '状态',
     operator_id   VARCHAR(36) COMMENT '操作人ID',
     operator_name VARCHAR(64) COMMENT '操作人名称',

@@ -5,6 +5,6 @@ import lombok.Data;
 @Data
 public class CallbackResponseVO {
 
-    private String workorderId;
+    private Long workorderId;
     private String newStatus;
 }

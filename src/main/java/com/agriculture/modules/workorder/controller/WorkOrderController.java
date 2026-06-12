@@ -47,7 +47,7 @@ public class WorkOrderController {
     }
 
     @GetMapping("/{id}")
-    public Result<WorkOrderDetailVO> getWorkOrderDetail(@PathVariable String id) {
+    public Result<WorkOrderDetailVO> getWorkOrderDetail(@PathVariable Long id) {
         return Result.success(workOrderService.getWorkOrderDetail(id));
     }
 
@@ -59,7 +59,7 @@ public class WorkOrderController {
         String operatorId = userId;
         String operatorName = currentUser != null ? currentUser.getName() : "系统";
         String companyId = currentUser != null ? currentUser.getCompanyId() : null;
-        String id = workOrderService.createWorkOrder(dto, operatorId, operatorName, companyId);
+        Long id = workOrderService.createWorkOrder(dto, operatorId, operatorName, companyId);
         return Result.success("工单创建成功", id);
     }
 
@@ -71,12 +71,12 @@ public class WorkOrderController {
         String operatorId = userId;
         String operatorName = currentUser != null ? currentUser.getName() : "系统";
         String companyId = currentUser != null ? currentUser.getCompanyId() : null;
-        String id = workOrderService.createManualWorkOrder(dto, operatorId, operatorName, companyId);
+        Long id = workOrderService.createManualWorkOrder(dto, operatorId, operatorName, companyId);
         return Result.success("工单创建成功", id);
     }
 
     @PutMapping("/{id}/status")
-    public Result<Void> updateStatus(@PathVariable String id,
+    public Result<Void> updateStatus(@PathVariable Long id,
                                      @Valid @RequestBody StatusUpdateDTO dto,
                                      HttpServletRequest request) {
         String userId = (String) request.getAttribute("userId");
@@ -88,14 +88,14 @@ public class WorkOrderController {
     }
 
     @PutMapping("/{id}/severity")
-    public Result<Void> updateSeverity(@PathVariable String id,
+    public Result<Void> updateSeverity(@PathVariable Long id,
                                        @Valid @RequestBody SeverityUpdateDTO dto) {
         workOrderService.updateSeverity(id, dto.getSeverity());
         return Result.success("严重程度更新成功", null);
     }
 
     @DeleteMapping("/{id}")
-    public Result<Void> deleteWorkOrder(@PathVariable String id) {
+    public Result<Void> deleteWorkOrder(@PathVariable Long id) {
         workOrderService.deleteWorkOrder(id);
         return Result.success("工单已删除", null);
     }

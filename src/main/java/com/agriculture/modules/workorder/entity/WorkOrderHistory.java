@@ -31,7 +31,7 @@ public class WorkOrderHistory implements Serializable {
      * 工单ID
      */
     @TableField("workorder_id")
-    private String workorderId;
+    private Long workorderId;
 
     /**
      * 状态

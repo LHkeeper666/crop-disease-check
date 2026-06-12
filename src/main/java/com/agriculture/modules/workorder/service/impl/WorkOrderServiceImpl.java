@@ -136,7 +136,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
     }
 
     @Override
-    public WorkOrderDetailVO getWorkOrderDetail(String id) {
+    public WorkOrderDetailVO getWorkOrderDetail(Long id) {
         WorkOrder workOrder = baseMapper.selectById(id);
         if (workOrder == null) {
             throw new BusinessException(404, "工单不存在");
@@ -165,7 +165,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
 
     @Override
     @Transactional
-    public String createWorkOrder(WorkOrderCreateDTO dto, String operatorId, String operatorName, String companyId) {
+    public Long createWorkOrder(WorkOrderCreateDTO dto, String operatorId, String operatorName, String companyId) {
         // 校验 Inference 存在
         Inference inference = inferenceMapper.selectById(dto.getInferenceId());
         if (inference == null) {
@@ -226,7 +226,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
 
     @Override
     @Transactional
-    public String createManualWorkOrder(WorkOrderManualCreateDTO dto, String operatorId, String operatorName, String companyId) {
+    public Long createManualWorkOrder(WorkOrderManualCreateDTO dto, String operatorId, String operatorName, String companyId) {
         WorkOrder workOrder = new WorkOrder();
         workOrder.setTitle(dto.getTitle());
         workOrder.setSeverity(dto.getSeverity());
@@ -344,7 +344,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
 
     @Override
     @Transactional
-    public void updateStatus(String id, String status, String comment, String operatorId, String operatorName) {
+    public void updateStatus(Long id, String status, String comment, String operatorId, String operatorName) {
         WorkOrder workOrder = baseMapper.selectById(id);
         if (workOrder == null) {
             throw new BusinessException(404, "工单不存在");
@@ -385,7 +385,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
     }
 
     @Override
-    public void updateSeverity(String id, String severity) {
+    public void updateSeverity(Long id, String severity) {
         WorkOrder workOrder = baseMapper.selectById(id);
         if (workOrder == null) {
             throw new BusinessException(404, "工单不存在");
@@ -401,7 +401,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
 
     @Override
     @Transactional
-    public void deleteWorkOrder(String id) {
+    public void deleteWorkOrder(Long id) {
         WorkOrder workOrder = baseMapper.selectById(id);
         if (workOrder == null) {
             throw new BusinessException(404, "工单不存在");

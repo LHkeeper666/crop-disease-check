@@ -12,7 +12,7 @@ import {
 
 // 前端工单类型，与后端 WorkOrderVO 对齐
 export interface WorkOrder {
-  id: string
+  id: number
   title: string
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
   status: 'PENDING' | 'PROCESSING' | 'DONE' | 'IGNORED'
@@ -141,7 +141,7 @@ export const useWorkOrderStore = defineStore('workorder', () => {
   }
 
   /** 删除工单 */
-  async function removeOrder(id: string) {
+  async function removeOrder(id: number) {
     loading.value = true
     error.value = null
     try {
@@ -156,7 +156,7 @@ export const useWorkOrderStore = defineStore('workorder', () => {
   }
 
   /** 更新工单状态 */
-  async function updateOrderStatus(id: string, status: WorkOrder['status'], comment?: string) {
+  async function updateOrderStatus(id: number, status: WorkOrder['status'], comment?: string) {
     error.value = null
     try {
       await apiUpdateStatus(id, status, comment)
@@ -172,7 +172,7 @@ export const useWorkOrderStore = defineStore('workorder', () => {
   }
 
   /** 升级严重程度 */
-  async function escalateSeverity(id: string) {
+  async function escalateSeverity(id: number) {
     const o = orders.value.find(o => o.id === id)
     if (!o) return
     const levels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
@@ -191,7 +191,7 @@ export const useWorkOrderStore = defineStore('workorder', () => {
   }
 
   /** 降级严重程度 */
-  async function deescalateSeverity(id: string) {
+  async function deescalateSeverity(id: number) {
     const o = orders.value.find(o => o.id === id)
     if (!o) return
     const levels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
