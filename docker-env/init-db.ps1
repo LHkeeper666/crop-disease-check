@@ -66,32 +66,52 @@ docker exec $containerName `
     -e "SELECT id, name FROM inspection_plan LIMIT 3;"
 
 Write-Host ""
-Write-Host "=== 6. 构建并启动 CV 推理服务 ===" -ForegroundColor Cyan
-docker compose --profile infra --profile app up -d --build cv-inference
+Write-Host "=== 6. 构建 CV 推理服务镜像 ===" -ForegroundColor Cyan
+docker compose --profile infra --profile app build cv-inference
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "CV 推理服务镜像构建失败!" -ForegroundColor Red
+    exit 1
+}
+Write-Host "镜像构建完成" -ForegroundColor Green
 
 Write-Host ""
-Write-Host "=== 7. 等待推理服务就绪 ===" -ForegroundColor Cyan
-$maxRetries = 30
+Write-Host "=== 7. 启动 CV 推理服务 ===" -ForegroundColor Cyan
+docker compose --profile infra --profile app up -d cv-inference
+
+Write-Host ""
+Write-Host "=== 8. 等待推理服务就绪 ===" -ForegroundColor Cyan
+$maxRetries = 12   # 明确设置最大重试次数
+$url = "http://127.0.0.1:8000/api/v1/health"   # 强制使用 IPv4
+
 for ($i = 1; $i -le $maxRetries; $i++) {
     try {
-        $response = Invoke-WebRequest -Uri "http://localhost:8000/api/v1/health" -UseBasicParsing -TimeoutSec 3
+        $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
         if ($response.StatusCode -eq 200) {
-            Write-Host "CV 推理服务已就绪" -ForegroundColor Green
-            break
+            # 进一步解析 JSON，确保业务状态也是 ready
+            $body = $response.Content | ConvertFrom-Json
+            if ($body.code -eq 200 -and $body.data.status -eq "ready") {
+                Write-Host "CV 推理服务已就绪" -ForegroundColor Green
+                break
+            } else {
+                Write-Host "  服务已响应但状态未就绪: $($body.data.status)" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "  非 200 状态码: $($response.StatusCode)" -ForegroundColor Yellow
         }
     } catch {
-        # 服务尚未就绪
+        # 输出详细错误原因，便于排查
+        Write-Host "  请求失败: $_" -ForegroundColor DarkYellow
     }
+
     if ($i -eq $maxRetries) {
-        Write-Host "CV 推理服务启动超时，请检查 docker logs agri-monitor-cv-inference" -ForegroundColor Red
+        Write-Host "CV 推理服务启动超时，请检查 docker logs agri-monitor-cv" -ForegroundColor Red
         exit 1
     }
     Write-Host "  等待中... ($i/$maxRetries)"
     Start-Sleep -Seconds 5
 }
-
 Write-Host ""
-Write-Host "=== 初始化完成 ===" -ForegroundColor Green
+Write-Host "=== 9. 初始化完成 ===" -ForegroundColor Green
 Write-Host "  MySQL:       localhost:3306"
 Write-Host "  Redis:       localhost:6379"
 Write-Host "  RabbitMQ:    localhost:15672"
