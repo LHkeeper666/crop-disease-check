@@ -58,6 +58,25 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public UserVO register(RegisterDTO dto) {
+        // 校验邮箱验证码
+        String otpKey = OTP_KEY_PREFIX + dto.getEmail() + ":REGISTER";
+        String cachedOtp = redisTemplate.opsForValue().get(otpKey);
+        if (cachedOtp == null) {
+            throw new BusinessException("验证码已过期，请重新获取");
+        }
+        if (!cachedOtp.equals(dto.getCode())) {
+            throw new BusinessException("验证码错误");
+        }
+        // 验证通过，删除已使用的验证码
+        redisTemplate.delete(otpKey);
+
+        // 检查邮箱是否已注册
+        LambdaQueryWrapper<SysUser> emailWrapper = new LambdaQueryWrapper<>();
+        emailWrapper.eq(SysUser::getEmail, dto.getEmail());
+        if (userMapper.selectCount(emailWrapper) > 0) {
+            throw new BusinessException("该邮箱已注册");
+        }
+
         // 检查用户名是否已存在
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SysUser::getUsername, dto.getUsername());
