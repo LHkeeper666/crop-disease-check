@@ -34,6 +34,7 @@ const chatContainerRef = ref<HTMLDivElement>()
 const conversationId = ref<string | null>(null)
 const conversations = ref<Conversation[]>([])
 const showHistory = ref(false)
+const isToolCalling = ref(false)
 
 // 获取认证 header
 function getAuthHeaders(): Record<string, string> {
@@ -195,6 +196,7 @@ async function loadConversationMessages(convId: string) {
 function newConversation() {
   conversationId.value = null
   messages.value = []
+  isToolCalling.value = false
 }
 
 // Select conversation from history
@@ -276,6 +278,7 @@ async function sendMessage(text?: string) {
             nextTick(() => scrollToBottom())
           } else if (event.type === 'tool_call' && event.toolCallId) {
             // 工具调用开始
+            isToolCalling.value = true
             if (!messages.value[assistantMsgIndex].toolCalls) {
               messages.value[assistantMsgIndex].toolCalls = []
             }
@@ -310,6 +313,7 @@ async function sendMessage(text?: string) {
     messages.value[assistantMsgIndex].content = `请求失败: ${err.message}`
   } finally {
     isLoading.value = false
+    isToolCalling.value = false
     nextTick(() => scrollToBottom())
   }
 }
@@ -323,6 +327,10 @@ function scrollToBottom() {
 function getToolDisplayName(name: string): string {
   const toolNames: Record<string, string> = {
     work_order: '工单数据',
+    environment: '环境数据',
+    detection: '检测记录',
+    pest_disease_info: '病虫害知识',
+    create_work_order: '创建工单',
   }
   return toolNames[name] || name
 }
@@ -481,6 +489,7 @@ onMounted(() => {
         <div
           v-for="msg in messages"
           :key="msg.id"
+          v-show="msg.role === 'user' || msg.content || msg.toolCalls?.length"
           class="flex gap-3"
           :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
         >
@@ -520,6 +529,14 @@ onMounted(() => {
                   <span>{{ tc.status === 'calling' ? '正在查询' : '查询完成' }}: {{ getToolDisplayName(tc.name) }}</span>
                 </div>
               </div>
+              <!-- 思考中（工具调用完成后、回复到达前） -->
+              <div v-if="msg.toolCalls?.length && !msg.content" class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-mono bg-white/5 border border-white/10 text-slate-400 mb-3">
+                <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span>思考中...</span>
+              </div>
               <MarkdownRenderer :content="msg.content" />
             </template>
           </div>
@@ -530,8 +547,8 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Loading indicator -->
-        <div v-if="isLoading && messages[messages.length - 1]?.content === ''" class="flex gap-3 justify-start">
+        <!-- Loading indicator (工具调用中和有内容时隐藏，避免双头像) -->
+        <div v-if="isLoading && !isToolCalling && messages[messages.length - 1]?.content === ''" class="flex gap-3 justify-start">
           <div class="w-8 h-8 rounded-lg bg-cyber-green/10 flex items-center justify-center shrink-0">
             <svg class="w-4 h-4 text-cyber-green" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />

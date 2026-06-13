@@ -115,11 +115,15 @@ public class AgriBrainServiceImpl implements AgriBrainService {
 
                 // 执行 tool calling 循环
                 StringBuilder fullResponse = new StringBuilder();
-                executeToolCallingLoop(messages, tools, emitter, fullResponse, apiKey, model, userId, companyId);
+                StringBuilder toolContext = new StringBuilder();
+                executeToolCallingLoop(messages, tools, emitter, fullResponse, toolContext, apiKey, model, userId, companyId);
 
-                // 持久化消息
+                // 持久化消息（tool 结果拼接到回答前面，供下轮对话参考）
                 messageService.saveMessage(conversation.getId(), userId, "USER", message);
-                messageService.saveMessage(conversation.getId(), userId, "ASSISTANT", fullResponse.toString());
+                String assistantContent = toolContext.length() > 0
+                        ? toolContext + "\n---\n" + fullResponse
+                        : fullResponse.toString();
+                messageService.saveMessage(conversation.getId(), userId, "ASSISTANT", assistantContent);
                 conversationService.updateUpdatedAt(conversation.getId());
 
                 // 发送完成事件
@@ -166,10 +170,14 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                 String companyId = resolveCompanyId(userId);
 
                 StringBuilder fullResponse = new StringBuilder();
-                executeToolCallingLoop(messages, tools, emitter, fullResponse, apiKey, model, userId, companyId);
+                StringBuilder toolContext = new StringBuilder();
+                executeToolCallingLoop(messages, tools, emitter, fullResponse, toolContext, apiKey, model, userId, companyId);
 
                 messageService.saveMessage(conversation.getId(), userId, "USER", quickAdvicePrompt);
-                messageService.saveMessage(conversation.getId(), userId, "ASSISTANT", fullResponse.toString());
+                String assistantContent = toolContext.length() > 0
+                        ? toolContext + "\n---\n" + fullResponse
+                        : fullResponse.toString();
+                messageService.saveMessage(conversation.getId(), userId, "ASSISTANT", assistantContent);
 
                 emitter.send(ChatEvent.done(conversation.getId()));
                 emitter.complete();
@@ -214,8 +222,41 @@ public class AgriBrainServiceImpl implements AgriBrainService {
         List<Map<String, Object>> messages = new ArrayList<>();
         messages.add(Map.of("role", "system", "content", systemPrompt));
 
+        // 发送完整历史，剥离 tool context，并清理消息顺序确保 user/assistant 严格交替
+        String lastRole = "system";
         for (AiMessage msg : history) {
-            messages.add(Map.of("role", msg.getRole().toLowerCase(), "content", msg.getContent()));
+            String role = msg.getRole().toLowerCase();
+            String content = msg.getContent();
+
+            // 跳过 tool 消息（tool_calls 和 tool_result 在持久化时不应出现，但以防万一）
+            if ("tool".equals(role)) continue;
+
+            // 剥离 tool context
+            if ("assistant".equals(role) && content.contains("\n---\n")) {
+                content = content.substring(content.indexOf("\n---\n") + 5);
+            }
+
+            // 跳过空内容
+            if (content == null || content.isBlank()) continue;
+
+            // 确保严格交替：连续相同 role 时合并或跳过
+            if (role.equals(lastRole)) {
+                if ("assistant".equals(role)) {
+                    // 连续 assistant：跳过前一个（保留最新的）
+                    messages.remove(messages.size() - 1);
+                } else {
+                    // 连续 user：跳过当前（保留前一个）
+                    continue;
+                }
+            }
+
+            messages.add(Map.of("role", role, "content", content));
+            lastRole = role;
+        }
+
+        // 确保最后一条不是 user（避免连续 user）
+        if (!messages.isEmpty() && "user".equals(messages.get(messages.size() - 1).get("role"))) {
+            messages.remove(messages.size() - 1);
         }
 
         messages.add(Map.of("role", "user", "content", userMessage));
@@ -245,7 +286,7 @@ public class AgriBrainServiceImpl implements AgriBrainService {
      * Tool calling 循环：调用 LLM → 检测 tool_calls → 执行工具 → 再次调用 LLM
      */
     private void executeToolCallingLoop(List<Map<String, Object>> messages, List<Map<String, Object>> tools,
-                                         SseEmitter emitter, StringBuilder fullResponse,
+                                         SseEmitter emitter, StringBuilder fullResponse, StringBuilder toolContext,
                                          String apiKey, String model, String userId, String companyId) throws Exception {
         int round = 0;
 
@@ -271,6 +312,9 @@ public class AgriBrainServiceImpl implements AgriBrainService {
             assistantMsg.put("tool_calls", result.toolCalls);
             messages.add(assistantMsg);
 
+            // 本轮已通知的 tool name（去重，同一 tool 只通知一次）
+            Set<String> notifiedTools = new HashSet<>();
+
             // 执行每个 tool call
             for (Map<String, Object> toolCall : result.toolCalls) {
                 log.info("toolCall 原始数据: {}", toolCall);
@@ -285,8 +329,10 @@ public class AgriBrainServiceImpl implements AgriBrainService {
 
                 log.info("执行工具: id={}, name={}, args={}", toolCallId, toolName, argsJson);
 
-                // 发送 tool_call 事件
-                emitter.send(ChatEvent.toolCall(toolCallId, toolName));
+                // 发送 tool_call 事件（同一轮同一 tool 只通知一次）
+                if (notifiedTools.add(toolName)) {
+                    emitter.send(ChatEvent.toolCall(toolCallId, toolName));
+                }
 
                 // 解析参数
                 Map<String, Object> arguments = new LinkedHashMap<>();
@@ -302,6 +348,13 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                 String toolResult = executeTool(toolName, arguments, userId, companyId);
                 log.info("工具执行结果: {}", toolResult);
 
+                // 收集 tool 结果用于持久化（截断过长结果避免干扰后续对话）
+                if (toolContext.length() > 0) toolContext.append("\n");
+                String truncatedResult = toolResult.length() > 500
+                        ? toolResult.substring(0, 500) + "...(truncated)"
+                        : toolResult;
+                toolContext.append("[").append(toolName).append("] ").append(truncatedResult);
+
                 // 发送 tool_result 事件
                 emitter.send(ChatEvent.toolResult(toolCallId, toolName, toolResult));
 
@@ -312,6 +365,12 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                 toolMsg.put("content", toolResult);
                 messages.add(toolMsg);
             }
+        }
+
+        // 如果循环用完所有轮次（LLM 一直在调 tool），强制最终一次不带 tools 的调用让 LLM 生成回答
+        if (round >= MAX_TOOL_ROUNDS) {
+            log.warn("Tool calling 达到最大轮次 {}，强制最终回答", MAX_TOOL_ROUNDS);
+            streamLlmResponseWithToolCalls(messages, null, emitter, fullResponse, apiKey, model);
         }
     }
 
@@ -346,6 +405,15 @@ public class AgriBrainServiceImpl implements AgriBrainService {
         requestBody.put("max_tokens", 2048);
 
         String bodyJson = objectMapper.writeValueAsString(requestBody);
+
+        // 打印发送给 LLM 的消息结构（不含完整内容，只打印 role 和 content 长度）
+        for (int i = 0; i < messages.size(); i++) {
+            Map<String, Object> m = messages.get(i);
+            String role = (String) m.get("role");
+            Object content = m.get("content");
+            int len = content instanceof String ? ((String) content).length() : 0;
+            log.info("LLM messages[{}]: role={}, contentLen={}", i, role, len);
+        }
 
         log.info("调用 LLM API: baseUrl={}, model={}, apiKey={}***", llmProperties.getBaseUrl(), model,
                 apiKey != null && apiKey.length() > 6 ? apiKey.substring(0, 6) : "null");
@@ -411,7 +479,6 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                                         String content = delta.get("content").asText();
                                         if (content != null && !content.isEmpty()) {
                                             fullResponse.append(content);
-                                            log.debug("发送 token: {}", content);
                                             emitter.send(ChatEvent.token(content));
                                         }
                                     }
