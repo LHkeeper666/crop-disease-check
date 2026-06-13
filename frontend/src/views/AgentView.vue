@@ -5,11 +5,19 @@ import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 
 const AGRI_EXPERT_SYSTEM_PROMPT = `你是一位资深农业遥测专家 AI 助手，隶属于 TreeForge 智慧农业遥测平台。`
 
+interface ToolCallInfo {
+  toolCallId: string
+  name: string
+  status: 'calling' | 'done'
+  result?: string
+}
+
 interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
+  toolCalls?: ToolCallInfo[]
 }
 
 interface Conversation {
@@ -266,6 +274,28 @@ async function sendMessage(text?: string) {
           if (event.type === 'token' && event.content && event.content !== 'null') {
             messages.value[assistantMsgIndex].content += event.content
             nextTick(() => scrollToBottom())
+          } else if (event.type === 'tool_call' && event.toolCallId) {
+            // 工具调用开始
+            if (!messages.value[assistantMsgIndex].toolCalls) {
+              messages.value[assistantMsgIndex].toolCalls = []
+            }
+            messages.value[assistantMsgIndex].toolCalls.push({
+              toolCallId: event.toolCallId,
+              name: event.toolName || 'unknown',
+              status: 'calling',
+            })
+            nextTick(() => scrollToBottom())
+          } else if (event.type === 'tool_result' && event.toolCallId) {
+            // 工具执行完成
+            const toolCalls = messages.value[assistantMsgIndex].toolCalls
+            if (toolCalls) {
+              const tc = toolCalls.find(t => t.toolCallId === event.toolCallId)
+              if (tc) {
+                tc.status = 'done'
+                tc.result = event.content
+              }
+            }
+            nextTick(() => scrollToBottom())
           } else if (event.type === 'done' && event.conversationId) {
             conversationId.value = event.conversationId
           } else if (event.type === 'error') {
@@ -288,6 +318,13 @@ function scrollToBottom() {
   if (chatContainerRef.value) {
     chatContainerRef.value.scrollTop = chatContainerRef.value.scrollHeight
   }
+}
+
+function getToolDisplayName(name: string): string {
+  const toolNames: Record<string, string> = {
+    work_order: '工单数据',
+  }
+  return toolNames[name] || name
 }
 
 onMounted(() => {
@@ -465,6 +502,24 @@ onMounted(() => {
               {{ msg.content }}
             </template>
             <template v-else>
+              <!-- Tool calls status -->
+              <div v-if="msg.toolCalls && msg.toolCalls.length > 0" class="mb-3 space-y-2">
+                <div
+                  v-for="tc in msg.toolCalls"
+                  :key="tc.toolCallId"
+                  class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-mono"
+                  :class="tc.status === 'calling' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-cyber-green/10 text-cyber-green border border-cyber-green/20'"
+                >
+                  <svg v-if="tc.status === 'calling'" class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <svg v-else class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>{{ tc.status === 'calling' ? '正在查询' : '查询完成' }}: {{ getToolDisplayName(tc.name) }}</span>
+                </div>
+              </div>
               <MarkdownRenderer :content="msg.content" />
             </template>
           </div>
