@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import glob
 import logging
 import os
 from pathlib import Path
@@ -29,10 +30,13 @@ _FONT_PATHS = [
     "C:/Windows/Fonts/msyh.ttc",    # 微软雅黑
     "C:/Windows/Fonts/simhei.ttf",   # 黑体
     "C:/Windows/Fonts/simsun.ttc",   # 宋体
-    # Linux
-    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+    # Linux (fonts-noto-cjk 包)
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+    # Linux (fonts-noto-cjk-extra 或其他变体)
+    "/usr/share/fonts/opentype/noto/NotoSansSC-Regular.otf",
+    "/usr/share/fonts/truetype/noto/NotoSansSC-Regular.otf",
 ]
 
 def _get_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -43,7 +47,21 @@ def _get_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
                 return ImageFont.truetype(fp, size)
             except Exception:
                 continue
-    logger.warning("未找到中文字体，标注可能显示为方块")
+
+    # 兜底：glob 搜索任意 Noto CJK 字体
+    for pattern in [
+        "/usr/share/fonts/**/NotoSans*CJK*.ttc",
+        "/usr/share/fonts/**/NotoSans*CJK*.otf",
+        "/usr/share/fonts/**/NotoSansSC*.otf",
+    ]:
+        matches = glob.glob(pattern, recursive=True)
+        if matches:
+            try:
+                return ImageFont.truetype(matches[0], size)
+            except Exception:
+                continue
+
+    logger.warning("未找到中文字体，标注可能显示为乱码")
     return ImageFont.load_default()
 
 

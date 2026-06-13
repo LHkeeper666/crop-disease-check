@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
 
 interface Detection {
@@ -12,7 +12,6 @@ interface Detection {
 interface SingleResult {
   disease: { detections: Detection[]; count: number; elapsed_ms: number }
   pest: { detections: Detection[]; count: number; elapsed_ms: number }
-  annotated_image: string | null
   annotated_url: string | null
   total_elapsed_ms: number
   error?: string | null
@@ -37,6 +36,13 @@ const dragOver = ref(false)
 const fileInputRef = ref<HTMLInputElement>()
 const activeIndex = ref(0)
 const uploadProgress = ref({ done: 0, total: 0 })
+const showEnlarged = ref(false)
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') showEnlarged.value = false
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 const isBatch = computed(() => files.value.length > 1)
 const activeItem = computed(() => files.value[activeIndex.value] || null)
@@ -95,8 +101,6 @@ function removeFile(index: number) {
 function clearAll() {
   files.value.forEach(f => {
     URL.revokeObjectURL(f.previewUrl)
-    // 只 revoke blob URL（base64 转换的），MinIO 远程 URL 无需 revoke
-    if (f.annotatedUrl && f.annotatedUrl.startsWith('blob:')) URL.revokeObjectURL(f.annotatedUrl)
   })
   files.value = []
   activeIndex.value = 0
@@ -113,7 +117,6 @@ async function detectSingle(item: BatchItem): Promise<SingleResult> {
     body: JSON.stringify({
       image: { type: 'base64', data: base64 },
       confidence: confidenceThreshold.value,
-      return_annotated_image: true,
     }),
   })
   if (!response.ok) {
@@ -139,7 +142,6 @@ async function detectBatch(): Promise<SingleResult[]> {
     body: JSON.stringify({
       images,
       confidence: confidenceThreshold.value,
-      return_annotated_image: true,
     }),
   })
   if (!response.ok) {
@@ -170,10 +172,6 @@ async function handleDetect() {
           item.result = r
           if (r.annotated_url) {
             item.annotatedUrl = r.annotated_url
-          } else if (r.annotated_image) {
-            item.annotatedUrl = URL.createObjectURL(
-              base64ToBlob(r.annotated_image, 'image/jpeg')
-            )
           }
         }
       })
@@ -184,10 +182,6 @@ async function handleDetect() {
         item.result = await detectSingle(item)
         if (item.result.annotated_url) {
           item.annotatedUrl = item.result.annotated_url
-        } else if (item.result.annotated_image) {
-          item.annotatedUrl = URL.createObjectURL(
-            base64ToBlob(item.result.annotated_image, 'image/jpeg')
-          )
         }
       } catch (err: any) {
         item.error = err.message
@@ -208,13 +202,6 @@ function fileToBase64(file: File): Promise<string> {
     reader.onerror = reject
     reader.readAsDataURL(file)
   })
-}
-
-function base64ToBlob(base64: string, mime: string): Blob {
-  const bytes = atob(base64)
-  const arr = new Uint8Array(bytes.length)
-  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
-  return new Blob([arr], { type: mime })
 }
 
 function getSeverityColor(confidence: number): string {
@@ -443,8 +430,17 @@ function totalDetections(item: BatchItem): number {
 
           <template v-if="activeItem.result">
             <!-- Annotated image -->
-            <div v-if="activeItem.annotatedUrl" class="rounded-xl overflow-hidden border border-white/10">
-              <img :src="activeItem.annotatedUrl" class="w-full object-contain max-h-48" />
+            <div
+              v-if="activeItem.annotatedUrl"
+              class="rounded-xl overflow-hidden border border-white/10 cursor-pointer group relative"
+              @click="showEnlarged = true"
+            >
+              <img :src="activeItem.annotatedUrl" class="w-full object-contain max-h-48 transition-opacity group-hover:opacity-80" />
+              <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
+                </svg>
+              </div>
             </div>
 
             <!-- Stats bar -->
@@ -552,4 +548,28 @@ function totalDetections(item: BatchItem): number {
       </GlassCard>
     </div>
   </div>
+
+  <!-- Enlarged image overlay -->
+  <Teleport to="body">
+    <div
+      v-if="showEnlarged && activeItem?.annotatedUrl"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      @click.self="showEnlarged = false"
+    >
+      <div class="relative">
+        <img
+          :src="activeItem.annotatedUrl"
+          class="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
+        />
+        <button
+          class="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+          @click="showEnlarged = false"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </Teleport>
 </template>
