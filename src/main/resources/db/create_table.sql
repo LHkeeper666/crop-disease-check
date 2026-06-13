@@ -67,7 +67,7 @@ CREATE TABLE camera (
     location_x          DECIMAL(10,6) COMMENT '经度',
     location_y          DECIMAL(10,6) COMMENT '纬度',
     direction           DECIMAL(5,1) COMMENT '朝向角度',
-    capture_resolution  VARCHAR(20) DEFAULT '640x640' COMMENT '抓拍分辨率',
+    capture_resolution  VARCHAR(20) DEFAULT NULL COMMENT '抓拍分辨率（为空则使用源流分辨率）',
     capture_quality     INT DEFAULT 85 COMMENT '抓拍JPEG质量(1-100)',
     reconnect_interval  INT DEFAULT 30 COMMENT '断流重连间隔(秒)',
     status              VARCHAR(20) DEFAULT 'OFFLINE' COMMENT '状态: ONLINE/OFFLINE/FAULT',

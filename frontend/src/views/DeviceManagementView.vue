@@ -146,7 +146,7 @@ async function fetchCameras() {
       direction: c.direction,
       status: c.status || 'OFFLINE',
       coverageGrids: c.coverageGrids || [],
-      captureResolution: c.captureResolution || '640x640',
+      captureResolution: c.captureResolution || '',
       captureQuality: c.captureQuality ?? 85,
       reconnectInterval: c.reconnectInterval ?? 30,
     }))
@@ -171,7 +171,7 @@ async function createCamera(form: typeof cameraForm.value) {
       coverageGrids: form.grid
         ? form.grid.split(',').map((s: string) => s.trim()).filter(Boolean)
         : undefined,
-      captureResolution: form.captureResolution,
+      captureResolution: form.captureResolution || undefined,
       captureQuality: parseInt(form.captureQuality) || 85,
       reconnectInterval: parseInt(form.reconnectInterval) || 30,
     }),
@@ -194,7 +194,7 @@ async function updateCamera(id: string, form: typeof cameraForm.value) {
       coverageGrids: form.grid
         ? form.grid.split(',').map((s: string) => s.trim()).filter(Boolean)
         : undefined,
-      captureResolution: form.captureResolution,
+      captureResolution: form.captureResolution || undefined,
       captureQuality: parseInt(form.captureQuality) || 85,
       reconnectInterval: parseInt(form.reconnectInterval) || 30,
     }),
@@ -219,7 +219,7 @@ const isCreateMode = ref(false)
 const cameraForm = ref({
   name: '', rtspUrl: '', rtspUrlSub: '',
   locationX: '', locationY: '', direction: '0',
-  grid: '', captureResolution: '640x640',
+  grid: '', captureResolution: '',
   captureQuality: '85', reconnectInterval: '30',
 })
 const cameraSaving = ref(false)
@@ -231,7 +231,7 @@ function openCreateCamera() {
   cameraForm.value = {
     name: '', rtspUrl: '', rtspUrlSub: '',
     locationX: '', locationY: '', direction: '0',
-    grid: '', captureResolution: '640x640',
+    grid: '', captureResolution: '',
     captureQuality: '85', reconnectInterval: '30',
   }
   cameraSaveError.value = ''
@@ -249,7 +249,7 @@ function openEditCamera(cam: CameraItem) {
     locationY: String(cam.locationY ?? ''),
     direction: String(cam.direction ?? 0),
     grid: cam.coverageGrids?.join(', ') || '',
-    captureResolution: cam.captureResolution || '640x640',
+    captureResolution: cam.captureResolution || '',
     captureQuality: String(cam.captureQuality ?? 85),
     reconnectInterval: String(cam.reconnectInterval ?? 30),
   }
@@ -947,6 +947,7 @@ async function toggleUserStatus(user: UserSimpleVO) {
                   v-model="cameraForm.captureResolution"
                   class="w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-cyber-green/50 select-dark"
                 >
+                  <option value="">源流分辨率（自适应）</option>
                   <option value="320x320">320x320</option>
                   <option value="640x640">640x640</option>
                   <option value="1280x1280">1280x1280</option>

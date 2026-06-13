@@ -257,8 +257,6 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
                         .retryCount(0)
                         .build())
                 .frameInfo(isOnline ? CameraStatusVO.FrameInfo.builder()
-                        .width(640)
-                        .height(640)
                         .fps(25)
                         .codec("H.264")
                         .build() : null)
