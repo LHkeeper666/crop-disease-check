@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+import torch
+
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
 
@@ -18,7 +20,7 @@ PEST_MODEL_PATH = os.getenv(
 DEFAULT_CONFIDENCE = float(os.getenv("DEFAULT_CONFIDENCE", "0.5"))
 MAX_IMAGE_SIZE_MB = int(os.getenv("MAX_IMAGE_SIZE_MB", "10"))
 MAX_BATCH_SIZE = int(os.getenv("MAX_BATCH_SIZE", "20"))
-DEVICE = os.getenv("DEVICE", "auto")  # auto / cpu / cuda:0
+DEVICE = os.getenv("DEVICE", "cuda:0" if torch.cuda.is_available() else "cpu")
 
 # ---- 输出目录 ----
 OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", str(PROJECT_ROOT / "outputs")))

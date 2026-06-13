@@ -213,22 +213,25 @@ class UserControllerTest {
         @Test
         @DisplayName("重置密码成功")
         void resetPassword_success() throws Exception {
-            when(userService.resetPassword("user-001")).thenReturn("Abc123456789");
+            doNothing().when(userService).resetPassword("user-001", "NewPass123");
 
-            mockMvc.perform(post("/users/user-001/reset-password"))
+            mockMvc.perform(post("/users/user-001/reset-password")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"newPassword\":\"NewPass123\"}"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
-                    .andExpect(jsonPath("$.data.newPassword").value("Abc123456789"))
                     .andExpect(jsonPath("$.message").value("密码重置成功"));
         }
 
         @Test
         @DisplayName("用户不存在时返回错误")
         void resetPassword_userNotFound_returnsError() throws Exception {
-            when(userService.resetPassword("non-existent"))
-                    .thenThrow(new BusinessException("用户不存在"));
+            doThrow(new BusinessException("用户不存在"))
+                    .when(userService).resetPassword(eq("non-existent"), anyString());
 
-            mockMvc.perform(post("/users/non-existent/reset-password"))
+            mockMvc.perform(post("/users/non-existent/reset-password")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"newPassword\":\"NewPass123\"}"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(500))
                     .andExpect(jsonPath("$.message").value("用户不存在"));
