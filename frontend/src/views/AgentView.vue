@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
+import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 
 const AGRI_EXPERT_SYSTEM_PROMPT = `你是一位资深农业遥测专家 AI 助手，隶属于 TreeForge 智慧农业遥测平台。`
 
@@ -455,12 +456,17 @@ onMounted(() => {
 
           <!-- Message bubble -->
           <div
-            class="max-w-[70%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap"
+            class="max-w-[70%] px-4 py-3 rounded-2xl text-sm leading-relaxed"
             :class="msg.role === 'user'
-              ? 'bg-cyber-green/10 border border-cyber-green/20 text-white'
+              ? 'bg-cyber-green/10 border border-cyber-green/20 text-white whitespace-pre-wrap'
               : 'bg-white/5 border border-white/10 text-slate-300'"
           >
-            {{ msg.content }}
+            <template v-if="msg.role === 'user'">
+              {{ msg.content }}
+            </template>
+            <template v-else>
+              <MarkdownRenderer :content="msg.content" />
+            </template>
           </div>
 
           <!-- User avatar -->

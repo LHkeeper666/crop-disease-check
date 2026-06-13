@@ -13,7 +13,9 @@
     "@tailwindcss/vite": "^4.1.0",
     "axios": "^1.17.0",
     "echarts": "^6.1.0",
+    "highlight.js": "^11.11.1",
     "hls.js": "^1.6.16",
+    "marked": "^18.0.5",
     "pinia": "^3.0.4",
     "sockjs-client": "^1.6.1",
     "tailwindcss": "^4.1.0",
@@ -22,6 +24,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/marked": "^5.0.2",
     "@types/node": "^24.12.3",
     "@types/sockjs-client": "^1.5.4",
     "@vitejs/plugin-vue": "^5.2.4",
