@@ -1,6 +1,7 @@
 package com.agriculture.modules.agriBrain.service.impl;
 
 import com.agriculture.common.config.LlmProperties;
+import com.agriculture.common.service.TemplateService;
 import com.agriculture.modules.agriBrain.entity.AiConversation;
 import com.agriculture.modules.agriBrain.entity.AiMessage;
 import com.agriculture.common.exception.BusinessException;
@@ -35,48 +36,17 @@ public class AgriBrainServiceImpl implements AgriBrainService {
 
     private static final Logger log = LoggerFactory.getLogger(AgriBrainServiceImpl.class);
 
-    private static final String SYSTEM_PROMPT_TEMPLATE = "你是一位资深农业遥测专家 AI 助手，隶属于 TreeForge 智慧农业遥测平台。你的知识涵盖以下领域：\n"
-            + "\n"
-            + "【核心专长】\n"
-            + "- 作物病虫害识别与防治（番茄晚疫病、白粉病、灰霉病、霜霉病、红蜘蛛、蚜虫、螟虫、白粉虱等）\n"
-            + "- 农业环境监测与调控（温度、湿度、土壤水分、光照、CO₂浓度）\n"
-            + "- 土壤养分分析（N/P/K、pH值、EC电导率）\n"
-            + "- 温室智能化管理（通风、灌溉、施肥策略）\n"
-            + "- 农药与肥料使用规范（安全间隔期、配比建议）\n"
-            + "\n"
-            + "【当前时间】\n"
-            + "今天是 %s（%s）。\n"
-            + "\n"
-            + "【工具使用】\n"
-            + "你可以使用以下工具查询实时数据：\n"
-            + "- work_order: 查询工单数据，支持 query（查询列表）和 stats（获取统计）两种操作\n"
-            + "\n"
-            + "当用户询问工单、告警、病虫害记录相关问题时，请优先使用工具查询真实数据，而非凭记忆回答。\n"
-            + "例如：用户问\"今日待处理工单\"时，应调用 work_order 工具的 query 操作，设置 status=PENDING 和今日日期（格式 YYYY-MM-DD）。\n"
-            + "\n"
-            + "【回答规范】\n"
-            + "1. 只回答用户当前的最新问题，不要重复回答历史问题\n"
-            + "2. 使用中文回答，语气专业但易懂\n"
-            + "3. 涉及数值时必须使用精确数据，格式如 \"23.6°C\"、\"65.2%%\"\n"
-            + "4. 对于病虫害问题，给出：风险等级、传播概率、推荐防治措施、安全用药建议\n"
-            + "5. 对于环境异常，给出：原因分析、调控建议、预期改善时间\n"
-            + "6. 必要时提供分级建议（紧急/重要/常规）\n"
-            + "7. 回答末尾给出可执行的行动建议";
-
-    private static String buildSystemPrompt() {
+    private String buildSystemPrompt() {
         java.time.LocalDate today = java.time.LocalDate.now();
         String dateStr = today.toString(); // 2026-06-13
         String dayOfWeek = today.getDayOfWeek().getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.CHINA); // 周五
-        return String.format(SYSTEM_PROMPT_TEMPLATE, dateStr, dayOfWeek);
-    }
 
-    private static final String QUICK_ADVICE_PROMPT = "基于当前农业监测系统的数据，请生成一份全面的农业管理建议报告。"
-            + "请从以下维度给出建议：\n"
-            + "1. 当前环境参数分析与调控建议\n"
-            + "2. 病虫害风险评估与预防措施\n"
-            + "3. 灌溉与施肥建议\n"
-            + "4. 温室管理优化建议\n"
-            + "5. 近期重点工作安排";
+        Map<String, Object> attributes = new HashMap<>();
+        attributes.put("date", dateStr);
+        attributes.put("dayOfWeek", dayOfWeek);
+
+        return templateService.render("system_prompt", attributes);
+    }
 
     private static final int MAX_TOOL_ROUNDS = 5;
 
@@ -102,6 +72,9 @@ public class AgriBrainServiceImpl implements AgriBrainService {
 
     @Resource
     private SysUserMapper sysUserMapper;
+
+    @Resource
+    private TemplateService templateService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -178,9 +151,11 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                 String title = "一键建议 - " + java.time.LocalDate.now();
                 AiConversation conversation = conversationService.createConversation(userId, title);
 
+                String quickAdvicePrompt = templateService.render("quick_advice", null);
+
                 List<Map<String, Object>> messages = new ArrayList<>();
                 messages.add(Map.of("role", "system", "content", buildSystemPrompt()));
-                messages.add(Map.of("role", "user", "content", QUICK_ADVICE_PROMPT));
+                messages.add(Map.of("role", "user", "content", quickAdvicePrompt));
 
                 List<Map<String, Object>> tools = toolRegistry.buildToolDefinitions();
 
@@ -193,7 +168,7 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                 StringBuilder fullResponse = new StringBuilder();
                 executeToolCallingLoop(messages, tools, emitter, fullResponse, apiKey, model, userId, companyId);
 
-                messageService.saveMessage(conversation.getId(), userId, "USER", QUICK_ADVICE_PROMPT);
+                messageService.saveMessage(conversation.getId(), userId, "USER", quickAdvicePrompt);
                 messageService.saveMessage(conversation.getId(), userId, "ASSISTANT", fullResponse.toString());
 
                 emitter.send(ChatEvent.done(conversation.getId()));
