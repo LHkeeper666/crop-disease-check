@@ -24,9 +24,19 @@ const status = ref<'ONLINE' | 'OFFLINE' | 'FAULT'>('OFFLINE')
 const diseaseCount = ref(0)
 const pestCount = ref(0)
 const lastDetectTime = ref('')
+const videoAspect = ref(16 / 9) // 默认16:9，实际由视频流决定
 
 let hls: Hls | null = null
 let subscription: Subscription | null = null
+
+function updateVideoAspect() {
+  if (!videoRef.value) return
+  const w = videoRef.value.videoWidth
+  const h = videoRef.value.videoHeight
+  if (w > 0 && h > 0) {
+    videoAspect.value = w / h
+  }
+}
 
 function initHls() {
   if (!videoRef.value || !props.streamUrl) return
@@ -43,6 +53,7 @@ function initHls() {
       videoRef.value?.play()
       status.value = 'ONLINE'
       emit('status-change', 'ONLINE')
+      updateVideoAspect()
     })
     hls.on(Hls.Events.ERROR, (_event, data) => {
       if (data.fatal) {
@@ -61,6 +72,7 @@ function initHls() {
       videoRef.value?.play()
       status.value = 'ONLINE'
       emit('status-change', 'ONLINE')
+      updateVideoAspect()
     })
   }
 }
@@ -82,12 +94,33 @@ function drawDetections(
   if (!ctx) return
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-  const scaleX = canvas.width / frameWidth
-  const scaleY = canvas.height / frameHeight
+  // 计算 object-contain 模式下视频实际显示区域（排除黑边）
+  const canvasW = canvas.width
+  const canvasH = canvas.height
+  const frameAspect = frameWidth / frameHeight
+  const canvasAspect = canvasW / canvasH
+
+  let drawW: number, drawH: number, offsetX: number, offsetY: number
+  if (frameAspect > canvasAspect) {
+    // 视频更宽，上下有黑边
+    drawW = canvasW
+    drawH = canvasW / frameAspect
+    offsetX = 0
+    offsetY = (canvasH - drawH) / 2
+  } else {
+    // 视频更高，左右有黑边
+    drawH = canvasH
+    drawW = canvasH * frameAspect
+    offsetX = (canvasW - drawW) / 2
+    offsetY = 0
+  }
+
+  const scaleX = drawW / frameWidth
+  const scaleY = drawH / frameHeight
 
   detections.forEach(det => {
-    const x = det.bbox.x * scaleX
-    const y = det.bbox.y * scaleY
+    const x = offsetX + det.bbox.x * scaleX
+    const y = offsetY + det.bbox.y * scaleY
     const w = det.bbox.width * scaleX
     const h = det.bbox.height * scaleY
 
@@ -115,6 +148,11 @@ function handleDetection(msg: InferenceResultMessage) {
   diseaseCount.value = msg.data.diseaseCount || 0
   pestCount.value = msg.data.pestCount || 0
   lastDetectTime.value = msg.data.captureTime || ''
+
+  // 用检测帧的实际宽高更新容器宽高比
+  if (msg.data.frameWidth > 0 && msg.data.frameHeight > 0) {
+    videoAspect.value = msg.data.frameWidth / msg.data.frameHeight
+  }
 
   if (canvasRef.value) {
     syncCanvasSize()
@@ -213,7 +251,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="containerRef" class="camera-window group">
+  <div ref="containerRef" class="camera-window group" :style="{ aspectRatio: videoAspect }">
     <video ref="videoRef" autoplay muted playsinline class="absolute inset-0 w-full h-full object-contain bg-black"></video>
     <canvas ref="canvasRef" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
 
@@ -256,7 +294,6 @@ onUnmounted(() => {
 .camera-window {
   position: relative;
   width: 100%;
-  aspect-ratio: 4 / 3;
   background: #000;
   border-radius: 8px;
   overflow: hidden;

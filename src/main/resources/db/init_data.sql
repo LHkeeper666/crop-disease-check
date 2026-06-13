@@ -72,8 +72,8 @@ INSERT INTO grid (id, label, greenhouse_id, polygon_coords, area_m2, crop_type) 
 -- ========================================
 
 INSERT INTO camera (id, name, rtsp_url, location_x, location_y, direction, status) VALUES
-('c001', 'A区-1号摄像头', 'rtsp://192.168.1.101:554/stream1', 120.500000, 35.200000, 90.0, 'ONLINE'),
-('c002', 'A区-2号摄像头', 'rtsp://192.168.1.102:554/stream1', 120.500100, 35.200100, 180.0, 'ONLINE'),
+('c001', 'A区-1号摄像头', 'rtsp://192.168.1.103:6868/h264_pcm.sdp', 120.500000, 35.200000, 90.0, 'ONLINE'),
+('c002', 'A区-2号摄像头', 'rtsp://10.31.35.32:6868/h264_pcm.sdp', 120.500100, 35.200100, 180.0, 'ONLINE'),
 ('c003', 'B区-1号摄像头', 'rtsp://192.168.1.103:554/stream1', 120.500200, 35.200200, 270.0, 'ONLINE'),
 ('c004', 'B区-2号摄像头', 'rtsp://192.168.1.104:554/stream1', 120.500300, 35.200300, 0.0, 'OFFLINE');
 

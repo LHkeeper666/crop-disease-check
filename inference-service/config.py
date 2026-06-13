@@ -43,3 +43,5 @@ MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "agri_minio_admin")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "agri_minio_2026")
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "agri-monitor")
 MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
+# 浏览器访问 MinIO 的公开地址（与 MINIO_ENDPOINT 可能不同，如 Docker 内部用 minio:9000，浏览器用 localhost:9000）
+MINIO_PUBLIC_ENDPOINT = os.getenv("MINIO_PUBLIC_ENDPOINT", "localhost:9000")
