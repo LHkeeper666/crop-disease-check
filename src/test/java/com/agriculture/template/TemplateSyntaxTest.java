@@ -12,21 +12,21 @@ class TemplateSyntaxTest {
 
     @Test
     void testSystemPromptTemplateSyntax() {
-        STGroup group = new STGroupFile("templates/agri-brain/system-prompt.stg");
+        STGroup group = new STGroupFile("templates/agri-brain/system_prompt.stg");
         ST template = group.getInstanceOf("system_prompt");
         assertNotNull(template, "system_prompt template should exist");
     }
 
     @Test
     void testQuickAdviceTemplateSyntax() {
-        STGroup group = new STGroupFile("templates/agri-brain/quick-advice.stg");
+        STGroup group = new STGroupFile("templates/agri-brain/quick_advice.stg");
         ST template = group.getInstanceOf("quick_advice");
         assertNotNull(template, "quick_advice template should exist");
     }
 
     @Test
     void testSystemPromptRendering() {
-        STGroup group = new STGroupFile("templates/agri-brain/system-prompt.stg");
+        STGroup group = new STGroupFile("templates/agri-brain/system_prompt.stg");
         ST template = group.getInstanceOf("system_prompt");
         template.add("date", "2026-06-13");
         template.add("dayOfWeek", "周五");
