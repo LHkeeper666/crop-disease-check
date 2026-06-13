@@ -5,6 +5,7 @@ import com.agriculture.modules.agriBrain.entity.AiConversation;
 import com.agriculture.modules.agriBrain.entity.AiMessage;
 import com.agriculture.common.exception.BusinessException;
 import com.agriculture.modules.agriBrain.service.AgriBrainService;
+import com.agriculture.modules.agriBrain.service.AiConfigService;
 import com.agriculture.modules.agriBrain.service.AiConversationService;
 import com.agriculture.modules.agriBrain.service.AiMessageService;
 import com.agriculture.modules.agriBrain.vo.ChatEvent;
@@ -78,6 +79,9 @@ public class AgriBrainServiceImpl implements AgriBrainService {
     @Resource
     private AiMessageService messageService;
 
+    @Resource
+    private AiConfigService configService;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -107,9 +111,13 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                 // 构造 LLM 请求
                 List<Map<String, String>> messages = buildMessages(history, message, SYSTEM_PROMPT);
 
+                // 获取动态配置
+                String apiKey = getApiKey();
+                String model = getModel();
+
                 // 调用 LLM 流式 API
                 StringBuilder fullResponse = new StringBuilder();
-                streamLlmResponse(messages, emitter, fullResponse);
+                streamLlmResponse(messages, emitter, fullResponse, apiKey, model);
 
                 // 持久化消息
                 messageService.saveMessage(conversation.getId(), userId, "USER", message);
@@ -149,8 +157,12 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                 messages.add(Map.of("role", "system", "content", SYSTEM_PROMPT));
                 messages.add(Map.of("role", "user", "content", QUICK_ADVICE_PROMPT));
 
+                // 获取动态配置
+                String apiKey = getApiKey();
+                String model = getModel();
+
                 StringBuilder fullResponse = new StringBuilder();
-                streamLlmResponse(messages, emitter, fullResponse);
+                streamLlmResponse(messages, emitter, fullResponse, apiKey, model);
 
                 messageService.saveMessage(conversation.getId(), userId, "USER", QUICK_ADVICE_PROMPT);
                 messageService.saveMessage(conversation.getId(), userId, "ASSISTANT", fullResponse.toString());
@@ -208,28 +220,68 @@ public class AgriBrainServiceImpl implements AgriBrainService {
         return messages;
     }
 
-    private void streamLlmResponse(List<Map<String, String>> messages, SseEmitter emitter, StringBuilder fullResponse) throws Exception {
+    private String getApiKey() {
+        String apiKey = configService.getConfigValue("apiKey");
+        return (apiKey != null && !apiKey.isEmpty()) ? apiKey : llmProperties.getApiKey();
+    }
+
+    private String getModel() {
+        String model = configService.getConfigValue("model");
+        return (model != null && !model.isEmpty()) ? model : llmProperties.getModel();
+    }
+
+    private void streamLlmResponse(List<Map<String, String>> messages, SseEmitter emitter,
+                                    StringBuilder fullResponse, String apiKey, String model) throws Exception {
         Map<String, Object> requestBody = new LinkedHashMap<>();
-        requestBody.put("model", llmProperties.getModel());
+        requestBody.put("model", model);
         requestBody.put("messages", messages);
         requestBody.put("stream", true);
         requestBody.put("max_tokens", 2048);
 
         String bodyJson = objectMapper.writeValueAsString(requestBody);
 
-        llmRestClient.post()
+        log.info("调用 LLM API: baseUrl={}, model={}, apiKey={}***", llmProperties.getBaseUrl(), model,
+                apiKey != null && apiKey.length() > 6 ? apiKey.substring(0, 6) : "null");
+
+        // 构建 RestClient，优先使用传入的 apiKey
+        RestClient client = RestClient.builder()
+                .baseUrl(llmProperties.getBaseUrl())
+                .defaultHeader("Authorization", "Bearer " + apiKey)
+                .defaultHeader("Content-Type", "application/json")
+                .build();
+
+        client.post()
                 .uri("/v1/chat/completions")
                 .header("Accept", "text/event-stream")
                 .body(bodyJson)
                 .exchange((request, response) -> {
+                    log.info("LLM API 响应状态: {}", response.getStatusCode());
+
+                    if (!response.getStatusCode().is2xxSuccessful()) {
+                        String errorBody = new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                        log.error("LLM API 调用失败: {}", errorBody);
+                        emitter.send(ChatEvent.error("LLM API 调用失败: " + response.getStatusCode()));
+                        return null;
+                    }
+
                     try (BufferedReader reader = new BufferedReader(
                             new InputStreamReader(response.getBody(), StandardCharsets.UTF_8))) {
                         String line;
                         while ((line = reader.readLine()) != null) {
                             if (line.isBlank()) continue;
-                            if (!line.startsWith("data: ")) continue;
 
-                            String data = line.substring(6).trim();
+                            log.debug("收到 SSE 行: {}", line);
+
+                            // 处理 SSE 格式: "data: {...}" 或 "data:{...}"
+                            String data = null;
+                            if (line.startsWith("data: ")) {
+                                data = line.substring(6).trim();
+                            } else if (line.startsWith("data:")) {
+                                data = line.substring(5).trim();
+                            } else {
+                                continue;
+                            }
+
                             if ("[DONE]".equals(data)) break;
 
                             try {
@@ -237,10 +289,13 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                                 JsonNode choices = json.get("choices");
                                 if (choices != null && choices.isArray() && !choices.isEmpty()) {
                                     JsonNode delta = choices.get(0).get("delta");
-                                    if (delta != null && delta.has("content")) {
+                                    if (delta != null && delta.has("content") && !delta.get("content").isNull()) {
                                         String content = delta.get("content").asText();
-                                        fullResponse.append(content);
-                                        emitter.send(ChatEvent.token(content));
+                                        if (content != null && !content.isEmpty()) {
+                                            fullResponse.append(content);
+                                            log.debug("发送 token: {}", content);
+                                            emitter.send(ChatEvent.token(content));
+                                        }
                                     }
                                 }
                             } catch (Exception e) {

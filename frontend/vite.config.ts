@@ -16,6 +16,16 @@ export default defineConfig({
         ws: true,
         changeOrigin: true,
       },
+      '/api/agri-brain/chat': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        // SSE 需要禁用缓冲
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.setHeader('Accept', 'text/event-stream')
+          })
+        },
+      },
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,

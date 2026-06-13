@@ -399,6 +399,16 @@ CREATE TABLE ai_message (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='农业大脑消息表';
 
 
+-- 农业大脑配置表
+DROP TABLE IF EXISTS ai_config;
+CREATE TABLE ai_config (
+    id           VARCHAR(36) PRIMARY KEY COMMENT '配置UUID',
+    config_key   VARCHAR(50) NOT NULL UNIQUE COMMENT '配置键: apiKey/model/provider',
+    config_value TEXT COMMENT '配置值',
+    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='农业大脑配置表';
+
+
 -- ========================================
 -- 11. 系统日志模块
 -- ========================================
