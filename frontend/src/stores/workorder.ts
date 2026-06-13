@@ -67,18 +67,22 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     return map
   })
 
-  // 报警列表（未完成且未忽略的工单）
-  const alerts = computed(() => {
+  // 报警列表（未完成且未忽略的工单，支持置信度阈值过滤）
+  function getAlerts(minConfidence = 0) {
     return orders.value
-      .filter(o => o.status !== 'DONE' && o.status !== 'IGNORED')
+      .filter(o => o.status !== 'DONE' && o.status !== 'IGNORED' && o.confidence >= minConfidence)
       .sort((a, b) => severityLevel[b.severity] - severityLevel[a.severity])
       .map(o => ({
         id: o.id,
         severity: o.severity,
+        confidence: o.confidence,
         message: `Grid-${o.gridLabel} ${o.pestName} 置信度 ${(o.confidence * 100).toFixed(0)}%`,
         time: o.createdAt.replace('T', ' ').slice(0, 16),
       }))
-  })
+  }
+
+  // 默认不过滤的报警列表
+  const alerts = computed(() => getAlerts())
 
   // 7日趋势数据（病害 vs 虫害，按创建日期统计）
   const trendData = computed(() => {
@@ -214,6 +218,7 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     error,
     gridSeverityMap,
     alerts,
+    getAlerts,
     trendData,
     fetchOrders,
     addOrder,

@@ -99,11 +99,11 @@ function getCellLabelColor(severity: string | null) {
   return map[severity] || 'text-cyber-green'
 }
 
-// 报警列表
-const alerts = computed(() => woStore.alerts)
-
 // Detection confidence threshold (0-1), will be sent to backend
 const confidenceThreshold = ref(0.5)
+
+// 报警列表（受检测阈值过滤）
+const alerts = computed(() => woStore.getAlerts(confidenceThreshold.value))
 
 // Heatmap cell detail
 const selectedCell = ref<{ label: string; severity: string | null; pest: string; score: number; cropType?: string } | null>(null)
