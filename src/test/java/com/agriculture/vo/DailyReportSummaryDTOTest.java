@@ -1,6 +1,6 @@
 package com.agriculture.vo;
 
-import com.agriculture.modules.dailyreport.vo.DailyReportSummaryDTO;
+import com.agriculture.modules.dailyReport.vo.DailyReportSummaryDTO;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -1,4 +1,4 @@
-package com.agriculture.modules.dailyreport.entity;
+package com.agriculture.modules.dailyReport.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;

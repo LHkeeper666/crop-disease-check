@@ -1,6 +1,6 @@
-package com.agriculture.modules.dailyreport.mapper;
+package com.agriculture.modules.dailyReport.mapper;
 
-import com.agriculture.modules.dailyreport.entity.DailyReport;
+import com.agriculture.modules.dailyReport.entity.DailyReport;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 
