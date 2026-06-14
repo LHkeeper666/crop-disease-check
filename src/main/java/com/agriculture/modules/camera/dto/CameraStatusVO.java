@@ -17,7 +17,7 @@ public class CameraStatusVO {
     private String id;
     private String status;
     private String lastFrameAt;
-    private String streamUrl;
+    private String httpUrl;
     private ConnectionInfo connectionInfo;
     private FrameInfo frameInfo;
 

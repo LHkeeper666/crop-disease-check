@@ -15,6 +15,7 @@ export default defineConfig({
         target: 'http://localhost:8080',
         ws: true,
         changeOrigin: true,
+        rewrite: (path) => '/api' + path,
       },
       '/api/agri-brain/chat': {
         target: 'http://localhost:8080',

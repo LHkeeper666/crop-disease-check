@@ -249,7 +249,7 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
                 .lastFrameAt(camera.getLastFrameAt() != null
                         ? camera.getLastFrameAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
                         : null)
-                .streamUrl(isOnline ? "/stream/" + id + ".m3u8" : null)
+                .httpUrl(isOnline ? camera.getHttpUrl() : null)
                 .connectionInfo(CameraStatusVO.ConnectionInfo.builder()
                         .protocol("RTSP")
                         .transport("TCP")
@@ -291,7 +291,7 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
                     .lastFrameAt(camera.getLastFrameAt() != null
                             ? camera.getLastFrameAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
                             : null)
-                    .streamUrl(isOnline ? "/stream/" + cameraId + ".m3u8" : null)
+                    .httpUrl(isOnline ? camera.getHttpUrl() : null)
                     .build());
         }
 
