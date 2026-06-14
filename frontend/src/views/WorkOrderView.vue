@@ -9,10 +9,14 @@ const woStore = useWorkOrderStore()
 // 页面加载时从后端拉取工单数据
 onMounted(() => {
   woStore.fetchOrders()
+  checkApiKey()
+  loadExperts()
 })
 
 const filterStatus = ref<string>('ALL')
 const filterSeverity = ref<string>('ALL')
+const filterDateStart = ref('')
+const filterDateEnd = ref('')
 
 // Modal states
 const showCreateModal = ref(false)
@@ -47,10 +51,23 @@ const statusConfig: Record<string, { label: string; color: string }> = {
   IGNORED: { label: '已忽略', color: 'text-slate-500 bg-white/5 border-white/10' },
 }
 
+/** 获取状态配置，未知状态回退到待处理样式 */
+function getStatusConf(status: string) {
+  return statusConfig[status] || { label: status || '未知', color: 'text-amber bg-amber/10 border-amber/20' }
+}
+
 const filteredOrders = computed(() => {
   return woStore.orders.filter(o => {
     if (filterStatus.value !== 'ALL' && o.status !== filterStatus.value) return false
     if (filterSeverity.value !== 'ALL' && o.severity !== filterSeverity.value) return false
+    if (filterDateStart.value) {
+      const orderDate = o.createdAt.slice(0, 10)
+      if (orderDate < filterDateStart.value) return false
+    }
+    if (filterDateEnd.value) {
+      const orderDate = o.createdAt.slice(0, 10)
+      if (orderDate > filterDateEnd.value) return false
+    }
     return true
   })
 })
@@ -165,7 +182,124 @@ async function deleteOrder() {
 
 function sendEmailToExpert() {
   if (!selectedOrder.value) return
-  alert(`即将发送邮件给 ${selectedOrder.value.assignedToName}\n工单: ${selectedOrder.value.title}\n\n此功能将在智能体模块完成后对接实现。`)
+  emailTargetUserId.value = ''
+  emailContent.value = ''
+  emailSending.value = false
+  emailResult.value = ''
+  showEmailModal.value = true
+  // 自动开始 Agent 编写邮件内容
+  composeEmailByAgent()
+}
+
+// ==================== 发送邮件 ====================
+const showEmailModal = ref(false)
+const experts = ref<{ id: string; name: string; email: string }[]>([])
+const emailTargetUserId = ref('')
+const emailContent = ref('')
+const emailSending = ref(false)
+const emailResult = ref('')
+const agentAvailable = ref(false)
+const emailComposing = ref(false)
+
+async function checkApiKey() {
+  try {
+    const token = localStorage.getItem('treeforge_token') || ''
+    const res = await fetch('/api/agri-brain/config', {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    const data = await res.json()
+    agentAvailable.value = !!(data?.data?.hasApiKey)
+  } catch {
+    agentAvailable.value = false
+  }
+}
+
+async function loadExperts() {
+  try {
+    const token = localStorage.getItem('treeforge_token') || ''
+    const res = await fetch('/api/users?role=EXPERT&size=100', {
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    })
+    const data = await res.json()
+    if (data.code === 200 && data.data?.records) {
+      experts.value = data.data.records
+        .filter((u: any) => u.email)
+        .map((u: any) => ({ id: u.id, name: u.name, email: u.email }))
+    }
+  } catch {
+    experts.value = []
+  }
+}
+
+async function composeEmailByAgent() {
+  if (!agentAvailable.value || !selectedOrder.value) return
+  emailComposing.value = true
+  emailContent.value = ''
+  try {
+    const token = localStorage.getItem('treeforge_token') || ''
+    const order = selectedOrder.value
+    const prompt = `请根据以下工单信息，编写一封专业的邮件通知正文（不要包含主题，只写正文内容，不要加任何前缀说明）：
+工单标题：${order.title}
+严重程度：${order.severity}
+网格区域：${order.gridLabel}
+病虫害：${order.pestName || '无'}
+置信度：${(order.confidence * 100).toFixed(0)}%
+当前状态：${order.status}
+创建时间：${order.createdAt}
+
+要求：简洁专业，说明问题严重性，建议处理措施。`
+
+    const res = await fetch('/api/agri-brain/chat', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: prompt,
+        stream: false,
+      }),
+    })
+    const data = await res.json()
+    if (data.code === 200 && data.data?.content) {
+      emailContent.value = data.data.content
+    } else {
+      emailContent.value = '（Agent 未能生成内容，请手动编写）'
+    }
+  } catch {
+    emailContent.value = '（Agent 生成失败，请手动编写）'
+  } finally {
+    emailComposing.value = false
+  }
+}
+
+async function sendEmail() {
+  if (!selectedOrder.value || !emailTargetUserId.value) return
+  emailSending.value = true
+  emailResult.value = ''
+  try {
+    const token = localStorage.getItem('treeforge_token') || ''
+    const res = await fetch(`/api/workorder/${selectedOrder.value.id}/send-email`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        toUserId: emailTargetUserId.value,
+        content: emailContent.value,
+      }),
+    })
+    const data = await res.json()
+    if (data.code === 200) {
+      emailResult.value = 'success'
+    } else {
+      emailResult.value = data.message || '发送失败'
+    }
+  } catch (e: any) {
+    emailResult.value = e.message || '发送失败'
+  } finally {
+    emailSending.value = false
+  }
+}
+
+function closeEmailModal() {
+  showEmailModal.value = false
+  emailResult.value = ''
 }
 </script>
 
@@ -228,6 +362,26 @@ function sendEmailToExpert() {
         <option value="MEDIUM">中等</option>
         <option value="LOW">低</option>
       </select>
+      <div class="flex items-center gap-2">
+        <input
+          v-model="filterDateStart"
+          type="date"
+          class="px-3 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-sm text-white focus:outline-none focus:border-cyber-green/50"
+        />
+        <span class="text-slate-500 text-xs">至</span>
+        <input
+          v-model="filterDateEnd"
+          type="date"
+          class="px-3 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-sm text-white focus:outline-none focus:border-cyber-green/50"
+        />
+      </div>
+      <button
+        v-if="filterStatus !== 'ALL' || filterSeverity !== 'ALL' || filterDateStart || filterDateEnd"
+        class="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+        @click="filterStatus = 'ALL'; filterSeverity = 'ALL'; filterDateStart = ''; filterDateEnd = ''"
+      >
+        重置筛选
+      </button>
     </div>
 
     <!-- Work order list -->
@@ -271,8 +425,8 @@ function sendEmailToExpert() {
               <span class="px-2 py-0.5 rounded-md text-[10px] font-mono border" :class="severityConfig[order.severity]?.color">
                 {{ severityConfig[order.severity]?.label }}
               </span>
-              <span class="px-2 py-0.5 rounded-md text-[10px] font-mono border" :class="statusConfig[order.status]?.color">
-                {{ statusConfig[order.status]?.label }}
+              <span class="px-2 py-0.5 rounded-md text-[10px] font-mono border" :class="getStatusConf(order.status).color">
+                {{ getStatusConf(order.status).label }}
               </span>
             </div>
           </div>
@@ -324,7 +478,7 @@ function sendEmailToExpert() {
       <div
         v-if="showCreateModal"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-        @click.self="closeCreateModal"
+        @mousedown.self="closeCreateModal"
       >
         <div class="glass rounded-2xl p-6 w-full max-w-[480px] mx-4 shadow-2xl border border-white/10">
           <div class="flex items-center justify-between mb-6">
@@ -449,7 +603,7 @@ function sendEmailToExpert() {
       <div
         v-if="showDetailModal && selectedOrder"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-        @click.self="closeDetail"
+        @mousedown.self="closeDetail"
       >
         <div class="glass rounded-2xl p-6 w-full max-w-[520px] mx-4 shadow-2xl border border-white/10">
           <div class="flex items-center justify-between mb-6">
@@ -464,9 +618,10 @@ function sendEmailToExpert() {
             </div>
             <div class="flex gap-2">
               <button
-                class="w-8 h-8 rounded-lg bg-cyber-green/10 hover:bg-cyber-green/20 flex items-center justify-center text-cyber-green transition-colors"
-                @click="sendEmailToExpert"
-                title="发送邮件给专家"
+                class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+                :class="agentAvailable ? 'bg-cyber-green/10 hover:bg-cyber-green/20 text-cyber-green' : 'bg-white/5 text-slate-600 cursor-not-allowed'"
+                :title="agentAvailable ? '发送邮件给专家' : '请先在智慧大脑页面配置 API Key'"
+                @click="agentAvailable && sendEmailToExpert()"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
@@ -489,8 +644,8 @@ function sendEmailToExpert() {
               <span class="px-3 py-1 rounded-lg text-xs font-mono border" :class="severityConfig[selectedOrder.severity]?.color">
                 {{ severityConfig[selectedOrder.severity]?.label }}
               </span>
-              <span class="px-3 py-1 rounded-lg text-xs font-mono border" :class="statusConfig[selectedOrder.status]?.color">
-                {{ statusConfig[selectedOrder.status]?.label }}
+              <span class="px-3 py-1 rounded-lg text-xs font-mono border" :class="getStatusConf(selectedOrder.status).color">
+                {{ getStatusConf(selectedOrder.status).label }}
               </span>
             </div>
 
@@ -620,7 +775,7 @@ function sendEmailToExpert() {
       <div
         v-if="showDeleteConfirm && selectedOrder"
         class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-        @click.self="closeDeleteConfirm"
+        @mousedown.self="closeDeleteConfirm"
       >
         <div class="glass rounded-2xl p-6 w-full max-w-[400px] mx-4 shadow-2xl border border-sakura/20">
           <div class="text-center">
@@ -643,6 +798,105 @@ function sendEmailToExpert() {
               <button
                 class="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
                 @click="closeDeleteConfirm"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Email Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showEmailModal && selectedOrder"
+        class="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        @mousedown.self="closeEmailModal"
+      >
+        <div class="glass rounded-2xl p-6 w-full max-w-[560px] mx-4 shadow-2xl border border-white/10">
+          <div class="flex items-center justify-between mb-5">
+            <div>
+              <h2 class="text-lg font-bold text-white">发送工单邮件</h2>
+              <p class="text-xs text-slate-500 font-mono">SEND WORKORDER EMAIL</p>
+            </div>
+            <button
+              class="w-8 h-8 rounded-lg bg-sakura/10 hover:bg-sakura/20 flex items-center justify-center text-sakura hover:text-white transition-colors"
+              @click="closeEmailModal"
+            >
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- API Key 未配置提示 -->
+          <div v-if="!agentAvailable" class="mb-4 px-4 py-3 rounded-xl bg-amber/10 border border-amber/20 text-amber text-xs">
+            请先在智慧大脑页面配置 Agent API Key，配置后可使用 AI 自动编写邮件内容。
+          </div>
+
+          <div class="space-y-4">
+            <!-- 选择专家 -->
+            <div>
+              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">收件专家</label>
+              <select
+                v-model="emailTargetUserId"
+                class="select-dark w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-cyber-green/50"
+              >
+                <option value="" disabled>请选择专家</option>
+                <option v-for="exp in experts" :key="exp.id" :value="exp.id">
+                  {{ exp.name }} ({{ exp.email }})
+                </option>
+              </select>
+            </div>
+
+            <!-- 邮件内容 -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="text-xs text-slate-400 uppercase tracking-wider">邮件内容（Agent 编写）</label>
+                <button
+                  v-if="agentAvailable"
+                  class="text-[10px] text-cyber-green hover:underline font-mono"
+                  :disabled="emailComposing"
+                  @click="composeEmailByAgent"
+                >
+                  {{ emailComposing ? '生成中...' : '重新生成' }}
+                </button>
+              </div>
+              <div v-if="emailComposing" class="w-full px-4 py-6 rounded-xl bg-white/5 border border-white/10 text-slate-500 text-sm text-center">
+                <div class="inline-block w-4 h-4 border-2 border-cyber-green/30 border-t-cyber-green rounded-full animate-spin mr-2" />
+                Agent 正在编写邮件内容...
+              </div>
+              <textarea
+                v-else
+                v-model="emailContent"
+                rows="8"
+                placeholder="邮件内容将由 Agent 自动生成，也可手动编辑"
+                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all resize-none"
+              />
+            </div>
+
+            <!-- 发送结果 -->
+            <div v-if="emailResult === 'success'" class="px-4 py-3 rounded-xl bg-cyber-green/10 border border-cyber-green/20 text-cyber-green text-xs">
+              邮件发送成功！
+            </div>
+            <div v-else-if="emailResult && emailResult !== 'success'" class="px-4 py-3 rounded-xl bg-sakura/10 border border-sakura/20 text-sakura text-xs">
+              发送失败：{{ emailResult }}
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="flex gap-3 pt-2">
+              <button
+                class="flex-1 px-4 py-3 rounded-xl text-sm transition-colors"
+                :class="emailTargetUserId && emailContent && !emailSending ? 'bg-cyber-green/10 border border-cyber-green/20 text-cyber-green hover:bg-cyber-green/20' : 'bg-white/5 border border-white/10 text-slate-600 cursor-not-allowed'"
+                :disabled="!emailTargetUserId || !emailContent || emailSending"
+                @click="sendEmail"
+              >
+                {{ emailSending ? '发送中...' : '发送邮件' }}
+              </button>
+              <button
+                class="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
+                @click="closeEmailModal"
               >
                 取消
               </button>

@@ -28,7 +28,7 @@ public class InspectionLog implements Serializable {
     /**
      * 日志UUID
      */
-    @TableId(value = "id", type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.INPUT)
     private String id;
 
     /**

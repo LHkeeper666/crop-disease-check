@@ -374,13 +374,13 @@ async function handleRegister() {
         <div class="mt-6 text-center text-xs text-slate-600">
           <span class="font-mono">v1.0.0</span>
           <span class="mx-2">|</span>
-          <span>智慧农业病虫害无人值守监测系统</span>
+          <span>农作物疾病检测系统</span>
         </div>
       </GlassCard>
 
       <!-- Bottom decorative text -->
       <div class="mt-6 text-center text-[10px] text-slate-600/50 font-mono tracking-wider">
-        POWERED BY TREEFORGE AGRI-TELEMETRY ENGINE
+        POWERED BY AGRI-DETECTION ENGINE
       </div>
     </div>
   </div>

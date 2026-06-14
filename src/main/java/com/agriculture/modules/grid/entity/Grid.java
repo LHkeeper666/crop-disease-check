@@ -28,7 +28,7 @@ public class Grid implements Serializable {
     /**
      * 网格UUID
      */
-    @TableId(value = "id", type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.INPUT)
     private String id;
 
     /**

@@ -2,6 +2,11 @@
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import * as echarts from 'echarts'
 import * as XLSX from 'xlsx'
+import {
+  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+  WidthType, AlignmentType, HeadingLevel, BorderStyle, ShadingType,
+} from 'docx'
+import { saveAs } from 'file-saver'
 import { useRouter } from 'vue-router'
 import GlassCard from '../components/GlassCard.vue'
 import GlowButton from '../components/GlowButton.vue'
@@ -14,8 +19,22 @@ const loading = ref(true)
 const overview = ref<StatisticsOverviewVO | null>(null)
 const reports = ref<DailyReportVO[]>([])
 const todayGenerated = ref(false)
+const apiAvailable = ref(false) // Agent API Key 是否已配置
 
 const today = new Date().toISOString().slice(0, 10)
+
+async function checkApiKey() {
+  try {
+    const token = localStorage.getItem('treeforge_token') || ''
+    const res = await fetch('/api/agri-brain/config', {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    const data = await res.json()
+    apiAvailable.value = !!(data?.data?.hasApiKey)
+  } catch {
+    apiAvailable.value = false
+  }
+}
 
 async function loadData() {
   loading.value = true
@@ -35,14 +54,25 @@ async function loadData() {
   }
 }
 
-onMounted(() => loadData())
+onMounted(() => {
+  loadData()
+  checkApiKey()
+})
 
 async function handleGenerateDailyReport() {
   if (todayGenerated.value) return
   try {
     await generateDailyReport(today)
     todayGenerated.value = true
-    await loadData()
+    // 仅刷新报告列表，不重新加载 overview 以避免数据大屏内容消失
+    try {
+      const reportPage = await fetchDailyReports({ size: 30 })
+      reports.value = reportPage.records
+    } catch {
+      // 报告列表刷新失败不影响主流程
+    }
+    // 生成 Word 文档并下载
+    await exportDailyReportWord()
   } catch (e: any) {
     console.error('[ReportsView] 生成日报失败:', e.message)
     alert('生成日报失败: ' + e.message)
@@ -95,6 +125,230 @@ function exportToExcel() {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, '每日报告')
   XLSX.writeFile(wb, `农情报表_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`)
+}
+
+async function exportDailyReportWord() {
+  const ov = overview.value
+  const headerBorder = { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' }
+  const cellBorder = { top: headerBorder, bottom: headerBorder, left: headerBorder, right: headerBorder }
+
+  // Stats summary table
+  const statsRows = statsCards.value.map(card =>
+    new TableRow({
+      children: [
+        new TableCell({
+          width: { size: 40, type: WidthType.PERCENTAGE },
+          borders: cellBorder,
+          children: [new Paragraph({ children: [new TextRun({ text: card.label, font: 'Microsoft YaHei' })] })],
+        }),
+        new TableCell({
+          width: { size: 60, type: WidthType.PERCENTAGE },
+          borders: cellBorder,
+          children: [new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            children: [new TextRun({ text: String(card.value), bold: true, font: 'JetBrains Mono' })],
+          })],
+        }),
+      ],
+    })
+  )
+
+  // Daily reports table
+  const reportHeaderRow = new TableRow({
+    children: ['日期', '识别数', '病害', '虫害', '处理率'].map(h =>
+      new TableCell({
+        borders: cellBorder,
+        shading: { type: ShadingType.SOLID, color: '1E293B' },
+        children: [new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: h, bold: true, color: 'FFFFFF', font: 'Microsoft YaHei', size: 20 })],
+        })],
+      })
+    ),
+  })
+
+  const reportRows = reports.value.map(rpt =>
+    new TableRow({
+      children: [
+        rpt.reportDate,
+        String(rpt.summary?.totalDetections ?? 0),
+        String(rpt.summary?.diseaseCount ?? 0),
+        String(rpt.summary?.pestCount ?? 0),
+        `${((rpt.summary?.workorderHandledRate ?? 0) * 100).toFixed(0)}%`,
+      ].map(val =>
+        new TableCell({
+          borders: cellBorder,
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: val, font: 'JetBrains Mono', size: 20 })],
+          })],
+        })
+      ),
+    })
+  )
+
+  // Disease distribution
+  const diseaseData = ov?.diseaseDistribution || []
+  const diseaseRows = diseaseData.map(d =>
+    new TableRow({
+      children: [
+        new TableCell({
+          borders: cellBorder,
+          children: [new Paragraph({ children: [new TextRun({ text: d.name, font: 'Microsoft YaHei', size: 20 })] })],
+        }),
+        new TableCell({
+          borders: cellBorder,
+          children: [new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            children: [new TextRun({ text: String(d.value), font: 'JetBrains Mono', size: 20 })],
+          })],
+        }),
+      ],
+    })
+  )
+
+  // Pest distribution
+  const pestData = ov?.pestDistribution || []
+  const pestRows = pestData.map(d =>
+    new TableRow({
+      children: [
+        new TableCell({
+          borders: cellBorder,
+          children: [new Paragraph({ children: [new TextRun({ text: d.name, font: 'Microsoft YaHei', size: 20 })] })],
+        }),
+        new TableCell({
+          borders: cellBorder,
+          children: [new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            children: [new TextRun({ text: String(d.value), font: 'JetBrains Mono', size: 20 })],
+          })],
+        }),
+      ],
+    })
+  )
+
+  const doc = new Document({
+    sections: [{
+      children: [
+        new Paragraph({
+          heading: HeadingLevel.HEADING_1,
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: '农情报表日报', bold: true, font: 'Microsoft YaHei', size: 36 })],
+        }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 },
+          children: [new TextRun({ text: `生成日期: ${today}    农作物疾病检测系统`, font: 'Microsoft YaHei', size: 20, color: '666666' })],
+        }),
+
+        // Section 1: Overview stats
+        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: '一、数据概览', font: 'Microsoft YaHei' })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({
+              children: [
+                new TableCell({
+                  width: { size: 40, type: WidthType.PERCENTAGE },
+                  borders: cellBorder,
+                  shading: { type: ShadingType.SOLID, color: '1E293B' },
+                  children: [new Paragraph({ children: [new TextRun({ text: '指标', bold: true, color: 'FFFFFF', font: 'Microsoft YaHei' })] })],
+                }),
+                new TableCell({
+                  width: { size: 60, type: WidthType.PERCENTAGE },
+                  borders: cellBorder,
+                  shading: { type: ShadingType.SOLID, color: '1E293B' },
+                  children: [new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    children: [new TextRun({ text: '数值', bold: true, color: 'FFFFFF', font: 'Microsoft YaHei' })],
+                  })],
+                }),
+              ],
+            }),
+            ...statsRows,
+          ],
+        }),
+
+        // Section 2: Disease distribution
+        new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 400 }, children: [new TextRun({ text: '二、病害分布', font: 'Microsoft YaHei' })] }),
+        diseaseRows.length > 0
+          ? new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              rows: [
+                new TableRow({
+                  children: [
+                    new TableCell({
+                      borders: cellBorder,
+                      shading: { type: ShadingType.SOLID, color: '1E293B' },
+                      children: [new Paragraph({ children: [new TextRun({ text: '病害名称', bold: true, color: 'FFFFFF', font: 'Microsoft YaHei', size: 20 })] })],
+                    }),
+                    new TableCell({
+                      borders: cellBorder,
+                      shading: { type: ShadingType.SOLID, color: '1E293B' },
+                      children: [new Paragraph({
+                        alignment: AlignmentType.RIGHT,
+                        children: [new TextRun({ text: '检出次数', bold: true, color: 'FFFFFF', font: 'Microsoft YaHei', size: 20 })],
+                      })],
+                    }),
+                  ],
+                }),
+                ...diseaseRows,
+              ],
+            })
+          : new Paragraph({ children: [new TextRun({ text: '暂无病害数据', font: 'Microsoft YaHei', color: '999999' })] }),
+
+        // Section 3: Pest distribution
+        new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 400 }, children: [new TextRun({ text: '三、虫害分布', font: 'Microsoft YaHei' })] }),
+        pestRows.length > 0
+          ? new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              rows: [
+                new TableRow({
+                  children: [
+                    new TableCell({
+                      borders: cellBorder,
+                      shading: { type: ShadingType.SOLID, color: '1E293B' },
+                      children: [new Paragraph({ children: [new TextRun({ text: '虫害名称', bold: true, color: 'FFFFFF', font: 'Microsoft YaHei', size: 20 })] })],
+                    }),
+                    new TableCell({
+                      borders: cellBorder,
+                      shading: { type: ShadingType.SOLID, color: '1E293B' },
+                      children: [new Paragraph({
+                        alignment: AlignmentType.RIGHT,
+                        children: [new TextRun({ text: '检出次数', bold: true, color: 'FFFFFF', font: 'Microsoft YaHei', size: 20 })],
+                      })],
+                    }),
+                  ],
+                }),
+                ...pestRows,
+              ],
+            })
+          : new Paragraph({ children: [new TextRun({ text: '暂无虫害数据', font: 'Microsoft YaHei', color: '999999' })] }),
+
+        // Section 4: Daily reports
+        new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 400 }, children: [new TextRun({ text: '四、每日报告明细', font: 'Microsoft YaHei' })] }),
+        reports.value.length > 0
+          ? new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              rows: [reportHeaderRow, ...reportRows],
+            })
+          : new Paragraph({ children: [new TextRun({ text: '暂无报告数据', font: 'Microsoft YaHei', color: '999999' })] }),
+
+        // Footer
+        new Paragraph({
+          spacing: { before: 600 },
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({
+            text: '本报告由农作物疾病检测系统自动生成',
+            font: 'Microsoft YaHei', size: 18, color: '999999', italics: true,
+          })],
+        }),
+      ],
+    }],
+  })
+
+  const blob = await Packer.toBlob(doc)
+  saveAs(blob, `农情报表_${today}.docx`)
 }
 
 function renderCharts() {
@@ -273,7 +527,12 @@ watch(overview, () => {
       </div>
       <div class="flex gap-2">
         <GlowButton label="导出 Excel" @click="exportToExcel" />
-        <GlowButton :label="todayGenerated ? '今日已生成' : '生成日报'" :disabled="todayGenerated" @click="handleGenerateDailyReport" />
+        <GlowButton
+          :label="!apiAvailable ? '请先配置 API Key' : todayGenerated ? '今日已生成' : '生成日报 (Word)'"
+          :disabled="todayGenerated || !apiAvailable"
+          :title="!apiAvailable ? '请先在智慧大脑页面配置 Agent API Key，接入后方可生成日报' : todayGenerated ? '今日日报已生成' : '生成今日日报（Agent 分析 + Word 下载）'"
+          @click="handleGenerateDailyReport"
+        />
       </div>
     </div>
 

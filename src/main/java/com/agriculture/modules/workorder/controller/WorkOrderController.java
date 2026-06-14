@@ -8,6 +8,7 @@ import com.agriculture.modules.workorder.dto.WorkOrderManualCreateDTO;
 import com.agriculture.modules.workorder.service.WorkOrderService;
 import com.agriculture.modules.workorder.vo.CallbackResponseVO;
 import com.agriculture.common.vo.Result;
+import com.agriculture.common.service.EmailService;
 import com.agriculture.modules.workorder.vo.WorkOrderDetailVO;
 import com.agriculture.modules.workorder.vo.WorkOrderVO;
 import com.agriculture.modules.user.entity.SysUser;
@@ -31,6 +32,9 @@ public class WorkOrderController {
 
     @Resource
     private SysUserMapper sysUserMapper;
+
+    @Resource
+    private EmailService emailService;
 
     @GetMapping("/list")
     public Result<IPage<WorkOrderVO>> listWorkOrders(
@@ -98,6 +102,73 @@ public class WorkOrderController {
     public Result<Void> deleteWorkOrder(@PathVariable Long id) {
         workOrderService.deleteWorkOrder(id);
         return Result.success("工单已删除", null);
+    }
+
+    /**
+     * 发送工单邮件通知给指定专家
+     */
+    @PostMapping("/{id}/send-email")
+    public Result<Void> sendWorkOrderEmail(
+            @PathVariable Long id,
+            @RequestBody SendEmailDTO dto,
+            HttpServletRequest request) {
+        String userId = (String) request.getAttribute("userId");
+        SysUser currentUser = sysUserMapper.selectById(userId);
+        if (currentUser == null) {
+            return Result.error(401, "未登录");
+        }
+
+        // 获取工单详情用于邮件内容
+        WorkOrderDetailVO detail = workOrderService.getWorkOrderDetail(id);
+        if (detail == null) {
+            return Result.error(404, "工单不存在");
+        }
+
+        // 获取收件人信息
+        SysUser expert = sysUserMapper.selectById(dto.getToUserId());
+        if (expert == null || expert.getEmail() == null || expert.getEmail().isEmpty()) {
+            return Result.error(400, "收件人邮箱不存在");
+        }
+
+        // 构建邮件内容
+        String subject = "【农作物疾病检测系统】工单通知 - " + detail.getTitle();
+        String text = "尊敬的 " + expert.getName() + "：\n\n"
+                + "您有一条新的工单通知，请及时处理。\n\n"
+                + "━━━━━━━━━━━━━━━━━━━━\n"
+                + "工单标题：" + detail.getTitle() + "\n"
+                + "严重程度：" + detail.getSeverity() + "\n"
+                + "工单状态：" + detail.getStatus() + "\n"
+                + "网格区域：" + detail.getGridLabel() + "\n"
+                + "病虫害：" + (detail.getPestName() != null ? detail.getPestName() : "无") + "\n"
+                + "置信度：" + (detail.getConfidence() != null ? detail.getConfidence() + "%" : "无") + "\n"
+                + "创建时间：" + detail.getCreatedAt() + "\n";
+
+        if (dto.getContent() != null && !dto.getContent().isEmpty()) {
+            text += "\n━━━━━━━━━━━━━━━━━━━━\n"
+                    + "专家分析：\n" + dto.getContent() + "\n";
+        }
+
+        text += "\n━━━━━━━━━━━━━━━━━━━━\n"
+                + "请登录系统查看详情并处理。\n\n"
+                + "—— 农作物疾病检测系统\n";
+
+        try {
+            emailService.sendEmail(expert.getEmail(), subject, text);
+            return Result.success("邮件发送成功", null);
+        } catch (Exception e) {
+            return Result.error(500, "邮件发送失败: " + e.getMessage());
+        }
+    }
+
+    /** 发送邮件请求DTO */
+    public static class SendEmailDTO {
+        private String toUserId;
+        private String content; // Agent 编写的分析内容
+
+        public String getToUserId() { return toUserId; }
+        public void setToUserId(String toUserId) { this.toUserId = toUserId; }
+        public String getContent() { return content; }
+        public void setContent(String content) { this.content = content; }
     }
 
     /**

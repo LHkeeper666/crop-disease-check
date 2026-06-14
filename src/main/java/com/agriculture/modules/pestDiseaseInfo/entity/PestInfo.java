@@ -27,7 +27,7 @@ public class PestInfo implements Serializable {
     /**
      * 虫害ID(模型class index)
      */
-    @TableId(value = "id", type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.INPUT)
     private Integer id;
 
     /**

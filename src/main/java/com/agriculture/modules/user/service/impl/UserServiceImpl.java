@@ -147,6 +147,9 @@ public class UserServiceImpl implements UserService {
         if (StringUtils.hasText(dto.getRole())) {
             user.setRole(dto.getRole());
         }
+        if (dto.getEmail() != null) {
+            user.setEmail(dto.getEmail());
+        }
         if (StringUtils.hasText(dto.getStatus())) {
             user.setStatus(dto.getStatus());
         }

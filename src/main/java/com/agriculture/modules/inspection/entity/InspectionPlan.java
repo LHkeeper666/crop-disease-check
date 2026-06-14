@@ -27,7 +27,7 @@ public class InspectionPlan implements Serializable {
     /**
      * 计划UUID
      */
-    @TableId(value = "id", type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.INPUT)
     private String id;
 
     /**

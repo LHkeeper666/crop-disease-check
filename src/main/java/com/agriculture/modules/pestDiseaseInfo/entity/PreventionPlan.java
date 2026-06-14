@@ -28,7 +28,7 @@ public class PreventionPlan implements Serializable {
     /**
      * 方案UUID
      */
-    @TableId(value = "id", type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.INPUT)
     private String id;
 
     /**

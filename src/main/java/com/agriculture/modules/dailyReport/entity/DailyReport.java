@@ -29,7 +29,7 @@ public class DailyReport implements Serializable {
     /**
      * 报告UUID
      */
-    @TableId(value = "id", type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.INPUT)
     private String id;
 
     /**

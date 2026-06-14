@@ -110,7 +110,7 @@ public class CameraDetectServiceImpl implements CameraDetectService {
             captured = captureFrameFromRtsp(rtspUrl);
         } catch (Exception e) {
             log.error("RTSP抽帧失败: cameraId={}, rtspUrl={}", cameraId, rtspUrl, e);
-            camera.setStatus("OFFLINE");
+            camera.setStatus("FAULT");
             cameraMapper.updateById(camera);
             throw new BusinessException(40084, "抓拍失败: " + e.getMessage());
         }

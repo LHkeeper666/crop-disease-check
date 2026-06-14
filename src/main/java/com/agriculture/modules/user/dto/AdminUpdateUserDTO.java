@@ -24,6 +24,12 @@ public class AdminUpdateUserDTO {
     private String phone;
 
     /**
+     * 邮箱
+     */
+    @jakarta.validation.constraints.Email(message = "邮箱格式不正确")
+    private String email;
+
+    /**
      * 角色: ADMIN/EXPERT/MANAGER/VISITOR
      */
     @Pattern(regexp = "^(ADMIN|EXPERT|MANAGER|VISITOR)$", message = "角色值不正确")
