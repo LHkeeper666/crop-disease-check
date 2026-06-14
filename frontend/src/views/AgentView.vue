@@ -199,6 +199,15 @@ function newConversation() {
   isToolCalling.value = false
 }
 
+// Toggle history panel
+function toggleHistory() {
+  showHistory.value = !showHistory.value
+  showSettings.value = false
+  if (showHistory.value) {
+    loadConversations()
+  }
+}
+
 // Select conversation from history
 function selectConversation(conv: Conversation) {
   loadConversationMessages(conv.id)
@@ -352,7 +361,7 @@ onMounted(() => {
       <div class="flex gap-2">
         <button
           class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-          @click="showHistory = !showHistory; showSettings = false"
+          @click="toggleHistory"
         >
           {{ showHistory ? '关闭历史' : '历史对话' }}
         </button>
