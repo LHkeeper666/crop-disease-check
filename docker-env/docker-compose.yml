@@ -156,8 +156,8 @@ services:
       context: ../inference-service
       dockerfile: ../docker-env/cv-inference/Dockerfile
       args:
-        - HTTP_PROXY=${HTTP_PROXY:-http://host.docker.internal:7890}
-        - HTTPS_PROXY=${HTTPS_PROXY:-http://host.docker.internal:7890}
+        - HTTP_PROXY=${DOCKER_BUILD_PROXY:-}
+        - HTTPS_PROXY=${DOCKER_BUILD_PROXY:-}
     container_name: agri-monitor-cv
     restart: always
     ports:
@@ -273,8 +273,8 @@ services:
       context: ../frontend
       dockerfile: ../docker-env/frontend/Dockerfile
       args:
-        - HTTP_PROXY=${HTTP_PROXY:-http://host.docker.internal:7890}
-        - HTTPS_PROXY=${HTTPS_PROXY:-http://host.docker.internal:7890}
+        - HTTP_PROXY=${DOCKER_BUILD_PROXY:-}
+        - HTTPS_PROXY=${DOCKER_BUILD_PROXY:-}
     container_name: agri-monitor-frontend
     restart: always
     ports:

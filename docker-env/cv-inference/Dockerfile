@@ -1,11 +1,18 @@
 # syntax=docker/dockerfile:1
 FROM python:3.10-slim
 
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+
 WORKDIR /app
 
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements.txt
+    if [ -n "$HTTP_PROXY" ]; then \
+        pip install --no-cache-dir -r requirements.txt; \
+    else \
+        pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn -r requirements.txt; \
+    fi
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
