@@ -130,6 +130,9 @@ public class CameraDetectServiceImpl implements CameraDetectService {
             // 关键：returnAnnotatedImage = false，节省带宽
             inferenceResult = inferenceClient.detectByBase64(base64Image, confidence, false);
         } catch (Exception e) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw new RuntimeException("检测被中断", e);
+            }
             log.error("调用推理服务失败: cameraId={}", cameraId, e);
             throw new BusinessException(40088, "推理服务不可用: " + e.getMessage());
         }
@@ -258,6 +261,7 @@ public class CameraDetectServiceImpl implements CameraDetectService {
             if (interval < 5) interval = 5;
 
             ScheduledFuture<?> future = monitorScheduler.scheduleAtFixedRate(() -> {
+                if (Thread.currentThread().isInterrupted()) return;
                 try {
                     log.info("定时监测开始: cameraId={}", cameraId);
                     CameraDetectRequest detectRequest = new CameraDetectRequest();
@@ -268,6 +272,10 @@ public class CameraDetectServiceImpl implements CameraDetectService {
                     detect(cameraId, detectRequest);
                     log.info("定时监测完成: cameraId={}", cameraId);
                 } catch (Exception e) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        log.info("定时监测被中断: cameraId={}", cameraId);
+                        return;
+                    }
                     log.warn("定时监测失败: cameraId={}, error={}", cameraId, e.getMessage(), e);
                 }
             }, 0, interval, TimeUnit.SECONDS);
@@ -278,7 +286,7 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         } else {
             ScheduledFuture<?> future = activeMonitors.remove(cameraId);
             if (future != null) {
-                future.cancel(false);
+                future.cancel(true);
                 log.info("停止实时监测: cameraId={}", cameraId);
             }
         }
@@ -366,6 +374,14 @@ public class CameraDetectServiceImpl implements CameraDetectService {
      * 解析推理服务响应（只解析detections，忽略annotated_image）
      */
     private CameraDetectResponse.InferenceResult parseInferenceResult(JsonNode response) {
+        if (response == null || response.get("data") == null) {
+            return CameraDetectResponse.InferenceResult.builder()
+                    .disease(parseModelResult(null))
+                    .pest(parseModelResult(null))
+                    .totalElapsedMs(0.0)
+                    .build();
+        }
+
         JsonNode data = response.get("data");
 
         CameraDetectResponse.ModelResult diseaseResult = parseModelResult(data.get("disease"));
@@ -453,6 +469,11 @@ public class CameraDetectServiceImpl implements CameraDetectService {
             wsData.put("detections", allDetections);
             wsData.put("diseaseCount", result.getDisease() != null ? result.getDisease().getCount() : 0);
             wsData.put("pestCount", result.getPest() != null ? result.getPest().getCount() : 0);
+
+            log.info("WebSocket推送检测数据: cameraId={}, frame={}x{}, disease={}, pest={}, detections={}",
+                    camera.getId(), frameWidth, frameHeight,
+                    wsData.get("diseaseCount"), wsData.get("pestCount"),
+                    new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(allDetections));
 
             // 推送到通用推理结果topic
             webSocketService.sendInferenceResult(wsData);

@@ -26,47 +26,90 @@ export interface InferenceResultMessage {
 }
 
 let client: Client | null = null
-let refCount = 0
+let connecting = false
+const pendingResolves: Array<() => void> = []
+const pendingRejects: Array<(e: Error) => void> = []
+const callerIds = new Set<string>()
+
+let nextCallerId = 0
+function newCallerId(): string {
+  return String(++nextCallerId)
+}
 
 export function getWsClient(): Client {
   if (!client) {
     const token = localStorage.getItem('treeforge_token') || ''
+    console.log('[WS] Creating client, token length:', token.length)
     client = new Client({
-      webSocketFactory: () => new SockJS(`/ws?token=${token}`),
+      webSocketFactory: () => {
+        console.log('[WS] Creating SockJS connection to /ws')
+        return new SockJS(`/ws?token=${token}`)
+      },
+      connectHeaders: { Authorization: `Bearer ${token}` },
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
+      debug: (msg) => console.log('[WS-DEBUG]', msg),
     })
   }
   return client
 }
 
-export function connectWs(): Promise<void> {
+export function connectWs(): Promise<string> {
   return new Promise((resolve, reject) => {
     const c = getWsClient()
-    refCount++
+    const id = newCallerId()
+    callerIds.add(id)
+
     if (c.connected) {
-      resolve()
+      resolve(id)
       return
     }
-    const origOnConnect = c.onConnect
-    c.onConnect = (frame) => {
-      origOnConnect?.(frame)
-      resolve()
+
+    pendingResolves.push(() => resolve(id))
+    pendingRejects.push(reject)
+
+    if (!connecting) {
+      connecting = true
+      c.onConnect = (frame) => {
+        connecting = false
+        console.log('[WS] Connected ✓')
+        const resolvers = [...pendingResolves]
+        pendingResolves.length = 0
+        pendingRejects.length = 0
+        resolvers.forEach(r => r())
+      }
+      c.onDisconnect = () => {
+        console.log('[WS] Disconnected')
+      }
+      c.onWebSocketClose = (evt) => {
+        console.warn('[WS] WebSocket closed:', evt.code, evt.reason)
+      }
+      c.onWebSocketError = (evt) => {
+        console.error('[WS] WebSocket error:', evt)
+      }
+      c.onStompError = (frame) => {
+        connecting = false
+        console.error('[WS] STOMP error:', frame.headers['message'], frame.body)
+        const err = new Error(frame.headers['message'] || 'WebSocket connection failed')
+        const rejecters = [...pendingRejects]
+        pendingResolves.length = 0
+        pendingRejects.length = 0
+        rejecters.forEach(r => r(err))
+      }
+      c.activate()
     }
-    c.onStompError = (frame) => {
-      reject(new Error(frame.headers['message'] || 'WebSocket connection failed'))
-    }
-    c.activate()
   })
 }
 
-export function disconnectWs() {
-  refCount--
-  if (refCount <= 0 && client) {
+export function disconnectWs(callerId?: string) {
+  if (callerId) callerIds.delete(callerId)
+  if (callerIds.size === 0 && client) {
     client.deactivate()
     client = null
-    refCount = 0
+    connecting = false
+    pendingResolves.length = 0
+    pendingRejects.length = 0
   }
 }
 
@@ -75,13 +118,18 @@ export function subscribeTopic(
   callback: (data: InferenceResultMessage) => void
 ) {
   const c = getWsClient()
-  if (!c.connected) return null
+  if (!c.connected) {
+    console.warn('[WS] subscribeTopic called but not connected:', topic)
+    return null
+  }
+  console.log('[WS] Subscribing to:', topic)
   return c.subscribe(topic, (message: IMessage) => {
     try {
       const parsed = JSON.parse(message.body) as InferenceResultMessage
+      console.log('[WS] Received on', topic, ':', parsed.data?.detections?.length, 'detections')
       callback(parsed)
     } catch (e) {
-      console.warn('Failed to parse WebSocket message:', e)
+      console.warn('[WS] Failed to parse message:', e, message.body?.substring(0, 200))
     }
   })
 }

@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import Hls from 'hls.js'
 import type { Subscription } from '@stomp/stompjs'
 import { connectWs, disconnectWs, subscribeTopic, type DetectionItem, type InferenceResultMessage } from '../utils/websocket'
 
 const props = withDefaults(defineProps<{
   cameraId: string
   cameraName: string
-  streamUrl?: string
+  streamUrl?: string   // IP Webcam HTTP 直连地址 (MJPEG)
   active?: boolean
 }>(), {
   active: true,
@@ -17,69 +16,40 @@ const emit = defineEmits<{
   (e: 'status-change', status: string): void
 }>()
 
-const videoRef = ref<HTMLVideoElement>()
+const imgRef = ref<HTMLImageElement>()
 const canvasRef = ref<HTMLCanvasElement>()
-const containerRef = ref<HTMLDivElement>()
 const status = ref<'ONLINE' | 'OFFLINE' | 'FAULT'>('OFFLINE')
 const diseaseCount = ref(0)
 const pestCount = ref(0)
 const lastDetectTime = ref('')
-const videoAspect = ref(16 / 9) // 默认16:9，实际由视频流决定
+const videoAspect = ref(16 / 9) // 默认16:9，实际由检测帧决定
 
-let hls: Hls | null = null
 let subscription: Subscription | null = null
+let wsCallerId: string | null = null
+let aspectFromDetection = false
 
-function updateVideoAspect() {
-  if (!videoRef.value) return
-  const w = videoRef.value.videoWidth
-  const h = videoRef.value.videoHeight
-  if (w > 0 && h > 0) {
-    videoAspect.value = w / h
+function onStreamLoad() {
+  status.value = 'ONLINE'
+  emit('status-change', 'ONLINE')
+  // 尝试从 img 元素获取实际宽高比
+  if (imgRef.value && imgRef.value.naturalWidth > 0 && !aspectFromDetection) {
+    videoAspect.value = imgRef.value.naturalWidth / imgRef.value.naturalHeight
   }
 }
 
-function initHls() {
-  if (!videoRef.value || !props.streamUrl) return
-
-  if (Hls.isSupported()) {
-    hls = new Hls({
-      liveSyncDurationCount: 1,
-      liveMaxLatencyDurationCount: 3,
-      maxBufferLength: 5,
-    })
-    hls.loadSource(props.streamUrl)
-    hls.attachMedia(videoRef.value)
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      videoRef.value?.play()
-      status.value = 'ONLINE'
-      emit('status-change', 'ONLINE')
-      updateVideoAspect()
-    })
-    hls.on(Hls.Events.ERROR, (_event, data) => {
-      if (data.fatal) {
-        status.value = 'FAULT'
-        emit('status-change', 'FAULT')
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          hls?.startLoad()
-        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-          hls?.recoverMediaError()
-        }
-      }
-    })
-  } else if (videoRef.value.canPlayType('application/vnd.apple.mpegurl')) {
-    videoRef.value.src = props.streamUrl
-    videoRef.value.addEventListener('loadedmetadata', () => {
-      videoRef.value?.play()
-      status.value = 'ONLINE'
-      emit('status-change', 'ONLINE')
-      updateVideoAspect()
-    })
-  }
+function onStreamError() {
+  status.value = 'FAULT'
+  emit('status-change', 'FAULT')
 }
 
 function syncCanvasSize() {
-  if (!videoRef.value || !canvasRef.value) return
-  const rect = videoRef.value.getBoundingClientRect()
+  if (!canvasRef.value) return
+  // 优先用 img 元素尺寸，无视频流时回退到 canvas 父容器
+  const source = (imgRef.value && imgRef.value.offsetWidth > 0)
+    ? imgRef.value
+    : canvasRef.value.parentElement
+  if (!source) return
+  const rect = source.getBoundingClientRect()
   canvasRef.value.width = rect.width
   canvasRef.value.height = rect.height
 }
@@ -102,13 +72,11 @@ function drawDetections(
 
   let drawW: number, drawH: number, offsetX: number, offsetY: number
   if (frameAspect > canvasAspect) {
-    // 视频更宽，上下有黑边
     drawW = canvasW
     drawH = canvasW / frameAspect
     offsetX = 0
     offsetY = (canvasH - drawH) / 2
   } else {
-    // 视频更高，左右有黑边
     drawH = canvasH
     drawW = canvasH * frameAspect
     offsetX = (canvasW - drawW) / 2
@@ -152,6 +120,7 @@ function handleDetection(msg: InferenceResultMessage) {
   // 用检测帧的实际宽高更新容器宽高比
   if (msg.data.frameWidth > 0 && msg.data.frameHeight > 0) {
     videoAspect.value = msg.data.frameWidth / msg.data.frameHeight
+    aspectFromDetection = true
   }
 
   if (canvasRef.value) {
@@ -203,12 +172,10 @@ async function stopBackendMonitor() {
 }
 
 async function startMonitoring() {
-  if (!props.active || !props.streamUrl) return
-  initHls()
-  // 启动后端定时抽帧推理
+  if (!props.active) return
   startBackendMonitor()
   try {
-    await connectWs()
+    wsCallerId = await connectWs()
     subscription = subscribeTopic(`/topic/camera/${props.cameraId}/detect`, (msg) => {
       handleDetection(msg)
     })
@@ -220,12 +187,10 @@ async function startMonitoring() {
 function stopMonitoring() {
   subscription?.unsubscribe()
   subscription = null
-  hls?.destroy()
-  hls = null
-  disconnectWs()
+  disconnectWs(wsCallerId ?? undefined)
+  wsCallerId = null
   clearCanvas()
   status.value = 'OFFLINE'
-  // 停止后端定时抽帧推理
   stopBackendMonitor()
 }
 
@@ -234,11 +199,9 @@ watch(() => props.active, (val) => {
   else stopMonitoring()
 })
 
-watch(() => props.streamUrl, (val) => {
-  if (val && props.active) {
-    hls?.destroy()
-    initHls()
-  }
+watch(() => props.streamUrl, () => {
+  // streamUrl 变化时 img 会自动重新加载
+  aspectFromDetection = false
 })
 
 onMounted(() => {
@@ -251,8 +214,16 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="containerRef" class="camera-window group" :style="{ aspectRatio: videoAspect }">
-    <video ref="videoRef" autoplay muted playsinline class="absolute inset-0 w-full h-full object-contain bg-black"></video>
+  <div class="camera-window group" :style="{ aspectRatio: videoAspect }">
+    <!-- MJPEG 直连 IP Webcam，无需任何播放器 -->
+    <img
+      v-show="streamUrl"
+      ref="imgRef"
+      :src="streamUrl"
+      class="absolute inset-0 w-full h-full object-contain bg-black"
+      @load="onStreamLoad"
+      @error="onStreamError"
+    />
     <canvas ref="canvasRef" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
 
     <!-- Top status indicator -->

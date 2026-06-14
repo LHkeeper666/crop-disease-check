@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -127,4 +128,44 @@ public class Camera implements Serializable {
      */
     @TableField(exist = false)
     private List<String> coverageGrids;
+
+    /**
+     * 从RTSP地址推导HTTP直连地址（非数据库字段）
+     * IP Webcam的HTTP服务与RTSP共享同一 ip:port，仅路径不同
+     * rtsp://192.168.1.102:6868/h264_pcm.sdp → http://192.168.1.102:6868/video
+     */
+    @JsonProperty("httpUrl")
+    public String getHttpUrl() {
+        if (rtspUrl == null || rtspUrl.isEmpty()) return null;
+        try {
+            // 替换协议：rtsp:// → http://
+            String url = rtspUrl.replaceFirst("^rtsp://", "http://");
+            // 去掉路径部分，保留 host:port
+            int pathStart = url.indexOf('/', 8); // 跳过 "http://"
+            if (pathStart > 0) {
+                url = url.substring(0, pathStart);
+            }
+            return url + "/video";
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 从RTSP子码流地址推导HTTP直连地址
+     */
+    @JsonProperty("httpUrlSub")
+    public String getHttpUrlSub() {
+        if (rtspUrlSub == null || rtspUrlSub.isEmpty()) return null;
+        try {
+            String url = rtspUrlSub.replaceFirst("^rtsp://", "http://");
+            int pathStart = url.indexOf('/', 8);
+            if (pathStart > 0) {
+                url = url.substring(0, pathStart);
+            }
+            return url + "/video";
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }

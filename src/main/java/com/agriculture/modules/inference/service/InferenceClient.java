@@ -12,7 +12,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Python推理服务HTTP客户端
@@ -43,6 +46,7 @@ public class InferenceClient {
     public void init() {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(connectTimeout))
+                .version(HttpClient.Version.HTTP_1_1)
                 .build();
     }
 
@@ -57,7 +61,13 @@ public class InferenceClient {
     public JsonNode detectByUrl(String imageUrl, float confidence, boolean returnAnnotatedImage) {
         String requestBody;
         try {
-            requestBody = objectMapper.writeValueAsString(new DetectRequest(imageUrl, "url", confidence, returnAnnotatedImage));
+            Map<String, Object> body = new LinkedHashMap<>();
+            Map<String, String> image = new LinkedHashMap<>();
+            image.put("type", "url");
+            image.put("data", imageUrl);
+            body.put("image", image);
+            body.put("confidence", confidence);
+            requestBody = objectMapper.writeValueAsString(body);
         } catch (Exception e) {
             log.error("构建推理请求失败", e);
             throw new RuntimeException("构建推理请求失败: " + e.getMessage());
@@ -77,7 +87,13 @@ public class InferenceClient {
     public JsonNode detectByBase64(String base64Data, float confidence, boolean returnAnnotatedImage) {
         String requestBody;
         try {
-            requestBody = objectMapper.writeValueAsString(new DetectRequest(base64Data, "base64", confidence, returnAnnotatedImage));
+            Map<String, Object> body = new LinkedHashMap<>();
+            Map<String, String> image = new LinkedHashMap<>();
+            image.put("type", "base64");
+            image.put("data", base64Data);
+            body.put("image", image);
+            body.put("confidence", confidence);
+            requestBody = objectMapper.writeValueAsString(body);
         } catch (Exception e) {
             log.error("构建推理请求失败", e);
             throw new RuntimeException("构建推理请求失败: " + e.getMessage());
@@ -113,53 +129,39 @@ public class InferenceClient {
     }
 
     private JsonNode doDetect(String requestBody) {
+        if (requestBody == null || requestBody.isEmpty()) {
+            throw new RuntimeException("推理请求体为空");
+        }
         try {
+            byte[] bodyBytes = requestBody.getBytes(StandardCharsets.UTF_8);
+            log.info("调用推理服务: {}/api/v1/detect, bodyBytes={}bytes, startsWith={}...",
+                    serviceUrl, bodyBytes.length, requestBody.substring(0, Math.min(80, requestBody.length())));
+
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(serviceUrl + "/api/v1/detect"))
                     .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(bodyBytes))
                     .timeout(Duration.ofMillis(readTimeout))
                     .build();
 
-            log.info("调用推理服务: {}/api/v1/detect", serviceUrl);
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             log.info("推理服务响应状态: {}", response.statusCode());
-            JsonNode jsonNode = objectMapper.readTree(response.body());
 
             if (response.statusCode() != 200) {
                 log.warn("推理服务返回非200状态: {}, body: {}", response.statusCode(), response.body());
+                throw new RuntimeException("推理服务返回错误状态: " + response.statusCode() + ", body: " + response.body());
             }
 
-            return jsonNode;
+            return objectMapper.readTree(response.body());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.info("推理服务调用被中断");
+            throw new RuntimeException("推理服务调用被中断", e);
         } catch (Exception e) {
             log.error("调用推理服务失败", e);
             throw new RuntimeException("调用推理服务失败: " + e.getMessage());
         }
     }
 
-    /**
-     * 内部请求体结构
-     */
-    private static class DetectRequest {
-        public final ImageInput image;
-        public final float confidence;
-        public final boolean return_annotated_image;
-
-        public DetectRequest(String data, String type, float confidence, boolean returnAnnotatedImage) {
-            this.image = new ImageInput(type, data);
-            this.confidence = confidence;
-            this.return_annotated_image = returnAnnotatedImage;
-        }
-    }
-
-    private static class ImageInput {
-        public final String type;
-        public final String data;
-
-        public ImageInput(String type, String data) {
-            this.type = type;
-            this.data = data;
-        }
-    }
 }

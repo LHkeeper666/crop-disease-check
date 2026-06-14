@@ -33,7 +33,7 @@ async function fetchCameras() {
       id: c.id,
       name: c.name,
       status: c.status || 'OFFLINE',
-      streamUrl: c.status === 'ONLINE' ? `/api/stream/${c.id}.m3u8` : undefined,
+      streamUrl: c.httpUrl || undefined,
       grid: c.coverageGrids?.join(', ') || '',
     }))
     if (cameras.value.length > 0 && !selectedCamera.value) {
