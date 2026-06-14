@@ -146,6 +146,7 @@ function startCooldown() {
 }
 
 async function handleSendOtp() {
+  if (loading.value || otpCooldown.value > 0) return
   if (!regEmail.value) {
     errorMsg.value = '请输入邮箱地址'
     return
@@ -354,10 +355,10 @@ async function handleRegister() {
                 type="button"
                 :disabled="otpCooldown > 0 || loading"
                 class="px-4 py-3 rounded-xl text-sm font-medium whitespace-nowrap transition-all"
-                :class="otpCooldown > 0 ? 'bg-white/5 text-slate-600 cursor-not-allowed' : 'bg-cyber-green/10 text-cyber-green border border-cyber-green/20 hover:bg-cyber-green/20'"
+                :class="(otpCooldown > 0 || loading) ? 'bg-white/5 text-slate-600 cursor-not-allowed' : 'bg-cyber-green/10 text-cyber-green border border-cyber-green/20 hover:bg-cyber-green/20'"
                 @click="handleSendOtp"
               >
-                {{ otpCooldown > 0 ? `${otpCooldown}s` : '发送验证码' }}
+                {{ loading ? '发送中...' : otpCooldown > 0 ? `${otpCooldown}s` : '发送验证码' }}
               </button>
             </div>
           </div>

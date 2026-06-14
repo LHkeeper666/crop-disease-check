@@ -37,7 +37,7 @@ public class EmailTest {
      * 测试发送登录验证码邮件
      * 修改 to 变量为你的邮箱地址
      */
-//    @Test
+    @Test
     public void testSendLoginOtp() {
         // 修改为你的邮箱地址
         String to = "2043412933@qq.com";
