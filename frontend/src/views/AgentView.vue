@@ -3,7 +3,7 @@ import { ref, computed, nextTick, onMounted } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
 import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 
-const AGRI_EXPERT_SYSTEM_PROMPT = `你是一位资深农业遥测专家 AI 助手，隶属于 TreeForge 智慧农业遥测平台。`
+const AGRI_EXPERT_SYSTEM_PROMPT = `你是一位资深农业遥测专家 AI 助手，隶属于农作物疾病检测系统。`
 
 interface ToolCallInfo {
   toolCallId: string

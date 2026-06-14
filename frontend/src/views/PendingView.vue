@@ -130,12 +130,8 @@ onUnmounted(() => stopTimer())
     <header class="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-10 py-5">
       <!-- Logo -->
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-[#FF6A00] to-[#FFB300] flex items-center justify-center shadow-lg shadow-[#FF6A00]/20">
-          <svg class="w-5 h-5 text-[#0B0F19]" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-          </svg>
-        </div>
-        <span class="text-lg font-bold text-white tracking-wide">TreeForge</span>
+        <img src="/images/logo/favicon.svg" alt="农作物疾病检测系统" class="w-9 h-9 rounded-lg shadow-lg shadow-[#FF6A00]/20" />
+        <span class="text-lg font-bold text-white tracking-wide">农作物疾病检测系统</span>
         <span class="text-[10px] text-slate-500 font-mono uppercase tracking-widest ml-1">智慧农业遥测平台</span>
       </div>
     </header>

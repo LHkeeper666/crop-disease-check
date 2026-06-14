@@ -16,7 +16,7 @@ export interface UserInfo {
 
 // 企业邀请码 → 企业信息（本地 mock 回退用）
 const companyInvites: Record<string, { companyId: string; companyName: string }> = {
-  TF2026: { companyId: 'company-001', companyName: 'TreeForge 智慧农场' },
+  TF2026: { companyId: 'company-001', companyName: '农作物疾病检测系统' },
   AG2026: { companyId: 'company-002', companyName: '绿丰农业科技' },
 }
 
