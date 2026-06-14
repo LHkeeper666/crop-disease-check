@@ -67,6 +67,7 @@ public class InferenceClient {
             image.put("data", imageUrl);
             body.put("image", image);
             body.put("confidence", confidence);
+            body.put("return_annotated", returnAnnotatedImage);
             requestBody = objectMapper.writeValueAsString(body);
         } catch (Exception e) {
             log.error("构建推理请求失败", e);
@@ -93,6 +94,7 @@ public class InferenceClient {
             image.put("data", base64Data);
             body.put("image", image);
             body.put("confidence", confidence);
+            body.put("return_annotated", returnAnnotatedImage);
             requestBody = objectMapper.writeValueAsString(body);
         } catch (Exception e) {
             log.error("构建推理请求失败", e);

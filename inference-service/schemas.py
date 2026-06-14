@@ -28,6 +28,7 @@ class DetectRequest(BaseModel):
 
     image: ImageInput = Field(..., description="待检测图片")
     confidence: float = Field(0.5, ge=0.1, le=1.0, description="置信度阈值")
+    return_annotated: bool = Field(True, description="是否生成标注图并上传存储")
 
 
 class BatchDetectRequest(BaseModel):
@@ -37,6 +38,7 @@ class BatchDetectRequest(BaseModel):
         ..., min_length=1, max_length=20, description="待检测图片列表 (1-20)"
     )
     confidence: float = Field(0.5, ge=0.1, le=1.0, description="置信度阈值")
+    return_annotated: bool = Field(True, description="是否生成标注图并上传存储")
 
 
 # ============================================================

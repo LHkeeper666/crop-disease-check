@@ -148,7 +148,7 @@ async def detect_single(req: DetectRequest):
     try:
         (disease_dets, pest_dets, disease_ms, pest_ms,
          anno_path, anno_url, img_info) = await model_manager.process_one(
-            req.image, req.confidence,
+            req.image, req.confidence, req.return_annotated,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -206,7 +206,7 @@ async def detect_batch(req: BatchDetectRequest):
         try:
             disease_dets, pest_dets, disease_ms, pest_ms, \
                 anno_path, anno_url, img_info = await model_manager.process_one(
-                    image_input, req.confidence,
+                    image_input, req.confidence, req.return_annotated,
                 )
             results.append(BatchImageResult(
                 image_index=idx,

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
 import CameraMonitor from '../components/CameraMonitor.vue'
+import type { DetectionItem } from '../utils/websocket'
 
 interface CameraItem {
   id: string
@@ -16,6 +17,22 @@ const selectedCamera = ref<CameraItem | null>(null)
 const columns = ref(2)
 const isLoading = ref(true)
 const fetchError = ref('')
+
+// 每个摄像头的最新检测结果
+const detectionsMap = ref<Record<string, DetectionItem[]>>({})
+
+const selectedDetections = computed(() => {
+  if (!selectedCamera.value) return []
+  return detectionsMap.value[selectedCamera.value.id] || []
+})
+
+const selectedDiseases = computed(() =>
+  selectedDetections.value.filter(d => d.type === 'disease')
+)
+
+const selectedPests = computed(() =>
+  selectedDetections.value.filter(d => d.type === 'pest')
+)
 
 async function fetchCameras() {
   isLoading.value = true
@@ -53,6 +70,10 @@ function selectCamera(cam: CameraItem) {
 function handleStatusChange(cameraId: string, newStatus: string) {
   const cam = cameras.value.find(c => c.id === cameraId)
   if (cam) cam.status = newStatus
+}
+
+function handleDetections(cameraId: string, items: DetectionItem[]) {
+  detectionsMap.value[cameraId] = items
 }
 
 let refreshTimer: ReturnType<typeof setInterval> | null = null
@@ -149,6 +170,7 @@ onUnmounted(() => {
               :stream-url="cam.streamUrl"
               :active="cam.status !== 'OFFLINE'"
               @status-change="(s) => handleStatusChange(cam.id, s)"
+              @detections="(items) => handleDetections(cam.id, items)"
             />
           </div>
         </div>
@@ -181,6 +203,58 @@ onUnmounted(() => {
             <div class="text-[10px] text-slate-600 font-mono mb-1">摄像头ID</div>
             <div class="text-[10px] text-slate-500 font-mono break-all">{{ selectedCamera.id }}</div>
           </div>
+
+          <!-- 检测结果 -->
+          <div class="pt-3 border-t border-white/5">
+            <div class="text-[10px] text-slate-600 font-mono mb-2">抽帧检测结果</div>
+
+            <!-- 无检测结果 -->
+            <div v-if="selectedDetections.length === 0" class="text-[10px] text-slate-600">
+              暂无检测数据
+            </div>
+
+            <!-- 病害列表 -->
+            <div v-if="selectedDiseases.length > 0" class="mb-2">
+              <div class="text-[10px] text-[#EF4444] font-mono mb-1">病害 ({{ selectedDiseases.length }})</div>
+              <div class="space-y-1">
+                <div
+                  v-for="(det, i) in selectedDiseases"
+                  :key="'d-' + i"
+                  class="flex items-center justify-between px-2 py-1 rounded bg-[#EF4444]/5 border border-[#EF4444]/10"
+                >
+                  <span class="text-xs text-white truncate">{{ det.nameCn }}</span>
+                  <span class="text-[10px] text-[#EF4444] font-mono ml-2 shrink-0">
+                    {{ (det.confidence * 100).toFixed(1) }}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 虫害列表 -->
+            <div v-if="selectedPests.length > 0" class="mb-2">
+              <div class="text-[10px] text-[#4488ff] font-mono mb-1">虫害 ({{ selectedPests.length }})</div>
+              <div class="space-y-1">
+                <div
+                  v-for="(det, i) in selectedPests"
+                  :key="'p-' + i"
+                  class="flex items-center justify-between px-2 py-1 rounded bg-[#4488ff]/5 border border-[#4488ff]/10"
+                >
+                  <span class="text-xs text-white truncate">{{ det.nameCn }}</span>
+                  <span class="text-[10px] text-[#4488ff] font-mono ml-2 shrink-0">
+                    {{ (det.confidence * 100).toFixed(1) }}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 无病虫害 -->
+            <div
+              v-if="selectedDiseases.length === 0 && selectedPests.length === 0 && selectedDetections.length > 0"
+              class="text-[10px] text-[#4ADE80]"
+            >
+              未发现病虫害
+            </div>
+          </div>
         </div>
 
         <!-- Camera list -->
@@ -202,6 +276,16 @@ onUnmounted(() => {
                 'bg-[#EF4444]': cam.status === 'FAULT',
               }"></span>
               <span class="truncate">{{ cam.name }}</span>
+              <!-- 检测数量角标 -->
+              <span
+                v-if="detectionsMap[cam.id]?.length"
+                class="ml-auto text-[9px] px-1.5 py-0.5 rounded font-mono"
+                :class="detectionsMap[cam.id].some(d => d.type === 'disease')
+                  ? 'bg-[#EF4444]/15 text-[#EF4444]'
+                  : 'bg-[#4488ff]/15 text-[#4488ff]'"
+              >
+                {{ detectionsMap[cam.id].length }}
+              </span>
             </button>
           </div>
         </div>
