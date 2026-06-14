@@ -14,6 +14,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   (e: 'status-change', status: string): void
+  (e: 'detections', items: DetectionItem[]): void
 }>()
 
 const imgRef = ref<HTMLImageElement>()
@@ -132,6 +133,8 @@ function handleDetection(msg: InferenceResultMessage) {
       msg.data.frameHeight
     )
   }
+
+  emit('detections', msg.data.detections)
 }
 
 function clearCanvas() {
@@ -140,6 +143,7 @@ function clearCanvas() {
   if (ctx) ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height)
   diseaseCount.value = 0
   pestCount.value = 0
+  emit('detections', [])
 }
 
 function getAuthHeaders(): Record<string, string> {
