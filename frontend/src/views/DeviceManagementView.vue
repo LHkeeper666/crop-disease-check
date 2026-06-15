@@ -95,7 +95,9 @@ async function loadUsers() {
   userLoading.value = true
   userError.value = ''
   try {
-    const page = await fetchUsers({ size: 200 })
+    // 传递当前用户的companyId，只显示本公司员工
+    const companyId = auth.userInfo?.companyId
+    const page = await fetchUsers({ size: 200, companyId: companyId || undefined })
     users.value = page.records
     userTotal.value = page.total
   } catch (e: any) {

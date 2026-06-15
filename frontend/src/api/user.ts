@@ -44,6 +44,7 @@ export async function fetchUsers(params: {
   keyword?: string
   role?: string
   status?: string
+  companyId?: string
 } = {}): Promise<PageResult<UserSimpleVO>> {
   const query = new URLSearchParams()
   if (params.page) query.set('page', String(params.page))
@@ -51,6 +52,7 @@ export async function fetchUsers(params: {
   if (params.keyword) query.set('keyword', params.keyword)
   if (params.role) query.set('role', params.role)
   if (params.status) query.set('status', params.status)
+  if (params.companyId) query.set('companyId', params.companyId)
   return request<PageResult<UserSimpleVO>>(`${BASE}?${query.toString()}`)
 }
 
