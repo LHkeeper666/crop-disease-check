@@ -132,8 +132,7 @@ async def detect_single(req: DetectRequest):
 
         {
           "image": { "type": "url", "data": "https://oss.example.com/crop.jpg" },
-          "confidence": 0.5,
-          "return_annotated_image": true
+          "confidence": 0.5
         }
 
     或 base64 方式:
@@ -148,8 +147,8 @@ async def detect_single(req: DetectRequest):
 
     try:
         (disease_dets, pest_dets, disease_ms, pest_ms,
-         anno_b64, anno_path, anno_url, img_info) = await model_manager.process_one(
-            req.image, req.confidence, req.return_annotated_image,
+         anno_path, anno_url, img_info) = await model_manager.process_one(
+            req.image, req.confidence, req.return_annotated,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -170,7 +169,6 @@ async def detect_single(req: DetectRequest):
                 count=len(pest_dets),
                 elapsed_ms=pest_ms,
             ),
-            annotated_image=anno_b64,
             annotated_path=anno_path,
             annotated_url=anno_url,
             total_elapsed_ms=total_elapsed,
@@ -195,8 +193,7 @@ async def detect_batch(req: BatchDetectRequest):
             { "type": "url", "data": "https://oss.example.com/001.jpg" },
             { "type": "base64", "data": "/9j/4AAQSkZJRg..." }
           ],
-          "confidence": 0.5,
-          "return_annotated_image": true
+          "confidence": 0.5
         }
     """
     _check_ready()
@@ -208,8 +205,8 @@ async def detect_batch(req: BatchDetectRequest):
     for idx, image_input in enumerate(req.images):
         try:
             disease_dets, pest_dets, disease_ms, pest_ms, \
-                anno_b64, anno_path, anno_url, img_info = await model_manager.process_one(
-                    image_input, req.confidence, req.return_annotated_image,
+                anno_path, anno_url, img_info = await model_manager.process_one(
+                    image_input, req.confidence, req.return_annotated,
                 )
             results.append(BatchImageResult(
                 image_index=idx,
@@ -223,7 +220,6 @@ async def detect_batch(req: BatchDetectRequest):
                     count=len(pest_dets),
                     elapsed_ms=pest_ms,
                 ),
-                annotated_image=anno_b64,
                 annotated_path=anno_path,
                 annotated_url=anno_url,
                 image_info=img_info,

@@ -55,10 +55,18 @@ public class CameraDetectServiceImpl implements CameraDetectService {
     private String captureTransport;
 
     /**
-     * 抽帧分辨率（与推理模型输入一致）
+     * 抽帧结果：图片字节 + 实际宽高
      */
-    private static final int FRAME_WIDTH = 640;
-    private static final int FRAME_HEIGHT = 640;
+    private static class CapturedFrame {
+        final byte[] bytes;
+        final int width;
+        final int height;
+        CapturedFrame(byte[] bytes, int width, int height) {
+            this.bytes = bytes;
+            this.width = width;
+            this.height = height;
+        }
+    }
 
     /**
      * 实时监测任务调度器
@@ -96,13 +104,13 @@ public class CameraDetectServiceImpl implements CameraDetectService {
             throw new BusinessException(40084, "摄像头RTSP地址未配置");
         }
 
-        // 1. 从RTSP流抽帧
-        byte[] frameBytes;
+        // 1. 从RTSP流抽帧（使用源流分辨率，不强制缩放）
+        CapturedFrame captured;
         try {
-            frameBytes = captureFrameFromRtsp(rtspUrl);
+            captured = captureFrameFromRtsp(rtspUrl);
         } catch (Exception e) {
             log.error("RTSP抽帧失败: cameraId={}, rtspUrl={}", cameraId, rtspUrl, e);
-            camera.setStatus("OFFLINE");
+            camera.setStatus("FAULT");
             cameraMapper.updateById(camera);
             throw new BusinessException(40084, "抓拍失败: " + e.getMessage());
         }
@@ -110,7 +118,7 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         // 2. 保存抓拍图片（可选）
         String captureUrl = null;
         if (Boolean.TRUE.equals(request.getSaveCapture())) {
-            captureUrl = saveCaptureImage(cameraId, frameBytes);
+            captureUrl = saveCaptureImage(cameraId, captured.bytes);
         }
 
         // 3. 调用推理服务（不返回标注图，只返回bbox坐标）
@@ -118,10 +126,13 @@ public class CameraDetectServiceImpl implements CameraDetectService {
 
         JsonNode inferenceResult;
         try {
-            String base64Image = Base64.getEncoder().encodeToString(frameBytes);
+            String base64Image = Base64.getEncoder().encodeToString(captured.bytes);
             // 关键：returnAnnotatedImage = false，节省带宽
             inferenceResult = inferenceClient.detectByBase64(base64Image, confidence, false);
         } catch (Exception e) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw new RuntimeException("检测被中断", e);
+            }
             log.error("调用推理服务失败: cameraId={}", cameraId, e);
             throw new BusinessException(40088, "推理服务不可用: " + e.getMessage());
         }
@@ -129,19 +140,19 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         // 4. 解析推理结果（只有detections，没有annotatedImage）
         CameraDetectResponse.InferenceResult parsedResult = parseInferenceResult(inferenceResult);
 
-        // 5. 构建响应
+        // 5. 构建响应（使用实际抽帧分辨率）
         CameraDetectResponse response = CameraDetectResponse.builder()
                 .cameraId(cameraId)
                 .cameraName(camera.getName())
                 .captureTime(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
                 .captureUrl(captureUrl)
-                .imageWidth(FRAME_WIDTH)
-                .imageHeight(FRAME_HEIGHT)
+                .imageWidth(captured.width)
+                .imageHeight(captured.height)
                 .inference(parsedResult)
                 .build();
 
         // 6. 推送检测框坐标到WebSocket（前端用于Canvas绘制）
-        pushDetectionsToWebSocket(camera, parsedResult);
+        pushDetectionsToWebSocket(camera, parsedResult, captured.width, captured.height);
 
         return response;
     }
@@ -161,15 +172,15 @@ public class CameraDetectServiceImpl implements CameraDetectService {
             throw new BusinessException(40084, "摄像头RTSP地址未配置");
         }
 
-        byte[] frameBytes;
+        CapturedFrame captured;
         try {
-            frameBytes = captureFrameFromRtsp(rtspUrl);
+            captured = captureFrameFromRtsp(rtspUrl);
         } catch (Exception e) {
             log.error("抓拍失败: cameraId={}", cameraId, e);
             throw new BusinessException(40084, "抓拍失败: " + e.getMessage());
         }
 
-        String imageUrl = saveCaptureImage(cameraId, frameBytes);
+        String imageUrl = saveCaptureImage(cameraId, captured.bytes);
         String capturedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
         camera.setLastFrameAt(LocalDateTime.now());
@@ -179,11 +190,11 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         String inferenceTaskId = null;
         if (Boolean.TRUE.equals(request.getSubmitInference())) {
             try {
-                String base64Image = Base64.getEncoder().encodeToString(frameBytes);
+                String base64Image = Base64.getEncoder().encodeToString(captured.bytes);
                 JsonNode result = inferenceClient.detectByBase64(base64Image, 0.5f, false);
 
                 CameraDetectResponse.InferenceResult parsedResult = parseInferenceResult(result);
-                pushDetectionsToWebSocket(camera, parsedResult);
+                pushDetectionsToWebSocket(camera, parsedResult, captured.width, captured.height);
 
                 inferenceTaskId = UUID.randomUUID().toString();
             } catch (Exception e) {
@@ -250,16 +261,22 @@ public class CameraDetectServiceImpl implements CameraDetectService {
             if (interval < 5) interval = 5;
 
             ScheduledFuture<?> future = monitorScheduler.scheduleAtFixedRate(() -> {
+                if (Thread.currentThread().isInterrupted()) return;
                 try {
+                    log.info("定时监测开始: cameraId={}", cameraId);
                     CameraDetectRequest detectRequest = new CameraDetectRequest();
                     detectRequest.setConfidence(request.getConfidence());
                     detectRequest.setUseSubStream(request.getUseSubStream());
                     detectRequest.setSaveCapture(false); // 定时监测不保存图片，减少IO
 
                     detect(cameraId, detectRequest);
-                    log.debug("定时监测完成: cameraId={}", cameraId);
+                    log.info("定时监测完成: cameraId={}", cameraId);
                 } catch (Exception e) {
-                    log.warn("定时监测失败: cameraId={}, error={}", cameraId, e.getMessage());
+                    if (Thread.currentThread().isInterrupted()) {
+                        log.info("定时监测被中断: cameraId={}", cameraId);
+                        return;
+                    }
+                    log.warn("定时监测失败: cameraId={}, error={}", cameraId, e.getMessage(), e);
                 }
             }, 0, interval, TimeUnit.SECONDS);
 
@@ -269,7 +286,7 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         } else {
             ScheduledFuture<?> future = activeMonitors.remove(cameraId);
             if (future != null) {
-                future.cancel(false);
+                future.cancel(true);
                 log.info("停止实时监测: cameraId={}", cameraId);
             }
         }
@@ -277,22 +294,29 @@ public class CameraDetectServiceImpl implements CameraDetectService {
 
     /**
      * 从RTSP流抽帧（JavaCV FFmpegFrameGrabber）
+     * 使用摄像头源流分辨率，不强制缩放
      */
-    private byte[] captureFrameFromRtsp(String rtspUrl) throws Exception {
+    private CapturedFrame captureFrameFromRtsp(String rtspUrl) throws Exception {
         log.info("从RTSP流抽帧: {}", rtspUrl);
 
         FFmpegFrameGrabber grabber = null;
         try {
             grabber = new FFmpegFrameGrabber(rtspUrl);
             grabber.setOption("rtsp_transport", captureTransport);
+            // stimeout 控制 RTSP TCP 连接超时（微秒）
             grabber.setOption("stimeout", String.valueOf(captureTimeoutMs * 1000));
             grabber.setOption("buffer_size", "1024000");
-            grabber.setImageWidth(FRAME_WIDTH);
-            grabber.setImageHeight(FRAME_HEIGHT);
-            grabber.start();
+            // 限制流分析阶段的探测大小和时长，避免 avformat_find_stream_info 阻塞
+            grabber.setOption("probesize", "32000");
+            grabber.setOption("analyzeduration", "2000000");
+            // 不设置 setImageWidth/setImageHeight，使用源流分辨率
 
-            // 跳过前几帧（可能是损坏的或关键帧前的帧）
-            for (int i = 0; i < 5; i++) {
+            log.info("正在连接RTSP流并分析流信息...");
+            grabber.start();
+            log.info("RTSP流连接成功: {}x{}", grabber.getImageWidth(), grabber.getImageHeight());
+
+            // grab() 会同时消耗视频帧和音频帧，多跳过几帧确保拿到稳定的视频帧
+            for (int i = 0; i < 10; i++) {
                 grabber.grab();
             }
 
@@ -309,7 +333,8 @@ public class CameraDetectServiceImpl implements CameraDetectService {
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ImageIO.write(image, "jpg", baos);
-            return baos.toByteArray();
+            log.info("RTSP抽帧成功: {}x{}, size={}bytes", image.getWidth(), image.getHeight(), baos.size());
+            return new CapturedFrame(baos.toByteArray(), image.getWidth(), image.getHeight());
 
         } catch (Exception e) {
             log.error("RTSP抽帧异常: {}", e.getMessage());
@@ -349,6 +374,14 @@ public class CameraDetectServiceImpl implements CameraDetectService {
      * 解析推理服务响应（只解析detections，忽略annotated_image）
      */
     private CameraDetectResponse.InferenceResult parseInferenceResult(JsonNode response) {
+        if (response == null || response.get("data") == null) {
+            return CameraDetectResponse.InferenceResult.builder()
+                    .disease(parseModelResult(null))
+                    .pest(parseModelResult(null))
+                    .totalElapsedMs(0.0)
+                    .build();
+        }
+
         JsonNode data = response.get("data");
 
         CameraDetectResponse.ModelResult diseaseResult = parseModelResult(data.get("disease"));
@@ -408,7 +441,8 @@ public class CameraDetectServiceImpl implements CameraDetectService {
      * 推送检测框坐标到WebSocket
      * 前端接收后在Canvas上绘制检测框（覆盖在HLS视频上方）
      */
-    private void pushDetectionsToWebSocket(Camera camera, CameraDetectResponse.InferenceResult result) {
+    private void pushDetectionsToWebSocket(Camera camera, CameraDetectResponse.InferenceResult result,
+                                            int frameWidth, int frameHeight) {
         try {
             // 合并病害和虫害检测结果
             List<Map<String, Object>> allDetections = new ArrayList<>();
@@ -430,11 +464,16 @@ public class CameraDetectServiceImpl implements CameraDetectService {
             wsData.put("cameraName", camera.getName());
             wsData.put("captureTime", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
             // 抽帧分辨率，前端用于坐标映射
-            wsData.put("frameWidth", FRAME_WIDTH);
-            wsData.put("frameHeight", FRAME_HEIGHT);
+            wsData.put("frameWidth", frameWidth);
+            wsData.put("frameHeight", frameHeight);
             wsData.put("detections", allDetections);
             wsData.put("diseaseCount", result.getDisease() != null ? result.getDisease().getCount() : 0);
             wsData.put("pestCount", result.getPest() != null ? result.getPest().getCount() : 0);
+
+            log.info("WebSocket推送检测数据: cameraId={}, frame={}x{}, disease={}, pest={}, detections={}",
+                    camera.getId(), frameWidth, frameHeight,
+                    wsData.get("diseaseCount"), wsData.get("pestCount"),
+                    new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(allDetections));
 
             // 推送到通用推理结果topic
             webSocketService.sendInferenceResult(wsData);

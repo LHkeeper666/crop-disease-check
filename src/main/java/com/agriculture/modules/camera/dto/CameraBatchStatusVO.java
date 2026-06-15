@@ -28,7 +28,7 @@ public class CameraBatchStatusVO {
         private String name;
         private String status;
         private String lastFrameAt;
-        private String streamUrl;
+        private String httpUrl;
     }
 
     @Data

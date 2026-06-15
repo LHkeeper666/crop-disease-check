@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import './styles/main.css'
+import 'highlight.js/styles/github-dark.css'
 
 import LoginView from './views/LoginView.vue'
 import PendingView from './views/PendingView.vue'

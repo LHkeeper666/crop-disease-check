@@ -1,19 +1,26 @@
 package com.agriculture.modules.agriBrain.service.impl;
 
 import com.agriculture.common.config.LlmProperties;
+import com.agriculture.common.service.TemplateService;
 import com.agriculture.modules.agriBrain.entity.AiConversation;
 import com.agriculture.modules.agriBrain.entity.AiMessage;
 import com.agriculture.common.exception.BusinessException;
 import com.agriculture.modules.agriBrain.service.AgriBrainService;
+import com.agriculture.modules.agriBrain.service.AiConfigService;
 import com.agriculture.modules.agriBrain.service.AiConversationService;
 import com.agriculture.modules.agriBrain.service.AiMessageService;
+import com.agriculture.modules.agriBrain.tool.AiTool;
+import com.agriculture.modules.agriBrain.tool.AiToolRegistry;
 import com.agriculture.modules.agriBrain.vo.ChatEvent;
+import com.agriculture.modules.user.entity.SysUser;
+import com.agriculture.modules.user.mapper.SysUserMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -29,40 +36,19 @@ public class AgriBrainServiceImpl implements AgriBrainService {
 
     private static final Logger log = LoggerFactory.getLogger(AgriBrainServiceImpl.class);
 
-    private static final String SYSTEM_PROMPT = "你是一位资深农业遥测专家 AI 助手，隶属于 TreeForge 智慧农业遥测平台。你的知识涵盖以下领域：\n"
-            + "\n"
-            + "【核心专长】\n"
-            + "- 作物病虫害识别与防治（番茄晚疫病、白粉病、灰霉病、霜霉病、红蜘蛛、蚜虫、螟虫、白粉虱等）\n"
-            + "- 农业环境监测与调控（温度、湿度、土壤水分、光照、CO₂浓度）\n"
-            + "- 土壤养分分析（N/P/K、pH值、EC电导率）\n"
-            + "- 温室智能化管理（通风、灌溉、施肥策略）\n"
-            + "- 农药与肥料使用规范（安全间隔期、配比建议）\n"
-            + "\n"
-            + "【数据感知能力】\n"
-            + "你可以访问以下遥测数据进行分析：\n"
-            + "- 环境参数：空气温度、土壤湿度、空气湿度、光照强度\n"
-            + "- 能耗数据：当前功耗与最大负载\n"
-            + "- 生长指标：CO₂、土壤pH、EC、温度、N/P/K含量\n"
-            + "- 温室元数据：区域编号、作物种类、定植日期、地理位置、面积\n"
-            + "- 网格热力图：各区域风险评分与病虫害类型\n"
-            + "- 工单系统：告警级别(PENDING/PROCESSING/DONE/IGNORED)、置信度、处理状态\n"
-            + "- 历史统计：总上报数、日趋势、病害/虫害分布\n"
-            + "\n"
-            + "【回答规范】\n"
-            + "1. 使用中文回答，语气专业但易懂\n"
-            + "2. 涉及数值时必须使用精确数据，格式如 \"23.6°C\"、\"65.2%\"\n"
-            + "3. 对于病虫害问题，给出：风险等级、传播概率、推荐防治措施、安全用药建议\n"
-            + "4. 对于环境异常，给出：原因分析、调控建议、预期改善时间\n"
-            + "5. 必要时提供分级建议（紧急/重要/常规）\n"
-            + "6. 回答末尾给出可执行的行动建议";
+    private String buildSystemPrompt() {
+        java.time.LocalDate today = java.time.LocalDate.now();
+        String dateStr = today.toString(); // 2026-06-13
+        String dayOfWeek = today.getDayOfWeek().getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.CHINA); // 周五
 
-    private static final String QUICK_ADVICE_PROMPT = "基于当前农业监测系统的数据，请生成一份全面的农业管理建议报告。"
-            + "请从以下维度给出建议：\n"
-            + "1. 当前环境参数分析与调控建议\n"
-            + "2. 病虫害风险评估与预防措施\n"
-            + "3. 灌溉与施肥建议\n"
-            + "4. 温室管理优化建议\n"
-            + "5. 近期重点工作安排";
+        Map<String, Object> attributes = new HashMap<>();
+        attributes.put("date", dateStr);
+        attributes.put("dayOfWeek", dayOfWeek);
+
+        return templateService.render("system_prompt", attributes);
+    }
+
+    private static final int MAX_TOOL_ROUNDS = 5;
 
     private static final ExecutorService executor = Executors.newCachedThreadPool();
 
@@ -77,6 +63,18 @@ public class AgriBrainServiceImpl implements AgriBrainService {
 
     @Resource
     private AiMessageService messageService;
+
+    @Resource
+    private AiConfigService configService;
+
+    @Resource
+    private AiToolRegistry toolRegistry;
+
+    @Resource
+    private SysUserMapper sysUserMapper;
+
+    @Resource
+    private TemplateService templateService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -105,15 +103,27 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                         conversation.getId(), llmProperties.getMaxHistoryMessages());
 
                 // 构造 LLM 请求
-                List<Map<String, String>> messages = buildMessages(history, message, SYSTEM_PROMPT);
+                List<Map<String, Object>> messages = buildMessages(history, message, buildSystemPrompt());
+                List<Map<String, Object>> tools = toolRegistry.buildToolDefinitions();
 
-                // 调用 LLM 流式 API
+                // 获取动态配置
+                String apiKey = getApiKey();
+                String model = getModel();
+
+                // 获取用户企业ID（用于权限隔离）
+                String companyId = resolveCompanyId(userId);
+
+                // 执行 tool calling 循环
                 StringBuilder fullResponse = new StringBuilder();
-                streamLlmResponse(messages, emitter, fullResponse);
+                StringBuilder toolContext = new StringBuilder();
+                executeToolCallingLoop(messages, tools, emitter, fullResponse, toolContext, apiKey, model, userId, companyId);
 
-                // 持久化消息
+                // 持久化消息（tool 结果拼接到回答前面，供下轮对话参考）
                 messageService.saveMessage(conversation.getId(), userId, "USER", message);
-                messageService.saveMessage(conversation.getId(), userId, "ASSISTANT", fullResponse.toString());
+                String assistantContent = toolContext.length() > 0
+                        ? toolContext + "\n---\n" + fullResponse
+                        : fullResponse.toString();
+                messageService.saveMessage(conversation.getId(), userId, "ASSISTANT", assistantContent);
                 conversationService.updateUpdatedAt(conversation.getId());
 
                 // 发送完成事件
@@ -145,15 +155,29 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                 String title = "一键建议 - " + java.time.LocalDate.now();
                 AiConversation conversation = conversationService.createConversation(userId, title);
 
-                List<Map<String, String>> messages = new ArrayList<>();
-                messages.add(Map.of("role", "system", "content", SYSTEM_PROMPT));
-                messages.add(Map.of("role", "user", "content", QUICK_ADVICE_PROMPT));
+                String quickAdvicePrompt = templateService.render("quick_advice", null);
+
+                List<Map<String, Object>> messages = new ArrayList<>();
+                messages.add(Map.of("role", "system", "content", buildSystemPrompt()));
+                messages.add(Map.of("role", "user", "content", quickAdvicePrompt));
+
+                List<Map<String, Object>> tools = toolRegistry.buildToolDefinitions();
+
+                // 获取动态配置
+                String apiKey = getApiKey();
+                String model = getModel();
+
+                String companyId = resolveCompanyId(userId);
 
                 StringBuilder fullResponse = new StringBuilder();
-                streamLlmResponse(messages, emitter, fullResponse);
+                StringBuilder toolContext = new StringBuilder();
+                executeToolCallingLoop(messages, tools, emitter, fullResponse, toolContext, apiKey, model, userId, companyId);
 
-                messageService.saveMessage(conversation.getId(), userId, "USER", QUICK_ADVICE_PROMPT);
-                messageService.saveMessage(conversation.getId(), userId, "ASSISTANT", fullResponse.toString());
+                messageService.saveMessage(conversation.getId(), userId, "USER", quickAdvicePrompt);
+                String assistantContent = toolContext.length() > 0
+                        ? toolContext + "\n---\n" + fullResponse
+                        : fullResponse.toString();
+                messageService.saveMessage(conversation.getId(), userId, "ASSISTANT", assistantContent);
 
                 emitter.send(ChatEvent.done(conversation.getId()));
                 emitter.complete();
@@ -177,7 +201,6 @@ public class AgriBrainServiceImpl implements AgriBrainService {
     @Override
     public List<Map<String, Object>> getHistory(String conversationId, String userId, int page, int size) {
         if (conversationId != null && !conversationId.isBlank()) {
-            // 返回指定对话的消息列表
             List<AiMessage> messages = messageService.listByConversationId(conversationId, 1000);
             List<Map<String, Object>> result = new ArrayList<>();
             for (AiMessage msg : messages) {
@@ -191,56 +214,318 @@ public class AgriBrainServiceImpl implements AgriBrainService {
             }
             return result;
         } else {
-            // 返回用户最近的对话列表
-            return null; // 由 Controller 层处理分页查询
+            return null;
         }
     }
 
-    private List<Map<String, String>> buildMessages(List<AiMessage> history, String userMessage, String systemPrompt) {
-        List<Map<String, String>> messages = new ArrayList<>();
+    private List<Map<String, Object>> buildMessages(List<AiMessage> history, String userMessage, String systemPrompt) {
+        List<Map<String, Object>> messages = new ArrayList<>();
         messages.add(Map.of("role", "system", "content", systemPrompt));
 
+        // 发送完整历史，剥离 tool context，并清理消息顺序确保 user/assistant 严格交替
+        String lastRole = "system";
         for (AiMessage msg : history) {
-            messages.add(Map.of("role", msg.getRole().toLowerCase(), "content", msg.getContent()));
+            String role = msg.getRole().toLowerCase();
+            String content = msg.getContent();
+
+            // 跳过 tool 消息（tool_calls 和 tool_result 在持久化时不应出现，但以防万一）
+            if ("tool".equals(role)) continue;
+
+            // 剥离 tool context
+            if ("assistant".equals(role) && content.contains("\n---\n")) {
+                content = content.substring(content.indexOf("\n---\n") + 5);
+            }
+
+            // 跳过空内容
+            if (content == null || content.isBlank()) continue;
+
+            // 确保严格交替：连续相同 role 时合并或跳过
+            if (role.equals(lastRole)) {
+                if ("assistant".equals(role)) {
+                    // 连续 assistant：跳过前一个（保留最新的）
+                    messages.remove(messages.size() - 1);
+                } else {
+                    // 连续 user：跳过当前（保留前一个）
+                    continue;
+                }
+            }
+
+            messages.add(Map.of("role", role, "content", content));
+            lastRole = role;
+        }
+
+        // 确保最后一条不是 user（避免连续 user）
+        if (!messages.isEmpty() && "user".equals(messages.get(messages.size() - 1).get("role"))) {
+            messages.remove(messages.size() - 1);
         }
 
         messages.add(Map.of("role", "user", "content", userMessage));
         return messages;
     }
 
-    private void streamLlmResponse(List<Map<String, String>> messages, SseEmitter emitter, StringBuilder fullResponse) throws Exception {
+    private String resolveCompanyId(String userId) {
+        if (userId == null) return "";
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user != null && StringUtils.hasText(user.getCompanyId())) {
+            return user.getCompanyId();
+        }
+        return "";
+    }
+
+    private String getApiKey() {
+        String apiKey = configService.getConfigValue("apiKey");
+        return (apiKey != null && !apiKey.isEmpty()) ? apiKey : llmProperties.getApiKey();
+    }
+
+    private String getModel() {
+        String model = configService.getConfigValue("model");
+        return (model != null && !model.isEmpty()) ? model : llmProperties.getModel();
+    }
+
+    /**
+     * Tool calling 循环：调用 LLM → 检测 tool_calls → 执行工具 → 再次调用 LLM
+     */
+    private void executeToolCallingLoop(List<Map<String, Object>> messages, List<Map<String, Object>> tools,
+                                         SseEmitter emitter, StringBuilder fullResponse, StringBuilder toolContext,
+                                         String apiKey, String model, String userId, String companyId) throws Exception {
+        int round = 0;
+
+        while (round < MAX_TOOL_ROUNDS) {
+            round++;
+            log.info("Tool calling 第 {} 轮", round);
+
+            // 调用 LLM
+            ToolCallResult result = streamLlmResponseWithToolCalls(messages, tools, emitter, fullResponse, apiKey, model);
+
+            // 如果没有 tool_calls，流程结束
+            if (result.toolCalls == null || result.toolCalls.isEmpty()) {
+                log.info("第 {} 轮无 tool_calls，流程结束", round);
+                break;
+            }
+
+            // 有 tool_calls，执行工具
+            log.info("第 {} 轮收到 {} 个 tool_calls", round, result.toolCalls.size());
+
+            // 将 assistant 的 tool_calls 消息加入 messages
+            Map<String, Object> assistantMsg = new LinkedHashMap<>();
+            assistantMsg.put("role", "assistant");
+            assistantMsg.put("tool_calls", result.toolCalls);
+            messages.add(assistantMsg);
+
+            // 本轮已通知的 tool name（去重，同一 tool 只通知一次）
+            Set<String> notifiedTools = new HashSet<>();
+
+            // 执行每个 tool call
+            for (Map<String, Object> toolCall : result.toolCalls) {
+                log.info("toolCall 原始数据: {}", toolCall);
+                String toolCallId = (String) toolCall.get("id");
+                Map<String, Object> function = (Map<String, Object>) toolCall.get("function");
+                String toolName = function != null ? (String) function.get("name") : null;
+                String argsJson = function != null ? (String) function.get("arguments") : null;
+
+                // 防止 null 值
+                if (toolCallId == null) toolCallId = "call_" + System.currentTimeMillis();
+                if (toolName == null) toolName = "unknown";
+
+                log.info("执行工具: id={}, name={}, args={}", toolCallId, toolName, argsJson);
+
+                // 发送 tool_call 事件（同一轮同一 tool 只通知一次）
+                if (notifiedTools.add(toolName)) {
+                    emitter.send(ChatEvent.toolCall(toolCallId, toolName));
+                }
+
+                // 解析参数
+                Map<String, Object> arguments = new LinkedHashMap<>();
+                if (StringUtils.hasText(argsJson)) {
+                    try {
+                        arguments = objectMapper.readValue(argsJson, Map.class);
+                    } catch (Exception e) {
+                        log.warn("工具参数解析失败: {}", argsJson, e);
+                    }
+                }
+
+                // 执行工具
+                String toolResult = executeTool(toolName, arguments, userId, companyId);
+                log.info("工具执行结果: {}", toolResult);
+
+                // 收集 tool 结果用于持久化（截断过长结果避免干扰后续对话）
+                if (toolContext.length() > 0) toolContext.append("\n");
+                String truncatedResult = toolResult.length() > 500
+                        ? toolResult.substring(0, 500) + "...(truncated)"
+                        : toolResult;
+                toolContext.append("[").append(toolName).append("] ").append(truncatedResult);
+
+                // 发送 tool_result 事件
+                emitter.send(ChatEvent.toolResult(toolCallId, toolName, toolResult));
+
+                // 将 tool result 加入 messages
+                Map<String, Object> toolMsg = new LinkedHashMap<>();
+                toolMsg.put("role", "tool");
+                toolMsg.put("tool_call_id", toolCallId);
+                toolMsg.put("content", toolResult);
+                messages.add(toolMsg);
+            }
+        }
+
+        // 如果循环用完所有轮次（LLM 一直在调 tool），强制最终一次不带 tools 的调用让 LLM 生成回答
+        if (round >= MAX_TOOL_ROUNDS) {
+            log.warn("Tool calling 达到最大轮次 {}，强制最终回答", MAX_TOOL_ROUNDS);
+            streamLlmResponseWithToolCalls(messages, null, emitter, fullResponse, apiKey, model);
+        }
+    }
+
+    private String executeTool(String toolName, Map<String, Object> arguments, String userId, String companyId) {
+        AiTool tool = toolRegistry.getTool(toolName);
+        if (tool == null) {
+            return "{\"error\": \"未知工具: " + toolName + "\"}";
+        }
+        try {
+            return tool.execute(arguments, userId, companyId);
+        } catch (Exception e) {
+            log.error("工具执行异常: {}", toolName, e);
+            return "{\"error\": \"工具执行异常: " + e.getMessage() + "\"}";
+        }
+    }
+
+    /**
+     * 流式调用 LLM，支持 tool_calls 解析
+     */
+    private ToolCallResult streamLlmResponseWithToolCalls(List<Map<String, Object>> messages,
+                                                           List<Map<String, Object>> tools,
+                                                           SseEmitter emitter,
+                                                           StringBuilder fullResponse,
+                                                           String apiKey, String model) throws Exception {
         Map<String, Object> requestBody = new LinkedHashMap<>();
-        requestBody.put("model", llmProperties.getModel());
+        requestBody.put("model", model);
         requestBody.put("messages", messages);
+        if (tools != null && !tools.isEmpty()) {
+            requestBody.put("tools", tools);
+        }
         requestBody.put("stream", true);
         requestBody.put("max_tokens", 2048);
 
         String bodyJson = objectMapper.writeValueAsString(requestBody);
 
-        llmRestClient.post()
+        // 打印发送给 LLM 的消息结构（不含完整内容，只打印 role 和 content 长度）
+        for (int i = 0; i < messages.size(); i++) {
+            Map<String, Object> m = messages.get(i);
+            String role = (String) m.get("role");
+            Object content = m.get("content");
+            int len = content instanceof String ? ((String) content).length() : 0;
+            log.info("LLM messages[{}]: role={}, contentLen={}", i, role, len);
+        }
+
+        log.info("调用 LLM API: baseUrl={}, model={}, apiKey={}***", llmProperties.getBaseUrl(), model,
+                apiKey != null && apiKey.length() > 6 ? apiKey.substring(0, 6) : "null");
+
+        RestClient client = RestClient.builder()
+                .baseUrl(llmProperties.getBaseUrl())
+                .defaultHeader("Authorization", "Bearer " + apiKey)
+                .defaultHeader("Content-Type", "application/json")
+                .build();
+
+        ToolCallResult toolCallResult = new ToolCallResult();
+
+        client.post()
                 .uri("/v1/chat/completions")
                 .header("Accept", "text/event-stream")
                 .body(bodyJson)
                 .exchange((request, response) -> {
+                    log.info("LLM API 响应状态: {}", response.getStatusCode());
+
+                    if (!response.getStatusCode().is2xxSuccessful()) {
+                        String errorBody = new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8);
+                        log.error("LLM API 调用失败: {}", errorBody);
+                        try {
+                            emitter.send(ChatEvent.error("LLM API 调用失败: " + response.getStatusCode()));
+                        } catch (Exception ignored) {
+                        }
+                        return null;
+                    }
+
+                    // 用于累积 tool_calls 的 map: index -> {id, name, arguments}
+                    Map<Integer, Map<String, Object>> toolCallsMap = new LinkedHashMap<>();
+                    boolean hasToolCalls = false;
+
                     try (BufferedReader reader = new BufferedReader(
                             new InputStreamReader(response.getBody(), StandardCharsets.UTF_8))) {
                         String line;
                         while ((line = reader.readLine()) != null) {
                             if (line.isBlank()) continue;
-                            if (!line.startsWith("data: ")) continue;
 
-                            String data = line.substring(6).trim();
+                            log.debug("收到 SSE 行: {}", line);
+
+                            String data = null;
+                            if (line.startsWith("data: ")) {
+                                data = line.substring(6).trim();
+                            } else if (line.startsWith("data:")) {
+                                data = line.substring(5).trim();
+                            } else {
+                                continue;
+                            }
+
                             if ("[DONE]".equals(data)) break;
 
                             try {
                                 JsonNode json = objectMapper.readTree(data);
                                 JsonNode choices = json.get("choices");
                                 if (choices != null && choices.isArray() && !choices.isEmpty()) {
-                                    JsonNode delta = choices.get(0).get("delta");
-                                    if (delta != null && delta.has("content")) {
+                                    JsonNode choice = choices.get(0);
+                                    JsonNode delta = choice.get("delta");
+                                    JsonNode finishReason = choice.get("finish_reason");
+
+                                    // 处理 content
+                                    if (delta != null && delta.has("content") && !delta.get("content").isNull()) {
                                         String content = delta.get("content").asText();
-                                        fullResponse.append(content);
-                                        emitter.send(ChatEvent.token(content));
+                                        if (content != null && !content.isEmpty()) {
+                                            fullResponse.append(content);
+                                            emitter.send(ChatEvent.token(content));
+                                        }
+                                    }
+
+                                    // 处理 tool_calls
+                                    if (delta != null && delta.has("tool_calls")) {
+                                        hasToolCalls = true;
+                                        JsonNode toolCalls = delta.get("tool_calls");
+                                        log.info("收到 tool_calls delta: {}", toolCalls);
+                                        if (toolCalls.isArray()) {
+                                            for (JsonNode toolCallNode : toolCalls) {
+                                                int index = toolCallNode.has("index") ? toolCallNode.get("index").asInt() : 0;
+
+                                                Map<String, Object> tc = toolCallsMap.computeIfAbsent(index, k -> {
+                                                    Map<String, Object> m = new LinkedHashMap<>();
+                                                    m.put("id", "");
+                                                    m.put("type", "function");
+                                                    Map<String, Object> func = new LinkedHashMap<>();
+                                                    func.put("name", "");
+                                                    func.put("arguments", "");
+                                                    m.put("function", func);
+                                                    return m;
+                                                });
+
+                                                if (toolCallNode.has("id") && !toolCallNode.get("id").isNull()) {
+                                                    String id = toolCallNode.get("id").asText();
+                                                    tc.put("id", id);
+                                                    log.info("设置 tool_call id: {}", id);
+                                                }
+                                                if (toolCallNode.has("type")) {
+                                                    tc.put("type", toolCallNode.get("type").asText());
+                                                }
+                                                if (toolCallNode.has("function")) {
+                                                    JsonNode funcNode = toolCallNode.get("function");
+                                                    Map<String, Object> func = (Map<String, Object>) tc.get("function");
+                                                    if (funcNode.has("name") && !funcNode.get("name").isNull() && !funcNode.get("name").asText().isEmpty()) {
+                                                        String name = funcNode.get("name").asText();
+                                                        func.put("name", name);
+                                                        log.info("设置 tool_call name: {}", name);
+                                                    }
+                                                    if (funcNode.has("arguments") && !funcNode.get("arguments").isNull()) {
+                                                        String args = funcNode.get("arguments").asText();
+                                                        func.put("arguments", func.get("arguments") + args);
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             } catch (Exception e) {
@@ -248,7 +533,23 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                             }
                         }
                     }
+
+                    // 如果有 tool_calls，设置结果
+                    if (hasToolCalls && !toolCallsMap.isEmpty()) {
+                        toolCallResult.toolCalls = new ArrayList<>(toolCallsMap.values());
+                        log.info("解析到 {} 个 tool_calls", toolCallResult.toolCalls.size());
+                        for (Map<String, Object> tc : toolCallResult.toolCalls) {
+                            log.info("tool_call 详情: {}", tc);
+                        }
+                    }
+
                     return null;
                 });
+
+        return toolCallResult;
+    }
+
+    private static class ToolCallResult {
+        List<Map<String, Object>> toolCalls;
     }
 }

@@ -144,11 +144,11 @@ public class UserServiceImpl implements UserService {
         if (StringUtils.hasText(dto.getPhone())) {
             user.setPhone(dto.getPhone());
         }
-        if (StringUtils.hasText(dto.getEmail())) {
-            user.setEmail(dto.getEmail());
-        }
         if (StringUtils.hasText(dto.getRole())) {
             user.setRole(dto.getRole());
+        }
+        if (dto.getEmail() != null) {
+            user.setEmail(dto.getEmail());
         }
         if (StringUtils.hasText(dto.getStatus())) {
             user.setStatus(dto.getStatus());
@@ -220,20 +220,14 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public String resetPassword(String id) {
+    public void resetPassword(String id, String newPassword) {
         SysUser user = userMapper.selectById(id);
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
 
-        // 生成随机密码
-        String newPassword = cn.hutool.core.util.RandomUtil.randomString(12);
-
-        // 更新密码
         user.setPassword(BCrypt.hashpw(newPassword));
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
-
-        return newPassword;
     }
 }

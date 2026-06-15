@@ -1,9 +1,9 @@
-package com.agriculture.modules.dailyreport.controller;
+package com.agriculture.modules.dailyReport.controller;
 
-import com.agriculture.modules.dailyreport.dto.DailyReportGenerateDTO;
-import com.agriculture.modules.dailyreport.service.DailyReportService;
-import com.agriculture.modules.dailyreport.vo.DailyReportDetailVO;
-import com.agriculture.modules.dailyreport.vo.DailyReportVO;
+import com.agriculture.modules.dailyReport.dto.DailyReportGenerateDTO;
+import com.agriculture.modules.dailyReport.service.DailyReportService;
+import com.agriculture.modules.dailyReport.vo.DailyReportDetailVO;
+import com.agriculture.modules.dailyReport.vo.DailyReportVO;
 import com.agriculture.common.vo.Result;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.itextpdf.text.Document;

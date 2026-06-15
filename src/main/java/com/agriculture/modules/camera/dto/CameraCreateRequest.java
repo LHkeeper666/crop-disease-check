@@ -30,7 +30,7 @@ public class CameraCreateRequest {
 
     private List<String> coverageGrids;
 
-    private String captureResolution = "640x640";
+    private String captureResolution;
 
     private Integer captureQuality = 85;
 

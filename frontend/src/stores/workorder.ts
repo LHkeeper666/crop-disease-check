@@ -12,7 +12,7 @@ import {
 
 // 前端工单类型，与后端 WorkOrderVO 对齐
 export interface WorkOrder {
-  id: string
+  id: number
   title: string
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
   status: 'PENDING' | 'PROCESSING' | 'DONE' | 'IGNORED'
@@ -34,11 +34,24 @@ const severityLevel: Record<string, number> = {
 
 /** 将后端 VO 转为前端类型 */
 function fromVO(vo: WorkOrderVO): WorkOrder {
+  // 规范化状态：ESCALATED 映射为 PROCESSING，未知状态回退为 PENDING
+  const validStatuses: WorkOrder['status'][] = ['PENDING', 'PROCESSING', 'DONE', 'IGNORED']
+  const rawStatus = vo.status === 'ESCALATED' ? 'PROCESSING' : vo.status
+  const status = validStatuses.includes(rawStatus as WorkOrder['status'])
+    ? (rawStatus as WorkOrder['status'])
+    : 'PENDING'
+
+  // 规范化严重程度
+  const validSeverities: WorkOrder['severity'][] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
+  const severity = validSeverities.includes(vo.severity as WorkOrder['severity'])
+    ? (vo.severity as WorkOrder['severity'])
+    : 'MEDIUM'
+
   return {
     id: vo.id,
     title: vo.title,
-    severity: vo.severity as WorkOrder['severity'],
-    status: vo.status as WorkOrder['status'],
+    severity,
+    status,
     type: vo.type as WorkOrder['type'],
     gridLabel: vo.gridLabel,
     pestName: vo.pestName,
@@ -54,7 +67,7 @@ export const useWorkOrderStore = defineStore('workorder', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // 每个网格最高危险等级（仅统计活跃工单: PENDING / PROCESSING）
+  // 每个网格最高危险等级（未完成且未忽略的工单）
   const gridSeverityMap = computed(() => {
     const map: Record<string, string> = {}
     for (const o of orders.value) {
@@ -67,19 +80,22 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     return map
   })
 
-  // 报警列表（来源于活跃工单）
-  const alerts = computed(() => {
+  // 报警列表（未完成且未忽略的工单，支持置信度阈值过滤）
+  function getAlerts(minConfidence = 0) {
     return orders.value
-      .filter(o => o.status === 'PENDING' || o.status === 'PROCESSING')
+      .filter(o => o.status !== 'DONE' && o.status !== 'IGNORED' && o.confidence >= minConfidence)
       .sort((a, b) => severityLevel[b.severity] - severityLevel[a.severity])
-      .slice(0, 6)
       .map(o => ({
         id: o.id,
         severity: o.severity,
+        confidence: o.confidence,
         message: `Grid-${o.gridLabel} ${o.pestName} 置信度 ${(o.confidence * 100).toFixed(0)}%`,
         time: o.createdAt.replace('T', ' ').slice(0, 16),
       }))
-  })
+  }
+
+  // 默认不过滤的报警列表
+  const alerts = computed(() => getAlerts())
 
   // 7日趋势数据（病害 vs 虫害，按创建日期统计）
   const trendData = computed(() => {
@@ -141,7 +157,7 @@ export const useWorkOrderStore = defineStore('workorder', () => {
   }
 
   /** 删除工单 */
-  async function removeOrder(id: string) {
+  async function removeOrder(id: number) {
     loading.value = true
     error.value = null
     try {
@@ -156,7 +172,7 @@ export const useWorkOrderStore = defineStore('workorder', () => {
   }
 
   /** 更新工单状态 */
-  async function updateOrderStatus(id: string, status: WorkOrder['status'], comment?: string) {
+  async function updateOrderStatus(id: number, status: WorkOrder['status'], comment?: string) {
     error.value = null
     try {
       await apiUpdateStatus(id, status, comment)
@@ -172,7 +188,7 @@ export const useWorkOrderStore = defineStore('workorder', () => {
   }
 
   /** 升级严重程度 */
-  async function escalateSeverity(id: string) {
+  async function escalateSeverity(id: number) {
     const o = orders.value.find(o => o.id === id)
     if (!o) return
     const levels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
@@ -191,7 +207,7 @@ export const useWorkOrderStore = defineStore('workorder', () => {
   }
 
   /** 降级严重程度 */
-  async function deescalateSeverity(id: string) {
+  async function deescalateSeverity(id: number) {
     const o = orders.value.find(o => o.id === id)
     if (!o) return
     const levels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
@@ -215,6 +231,7 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     error,
     gridSeverityMap,
     alerts,
+    getAlerts,
     trendData,
     fetchOrders,
     addOrder,

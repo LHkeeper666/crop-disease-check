@@ -3,6 +3,7 @@ package com.agriculture.service;
 import com.agriculture.common.config.LlmProperties;
 import com.agriculture.modules.agriBrain.entity.AiConversation;
 import com.agriculture.modules.agriBrain.entity.AiMessage;
+import com.agriculture.modules.agriBrain.service.AiConfigService;
 import com.agriculture.modules.agriBrain.service.AiMessageService;
 import com.agriculture.modules.agriBrain.service.AiConversationService;
 import com.agriculture.modules.agriBrain.service.impl.AgriBrainServiceImpl;
@@ -38,6 +39,9 @@ class AgriBrainServiceTest {
 
     @Mock
     private AiMessageService messageService;
+
+    @Mock
+    private AiConfigService configService;
 
     @InjectMocks
     private AgriBrainServiceImpl agriBrainService;
@@ -171,6 +175,76 @@ class AgriBrainServiceTest {
             assertEquals(2, result.size());
             assertEquals("USER", result.get(0).getRole());
             assertEquals("ASSISTANT", result.get(1).getRole());
+        }
+    }
+
+    @Nested
+    @DisplayName("动态配置读取")
+    class DynamicConfig {
+
+        @Test
+        @DisplayName("数据库有配置时使用用户配置")
+        void getApiKey_withDbConfig_returnsDbValue() {
+            when(configService.getConfigValue("apiKey")).thenReturn("sk-user-key");
+
+            // 通过反射测试私有方法 getApiKey()
+            String result = invokePrivateMethod(agriBrainService, "getApiKey");
+
+            assertEquals("sk-user-key", result);
+        }
+
+        @Test
+        @DisplayName("数据库无配置时 fallback 到默认值")
+        void getApiKey_noDbConfig_returnsDefault() {
+            when(configService.getConfigValue("apiKey")).thenReturn(null);
+            when(llmProperties.getApiKey()).thenReturn("sk-default-key");
+
+            String result = invokePrivateMethod(agriBrainService, "getApiKey");
+
+            assertEquals("sk-default-key", result);
+        }
+
+        @Test
+        @DisplayName("数据库配置为空字符串时 fallback 到默认值")
+        void getApiKey_emptyDbConfig_returnsDefault() {
+            when(configService.getConfigValue("apiKey")).thenReturn("");
+            when(llmProperties.getApiKey()).thenReturn("sk-default-key");
+
+            String result = invokePrivateMethod(agriBrainService, "getApiKey");
+
+            assertEquals("sk-default-key", result);
+        }
+
+        @Test
+        @DisplayName("数据库有 model 配置时使用用户配置")
+        void getModel_withDbConfig_returnsDbValue() {
+            when(configService.getConfigValue("model")).thenReturn("deepseek-v4-pro");
+
+            String result = invokePrivateMethod(agriBrainService, "getModel");
+
+            assertEquals("deepseek-v4-pro", result);
+        }
+
+        @Test
+        @DisplayName("数据库无 model 配置时 fallback 到默认值")
+        void getModel_noDbConfig_returnsDefault() {
+            when(configService.getConfigValue("model")).thenReturn(null);
+            when(llmProperties.getModel()).thenReturn("deepseek-chat");
+
+            String result = invokePrivateMethod(agriBrainService, "getModel");
+
+            assertEquals("deepseek-chat", result);
+        }
+
+        @SuppressWarnings("unchecked")
+        private <T> T invokePrivateMethod(Object obj, String methodName) {
+            try {
+                var method = obj.getClass().getDeclaredMethod(methodName);
+                method.setAccessible(true);
+                return (T) method.invoke(obj);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to invoke " + methodName, e);
+            }
         }
     }
 }

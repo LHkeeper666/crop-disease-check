@@ -28,7 +28,7 @@ class DetectRequest(BaseModel):
 
     image: ImageInput = Field(..., description="待检测图片")
     confidence: float = Field(0.5, ge=0.1, le=1.0, description="置信度阈值")
-    return_annotated_image: bool = Field(True, description="是否在响应中返回标注图 base64")
+    return_annotated: bool = Field(True, description="是否生成标注图并上传存储")
 
 
 class BatchDetectRequest(BaseModel):
@@ -38,7 +38,7 @@ class BatchDetectRequest(BaseModel):
         ..., min_length=1, max_length=20, description="待检测图片列表 (1-20)"
     )
     confidence: float = Field(0.5, ge=0.1, le=1.0, description="置信度阈值")
-    return_annotated_image: bool = Field(True, description="是否在响应中返回标注图 base64")
+    return_annotated: bool = Field(True, description="是否生成标注图并上传存储")
 
 
 # ============================================================
@@ -77,7 +77,6 @@ class SingleDetectData(BaseModel):
 
     disease: ModelResult = Field(default_factory=ModelResult)
     pest: ModelResult = Field(default_factory=ModelResult)
-    annotated_image: Optional[str] = Field(None, description="标注图 base64 (未开启则 null)")
     annotated_path: Optional[str] = Field(None, description="标注图本地存储路径")
     annotated_url: Optional[str] = Field(None, description="标注图 MinIO 访问 URL")
     total_elapsed_ms: float = Field(0.0, description="总耗时(ms)")
@@ -90,7 +89,6 @@ class BatchImageResult(BaseModel):
     image_index: int
     disease: ModelResult = Field(default_factory=ModelResult)
     pest: ModelResult = Field(default_factory=ModelResult)
-    annotated_image: Optional[str] = None
     annotated_path: Optional[str] = None
     annotated_url: Optional[str] = None
     image_info: Optional[ImageInfo] = None

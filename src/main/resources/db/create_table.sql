@@ -67,7 +67,7 @@ CREATE TABLE camera (
     location_x          DECIMAL(10,6) COMMENT '经度',
     location_y          DECIMAL(10,6) COMMENT '纬度',
     direction           DECIMAL(5,1) COMMENT '朝向角度',
-    capture_resolution  VARCHAR(20) DEFAULT '640x640' COMMENT '抓拍分辨率',
+    capture_resolution  VARCHAR(20) DEFAULT NULL COMMENT '抓拍分辨率（为空则使用源流分辨率）',
     capture_quality     INT DEFAULT 85 COMMENT '抓拍JPEG质量(1-100)',
     reconnect_interval  INT DEFAULT 30 COMMENT '断流重连间隔(秒)',
     status              VARCHAR(20) DEFAULT 'OFFLINE' COMMENT '状态: ONLINE/OFFLINE/FAULT',
@@ -258,7 +258,7 @@ CREATE TABLE prevention_plan_version (
 -- 工单表
 DROP TABLE IF EXISTS work_order;
 CREATE TABLE work_order (
-    id              VARCHAR(36) PRIMARY KEY COMMENT '工单UUID',
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '工单ID',
     title           VARCHAR(256) NOT NULL COMMENT '工单标题',
     severity        VARCHAR(20) NOT NULL COMMENT '严重程度: LOW/MEDIUM/HIGH/CRITICAL',
     status          VARCHAR(20) DEFAULT 'PENDING' COMMENT '状态: PENDING/PROCESSING/DONE/IGNORED/ESCALATED',
@@ -289,7 +289,7 @@ CREATE TABLE work_order (
 DROP TABLE IF EXISTS work_order_history;
 CREATE TABLE work_order_history (
     id            BIGINT PRIMARY KEY AUTO_INCREMENT,
-    workorder_id  VARCHAR(36) NOT NULL COMMENT '工单ID',
+    workorder_id  BIGINT NOT NULL COMMENT '工单ID',
     status        VARCHAR(20) NOT NULL COMMENT '状态',
     operator_id   VARCHAR(36) COMMENT '操作人ID',
     operator_name VARCHAR(64) COMMENT '操作人名称',
@@ -397,6 +397,16 @@ CREATE TABLE ai_message (
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_conversation (conversation_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='农业大脑消息表';
+
+
+-- 农业大脑配置表
+DROP TABLE IF EXISTS ai_config;
+CREATE TABLE ai_config (
+    id           VARCHAR(36) PRIMARY KEY COMMENT '配置UUID',
+    config_key   VARCHAR(50) NOT NULL UNIQUE COMMENT '配置键: apiKey/model/provider',
+    config_value TEXT COMMENT '配置值',
+    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='农业大脑配置表';
 
 
 -- ========================================

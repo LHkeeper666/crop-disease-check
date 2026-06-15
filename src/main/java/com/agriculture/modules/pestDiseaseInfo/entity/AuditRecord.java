@@ -27,7 +27,7 @@ public class AuditRecord implements Serializable {
     /**
      * 审核UUID
      */
-    @TableId(value = "id", type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.INPUT)
     private String id;
 
     /**

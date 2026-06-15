@@ -1,5 +1,7 @@
 ﻿server:
   port: 8080
+  servlet:
+    context-path: /api
 
 spring:
   application:
@@ -63,7 +65,7 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     db-config:
-      id-type: auto
+      id-type: input
       logic-delete-field: deleted
       logic-delete-value: 1
       logic-not-delete-value: 0
@@ -109,9 +111,9 @@ inference:
 
 # LLM 大语言模型配置 (农业大脑)
 llm:
-  api-key: ${LLM_API_KEY:sk-your-api-key-here}
-  base-url: ${LLM_BASE_URL:https://api.deepseek.com}
-  model: ${LLM_MODEL:deepseek-v4-flash}
+  api-key: ${LLM_API_KEY:tp-cwsdktlrguhngoaf0gphv9n0w2te0c876wc9hirux3lhimu2}
+  base-url: ${LLM_BASE_URL:https://token-plan-cn.xiaomimimo.com}
+  model: ${LLM_MODEL:mimo-v2.5-pro}
   connect-timeout: 5000
   read-timeout: 60000
   max-history-messages: 20

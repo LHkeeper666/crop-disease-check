@@ -36,6 +36,7 @@ public class DetectController {
      */
     @PostMapping
     public ResponseEntity<JsonNode> detect(@RequestBody JsonNode requestBody) {
+        log.info("调用后端单张图片检测接口");
         return forwardToInference("/api/v1/detect", requestBody);
     }
 

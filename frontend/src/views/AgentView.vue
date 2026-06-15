@@ -1,131 +1,165 @@
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onMounted } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
-import TypewriterText from '../components/TypewriterText.vue'
+import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 
-// ============ Agriculture Expert System Prompt ============
-const AGRI_EXPERT_SYSTEM_PROMPT = `你是一位资深农业遥测专家 AI 助手，隶属于 TreeForge 智慧农业遥测平台。你的知识涵盖以下领域：
+const AGRI_EXPERT_SYSTEM_PROMPT = `你是农作物疾病检测系统的智慧农业 AI 专家助手。你具备三个专业领域的知识，能够根据用户问题自动匹配最合适的专家角色回答：
 
-【核心专长】
-- 作物病虫害识别与防治（番茄晚疫病、白粉病、灰霉病、霜霉病、红蜘蛛、蚜虫、螟虫、白粉虱等）
-- 农业环境监测与调控（温度、湿度、土壤水分、光照、CO₂浓度）
-- 土壤养分分析（N/P/K、pH值、EC电导率）
-- 温室智能化管理（通风、灌溉、施肥策略）
-- 农药与肥料使用规范（安全间隔期、配比建议）
+## 🌾 农学家技能
+- 作物种植管理：播种时间、种植密度、轮作方案
+- 施肥方案：基肥/追肥配比、有机肥与化肥搭配、不同生长期施肥策略
+- 灌溉策略：滴灌/喷灌/沟灌选择、灌溉频率与水量、节水灌溉技术
+- 土壤改良：酸碱度调节、有机质提升、盐碱地治理
 
-【数据感知能力】
-你可以访问以下遥测数据进行分析：
-- 环境参数：空气温度、土壤湿度、空气湿度、光照强度
-- 能耗数据：当前功耗与最大负载
-- 生长指标：CO₂、土壤pH、EC、温度、N/P/K含量
-- 温室元数据：区域编号、作物种类、定植日期、地理位置、面积
-- 网格热力图：各区域风险评分与病虫害类型
-- 工单系统：告警级别(PENDING/PROCESSING/DONE/IGNORED)、置信度、处理状态
-- 历史统计：总上报数、日趋势、病害/虫害分布
+## 🐛 病虫害学家技能
+- 病虫害识别：根据症状描述或图片识别病虫害种类
+- 防治方案：物理防治、生物防治、化学防治综合策略
+- 农药使用规范：安全间隔期、用药浓度、抗药性管理
+- 综合防治策略（IPM）：预防为主、综合治理、减少农药依赖
 
-【回答规范】
-1. 使用中文回答，语气专业但易懂
-2. 涉及数值时必须使用精确数据，格式如 "23.6°C"、"65.2%"
-3. 对于病虫害问题，给出：风险等级、传播概率、推荐防治措施、安全用药建议
-4. 对于环境异常，给出：原因分析、调控建议、预期改善时间
-5. 必要时提供分级建议（紧急/重要/常规）
-6. 回答末尾给出可执行的行动建议
+## 🌱 植物学家技能
+- 植物生理：光合作用、呼吸作用、营养吸收机制
+- 生长周期：发芽期、幼苗期、开花期、结果期的管理要点
+- 品种特性：不同品种的抗性、产量、品质特点
+- 环境胁迫响应：干旱、高温、低温、盐碱等逆境下的植物反应与应对
 
-【报告生成规范】
-当用户要求生成日报/周报/报告时，请按以下结构输出：
-1. 报告概览（日期、监测区域、整体健康评级）
-2. 环境数据摘要（关键指标与趋势）
-3. 病虫害态势（新增/存量、风险等级分布）
-4. 工单处理情况（待处理/处理中/已完成）
-5. 风险预警（高风险网格与建议措施）
-6. 明日工作建议（基于数据趋势的预判）`
+## 回答原则
+1. 根据用户问题自动选择最匹配的专家角色
+2. 结合系统中的实时数据（工单、检测结果、环境数据）给出针对性建议
+3. 回答要专业、准确、实用，避免空泛的理论
+4. 涉及具体操作时，给出可执行的步骤
+5. 如果问题涉及多个领域，综合多个专家视角回答`
 
+interface ToolCallInfo {
+  toolCallId: string
+  name: string
+  status: 'calling' | 'done'
+  result?: string
+}
 
 interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
+  toolCalls?: ToolCallInfo[]
 }
 
-interface ProviderConfig {
+interface Conversation {
   id: string
-  name: string
-  website: string
-  endpoint: string
-  displayEndpoint: string
-  apiFormat: string
-  authField: string
-  models: { id: string; name: string }[]
+  title: string
+  updatedAt: string
 }
-
-const providers: ProviderConfig[] = [
-  {
-    id: 'deepseek',
-    name: 'DeepSeek',
-    website: 'https://platform.deepseek.com',
-    endpoint: '/proxy/deepseek/v1/chat/completions',
-    displayEndpoint: 'https://api.deepseek.com/v1/chat/completions',
-    apiFormat: 'OpenAI Chat Completions',
-    authField: 'Authorization (Bearer)',
-    models: [
-      { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
-      { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
-    ],
-  },
-  {
-    id: 'xiaomi-mimo',
-    name: 'Xiaomi MiMo',
-    website: 'https://platform.xiaomimimo.com',
-    endpoint: '/proxy/xiaomi/v1/chat/completions',
-    displayEndpoint: 'https://token-plan-cn.xiaomimimo.com/v1/chat/completions',
-    apiFormat: 'OpenAI Chat Completions',
-    authField: 'Authorization (Bearer)',
-    models: [
-      { id: 'mimo-v2.5-pro', name: 'MiMo V2.5 Pro' },
-      { id: 'mimo-v2.5', name: 'MiMo V2.5' },
-    ],
-  },
-]
 
 const messages = ref<Message[]>([])
 const inputText = ref('')
 const isLoading = ref(false)
 const showSettings = ref(false)
 const chatContainerRef = ref<HTMLDivElement>()
+const conversationId = ref<string | null>(null)
+const conversations = ref<Conversation[]>([])
+const showHistory = ref(false)
+const isToolCalling = ref(false)
 
-// Agent config state
-// API key is never persisted to localStorage for security
-localStorage.removeItem('agent_api_key')
-const selectedProvider = ref(localStorage.getItem('agent_provider') || '')
-const selectedModel = ref(localStorage.getItem('agent_model') || '')
+// 获取认证 header
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('treeforge_token')
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
+// Config state
+const selectedProvider = ref('')
+const selectedModel = ref('')
 const apiKey = ref('')
 const isValidating = ref(false)
 const validationResult = ref<{ success: boolean; message: string } | null>(null)
+const isSaving = ref(false)
 
-const currentProvider = computed(() => providers.find(p => p.id === selectedProvider.value))
-const availableModels = computed(() => currentProvider.value?.models || [])
+const providers = [
+  { id: 'deepseek', name: 'DeepSeek', models: ['deepseek-chat', 'deepseek-v4-flash', 'deepseek-v4-pro'] },
+  { id: 'xiaomi-mimo', name: 'Xiaomi MiMo', models: ['mimo-v2.5-pro', 'mimo-v2.5'] },
+]
+
+const availableModels = computed(() => {
+  const p = providers.find(p => p.id === selectedProvider.value)
+  return p ? p.models : []
+})
 
 const presetQuestions = [
   '分析当前园区病虫害风险',
   '查看今日待处理工单',
   '总结近7天检测数据趋势',
   '推荐当前应采取的防护措施',
-  '分析Grid-B3红蜘蛛风险并给出防治方案',
+  '当前季节适合种植什么作物？',
+  '番茄叶片发黄可能是什么原因？',
+  '如何制定合理的灌溉计划？',
 ]
 
-function onProviderChange() {
-  selectedModel.value = ''
-  validationResult.value = null
+// Load config from backend
+async function loadConfig() {
+  try {
+    const res = await fetch('/api/agri-brain/config', { headers: getAuthHeaders() })
+    const data = await res.json()
+    if (data.code === 200 && data.data) {
+      selectedProvider.value = data.data.provider || ''
+      selectedModel.value = data.data.model || ''
+      if (data.data.hasApiKey) {
+        apiKey.value = '' // Don't fill in the masked key
+      }
+    }
+  } catch (e) {
+    console.error('加载配置失败', e)
+  }
 }
 
-function onModelChange() {
+// Save config to backend
+async function saveConfig() {
+  if (!selectedModel.value) {
+    validationResult.value = { success: false, message: '请选择模型' }
+    return
+  }
+
+  isSaving.value = true
   validationResult.value = null
+
+  try {
+    const body: Record<string, string> = {
+      provider: selectedProvider.value,
+      model: selectedModel.value,
+    }
+    if (apiKey.value.trim()) {
+      body.apiKey = apiKey.value.trim()
+    }
+
+    const res = await fetch('/api/agri-brain/config', {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(body),
+    })
+    const data = await res.json()
+
+    if (data.code === 200) {
+      validationResult.value = { success: true, message: '配置已保存' }
+      showSettings.value = false
+      apiKey.value = '' // Clear input after save
+    } else {
+      validationResult.value = { success: false, message: data.message || '保存失败' }
+    }
+  } catch (e: any) {
+    validationResult.value = { success: false, message: '保存失败: ' + e.message }
+  } finally {
+    isSaving.value = false
+  }
 }
 
+// Validate config
 async function validateConfig() {
-  if (!selectedProvider.value || !selectedModel.value || !apiKey.value.trim()) {
-    validationResult.value = { success: false, message: '请填写完整的配置信息' }
+  if (!apiKey.value.trim() || !selectedModel.value) {
+    validationResult.value = { success: false, message: '请填写 API Key 并选择模型' }
     return
   }
 
@@ -133,75 +167,75 @@ async function validateConfig() {
   validationResult.value = null
 
   try {
-    const provider = currentProvider.value!
-    const response = await fetch(provider.endpoint, {
+    const res = await fetch('/api/agri-brain/config/validate', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey.value}`,
-      },
-      body: JSON.stringify({
-        model: selectedModel.value,
-        max_tokens: 10,
-        messages: [{ role: 'user', content: 'Hi' }],
-      }),
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ apiKey: apiKey.value.trim(), model: selectedModel.value }),
     })
+    const data = await res.json()
 
-    if (response.ok) {
-      validationResult.value = {
-        success: true,
-        message: `配置校验成功：${provider.name} - ${selectedModel.value}`,
-      }
+    if (data.code === 200) {
+      validationResult.value = { success: true, message: '配置有效' }
     } else {
-      const error = await response.json().catch(() => ({}))
-      validationResult.value = {
-        success: false,
-        message: `校验失败：${error.error?.message || response.statusText}`,
-      }
+      validationResult.value = { success: false, message: data.message || '校验失败' }
     }
-  } catch (err: any) {
-    validationResult.value = {
-      success: false,
-      message: `连接失败：${err.message}`,
-    }
+  } catch (e: any) {
+    validationResult.value = { success: false, message: '校验失败: ' + e.message }
   } finally {
     isValidating.value = false
   }
 }
 
-function saveAgentConfig() {
-  if (!selectedProvider.value || !selectedModel.value || !apiKey.value.trim()) {
-    validationResult.value = { success: false, message: '请填写完整的配置信息' }
-    return
-  }
-
-  localStorage.setItem('agent_provider', selectedProvider.value)
-  localStorage.setItem('agent_model', selectedModel.value)
-  // API key is NOT persisted to localStorage for security
-
-  validationResult.value = { success: true, message: 'Agent 配置已保存（API Key 仅在本次会话有效）' }
-  showSettings.value = false
-}
-
-function isAgentConfigured(): boolean {
-  return !!(selectedProvider.value && selectedModel.value && apiKey.value.trim())
-}
-
-async function sendMessage(text?: string, withSystemPrompt = false) {
-  const content = text || inputText.value.trim()
-  if (!content) return
-
-  if (!isAgentConfigured()) {
-    const errorMsg: Message = {
-      id: Date.now().toString(),
-      role: 'assistant',
-      content: '请先配置智能体（点击右上角"API 设置"），配置供应商、模型和 API Key 后才能使用。',
-      timestamp: new Date(),
+// Load conversation history list
+async function loadConversations() {
+  try {
+    const res = await fetch('/api/agri-brain/history', { headers: getAuthHeaders() })
+    const data = await res.json()
+    if (data.code === 200 && data.data?.records) {
+      conversations.value = data.data.records
     }
-    messages.value.push(errorMsg)
-    nextTick(() => scrollToBottom())
-    return
+  } catch (e) {
+    console.error('加载对话列表失败', e)
   }
+}
+
+// Load messages for a specific conversation
+async function loadConversationMessages(convId: string) {
+  try {
+    const res = await fetch(`/api/agri-brain/history?conversationId=${convId}`, { headers: getAuthHeaders() })
+    const data = await res.json()
+    if (data.code === 200 && data.data) {
+      messages.value = data.data.map((m: any) => ({
+        id: m.id,
+        role: m.role.toLowerCase(),
+        content: m.content,
+        timestamp: new Date(m.createdAt),
+      }))
+      conversationId.value = convId
+      showHistory.value = false
+      nextTick(() => scrollToBottom())
+    }
+  } catch (e) {
+    console.error('加载对话消息失败', e)
+  }
+}
+
+// New conversation
+function newConversation() {
+  conversationId.value = null
+  messages.value = []
+  isToolCalling.value = false
+}
+
+// Select conversation from history
+function selectConversation(conv: Conversation) {
+  loadConversationMessages(conv.id)
+}
+
+// Send message with SSE streaming
+async function sendMessage(text?: string) {
+  const content = text || inputText.value.trim()
+  if (!content || isLoading.value) return
 
   const userMsg: Message = {
     id: Date.now().toString(),
@@ -216,53 +250,98 @@ async function sendMessage(text?: string, withSystemPrompt = false) {
   await nextTick()
   scrollToBottom()
 
+  // Create placeholder for assistant message
+  const assistantMsgIndex = messages.value.length
+  messages.value.push({
+    id: (Date.now() + 1).toString(),
+    role: 'assistant',
+    content: '',
+    timestamp: new Date(),
+  })
+
   try {
-    const provider = currentProvider.value!
-    const model = selectedModel.value
-
-    const apiMessages = withSystemPrompt
-      ? [
-          { role: 'system', content: AGRI_EXPERT_SYSTEM_PROMPT },
-          { role: 'user', content },
-        ]
-      : [{ role: 'user', content }]
-
-    const response = await fetch(provider.endpoint, {
+    const res = await fetch('/api/agri-brain/chat', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey.value}`,
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
-        model,
-        max_tokens: 2048,
-        messages: apiMessages,
+        message: content,
+        conversationId: conversationId.value,
       }),
     })
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(error.error?.message || `API 请求失败: ${response.statusText}`)
+    if (!res.ok) {
+      throw new Error(`请求失败: ${res.status}`)
     }
 
-    const data = await response.json()
-    const aiMsg: Message = {
-      id: (Date.now() + 1).toString(),
-      role: 'assistant',
-      content: data.choices?.[0]?.message?.content || '未收到有效回复',
-      timestamp: new Date(),
+    const reader = res.body?.getReader()
+    if (!reader) throw new Error('无法读取响应流')
+
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || '' // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        const trimmedLine = line.trim()
+        if (!trimmedLine) continue
+
+        // 处理 SSE 格式: "data: {...}" 或 "data:{...}"
+        let jsonStr = trimmedLine
+        if (trimmedLine.startsWith('data:')) {
+          jsonStr = trimmedLine.substring(5).trim()
+        }
+
+        if (!jsonStr || jsonStr === '[DONE]') continue
+
+        try {
+          const event = JSON.parse(jsonStr)
+          if (event.type === 'token' && event.content && event.content !== 'null') {
+            messages.value[assistantMsgIndex].content += event.content
+            nextTick(() => scrollToBottom())
+          } else if (event.type === 'tool_call' && event.toolCallId) {
+            // 工具调用开始
+            isToolCalling.value = true
+            if (!messages.value[assistantMsgIndex].toolCalls) {
+              messages.value[assistantMsgIndex].toolCalls = []
+            }
+            messages.value[assistantMsgIndex].toolCalls.push({
+              toolCallId: event.toolCallId,
+              name: event.toolName || 'unknown',
+              status: 'calling',
+            })
+            nextTick(() => scrollToBottom())
+          } else if (event.type === 'tool_result' && event.toolCallId) {
+            // 工具执行完成
+            const toolCalls = messages.value[assistantMsgIndex].toolCalls
+            if (toolCalls) {
+              const tc = toolCalls.find(t => t.toolCallId === event.toolCallId)
+              if (tc) {
+                tc.status = 'done'
+                tc.result = event.content
+              }
+            }
+            nextTick(() => scrollToBottom())
+          } else if (event.type === 'done' && event.conversationId) {
+            conversationId.value = event.conversationId
+          } else if (event.type === 'error') {
+            messages.value[assistantMsgIndex].content += `\n\n错误: ${event.content}`
+          }
+        } catch (e) {
+          // Skip invalid JSON
+        }
+      }
     }
-    messages.value.push(aiMsg)
   } catch (err: any) {
-    const errorMsg: Message = {
-      id: (Date.now() + 1).toString(),
-      role: 'assistant',
-      content: `请求失败：${err.message}`,
-      timestamp: new Date(),
-    }
-    messages.value.push(errorMsg)
+    messages.value[assistantMsgIndex].content = `请求失败: ${err.message}`
   } finally {
     isLoading.value = false
+    isToolCalling.value = false
     nextTick(() => scrollToBottom())
   }
 }
@@ -272,6 +351,22 @@ function scrollToBottom() {
     chatContainerRef.value.scrollTop = chatContainerRef.value.scrollHeight
   }
 }
+
+function getToolDisplayName(name: string): string {
+  const toolNames: Record<string, string> = {
+    work_order: '工单数据',
+    environment: '环境数据',
+    detection: '检测记录',
+    pest_disease_info: '病虫害知识',
+    create_work_order: '创建工单',
+  }
+  return toolNames[name] || name
+}
+
+onMounted(() => {
+  loadConfig()
+  loadConversations()
+})
 </script>
 
 <template>
@@ -285,12 +380,40 @@ function scrollToBottom() {
       <div class="flex gap-2">
         <button
           class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-          @click="showSettings = !showSettings"
+          @click="showHistory = !showHistory; showSettings = false"
+        >
+          {{ showHistory ? '关闭历史' : '历史对话' }}
+        </button>
+        <button
+          class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+          @click="newConversation"
+        >
+          新建对话
+        </button>
+        <button
+          class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+          @click="showSettings = !showSettings; showHistory = false"
         >
           {{ showSettings ? '关闭设置' : 'API 设置' }}
         </button>
       </div>
     </div>
+
+    <!-- History Panel -->
+    <GlassCard v-if="showHistory" class="shrink-0 max-h-60 overflow-y-auto">
+      <div class="text-xs text-slate-400 tracking-wider mb-3">历史对话</div>
+      <div v-if="conversations.length === 0" class="text-sm text-slate-500">暂无历史对话</div>
+      <div
+        v-for="conv in conversations"
+        :key="conv.id"
+        class="px-3 py-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors mb-1"
+        :class="conversationId === conv.id ? 'bg-white/10 border border-white/10' : ''"
+        @click="selectConversation(conv)"
+      >
+        <div class="text-sm text-white truncate">{{ conv.title }}</div>
+        <div class="text-[10px] text-slate-500 font-mono">{{ conv.updatedAt }}</div>
+      </div>
+    </GlassCard>
 
     <!-- Agent Settings -->
     <GlassCard v-if="showSettings" class="shrink-0">
@@ -303,7 +426,7 @@ function scrollToBottom() {
           <select
             v-model="selectedProvider"
             class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-cyber-green/50 select-dark"
-            @change="onProviderChange"
+            @change="selectedModel = ''"
           >
             <option value="" disabled>选择供应商</option>
             <option v-for="p in providers" :key="p.id" :value="p.id">{{ p.name }}</option>
@@ -317,45 +440,22 @@ function scrollToBottom() {
             v-model="selectedModel"
             class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-cyber-green/50 select-dark"
             :disabled="!selectedProvider"
-            @change="onModelChange"
           >
             <option value="" disabled>选择模型</option>
-            <option v-for="m in availableModels" :key="m.id" :value="m.id">{{ m.name }}</option>
+            <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
           </select>
         </div>
 
         <!-- API Key -->
         <div>
-          <label class="block text-[10px] text-slate-500 mb-1.5 font-mono uppercase tracking-wider">API Key</label>
+          <label class="block text-[10px] text-slate-500 mb-1.5 font-mono uppercase tracking-wider">API Key（可选）</label>
           <input
             v-model="apiKey"
             type="password"
-            placeholder="请输入 API Key"
+            placeholder="留空使用后端默认配置"
             class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50"
             @input="validationResult = null"
           />
-        </div>
-      </div>
-
-      <!-- Provider info -->
-      <div v-if="currentProvider" class="glass rounded-lg p-3 mb-4">
-        <div class="grid grid-cols-2 gap-2 text-[10px] font-mono">
-          <div>
-            <span class="text-slate-500">官网：</span>
-            <a :href="currentProvider.website" target="_blank" class="text-cyber-green hover:underline">{{ currentProvider.website }}</a>
-          </div>
-          <div>
-            <span class="text-slate-500">请求地址：</span>
-            <span class="text-slate-400">{{ currentProvider.displayEndpoint }}</span>
-          </div>
-          <div>
-            <span class="text-slate-500">API 格式：</span>
-            <span class="text-slate-400">{{ currentProvider.apiFormat }}</span>
-          </div>
-          <div>
-            <span class="text-slate-500">认证字段：</span>
-            <span class="text-slate-400">{{ currentProvider.authField }}</span>
-          </div>
         </div>
       </div>
 
@@ -368,17 +468,17 @@ function scrollToBottom() {
       <div class="flex gap-3">
         <button
           class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-slate-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          :disabled="isValidating"
+          :disabled="isValidating || !apiKey.trim()"
           @click="validateConfig"
         >
           {{ isValidating ? '校验中...' : '校验配置' }}
         </button>
         <button
           class="px-4 py-2 rounded-xl bg-cyber-green/10 border border-cyber-green/20 text-cyber-green text-sm hover:bg-cyber-green/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          :disabled="!selectedProvider || !selectedModel || !apiKey.trim()"
-          @click="saveAgentConfig"
+          :disabled="isSaving || !selectedModel"
+          @click="saveConfig"
         >
-          保存 Agent 配置
+          {{ isSaving ? '保存中...' : '保存配置' }}
         </button>
       </div>
     </GlassCard>
@@ -417,6 +517,7 @@ function scrollToBottom() {
         <div
           v-for="msg in messages"
           :key="msg.id"
+          v-show="msg.role === 'user' || msg.content || msg.toolCalls?.length"
           class="flex gap-3"
           :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
         >
@@ -429,18 +530,43 @@ function scrollToBottom() {
 
           <!-- Message bubble -->
           <div
-            class="max-w-[70%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap"
+            class="max-w-[70%] px-4 py-3 rounded-2xl text-sm leading-relaxed"
             :class="msg.role === 'user'
-              ? 'bg-cyber-green/10 border border-cyber-green/20 text-white'
+              ? 'bg-cyber-green/10 border border-cyber-green/20 text-white whitespace-pre-wrap'
               : 'bg-white/5 border border-white/10 text-slate-300'"
           >
-            <TypewriterText
-              v-if="msg.role === 'assistant'"
-              :text="msg.content"
-              :speed="12"
-              :on-complete="() => nextTick(() => scrollToBottom())"
-            />
-            <template v-else>{{ msg.content }}</template>
+            <template v-if="msg.role === 'user'">
+              {{ msg.content }}
+            </template>
+            <template v-else>
+              <!-- Tool calls status -->
+              <div v-if="msg.toolCalls && msg.toolCalls.length > 0" class="mb-3 space-y-2">
+                <div
+                  v-for="tc in msg.toolCalls"
+                  :key="tc.toolCallId"
+                  class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-mono"
+                  :class="tc.status === 'calling' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-cyber-green/10 text-cyber-green border border-cyber-green/20'"
+                >
+                  <svg v-if="tc.status === 'calling'" class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <svg v-else class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>{{ tc.status === 'calling' ? '正在查询' : '查询完成' }}: {{ getToolDisplayName(tc.name) }}</span>
+                </div>
+              </div>
+              <!-- 思考中（工具调用完成后、回复到达前） -->
+              <div v-if="msg.toolCalls?.length && !msg.content" class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-mono bg-white/5 border border-white/10 text-slate-400 mb-3">
+                <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span>思考中...</span>
+              </div>
+              <MarkdownRenderer :content="msg.content" />
+            </template>
           </div>
 
           <!-- User avatar -->
@@ -449,8 +575,8 @@ function scrollToBottom() {
           </div>
         </div>
 
-        <!-- Loading indicator -->
-        <div v-if="isLoading" class="flex gap-3 justify-start">
+        <!-- Loading indicator (工具调用中和有内容时隐藏，避免双头像) -->
+        <div v-if="isLoading && !isToolCalling && messages[messages.length - 1]?.content === ''" class="flex gap-3 justify-start">
           <div class="w-8 h-8 rounded-lg bg-cyber-green/10 flex items-center justify-center shrink-0">
             <svg class="w-4 h-4 text-cyber-green" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />

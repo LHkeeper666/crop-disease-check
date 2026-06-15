@@ -23,7 +23,7 @@ interface PageResult<T> {
 
 /** 工单列表项 */
 export interface WorkOrderVO {
-  id: string
+  id: number
   title: string
   severity: string
   status: string
@@ -123,16 +123,16 @@ export async function fetchWorkOrderDetail(id: string): Promise<WorkOrderDetailV
 }
 
 /** 创建工单（基于推理记录） */
-export async function createWorkOrder(dto: WorkOrderCreateDTO): Promise<string> {
-  return request<string>(`${BASE}/create`, {
+export async function createWorkOrder(dto: WorkOrderCreateDTO): Promise<number> {
+  return request<number>(`${BASE}/create`, {
     method: 'POST',
     body: JSON.stringify(dto),
   })
 }
 
 /** 手动创建工单（不依赖推理记录） */
-export async function createManualWorkOrder(dto: WorkOrderManualCreateDTO): Promise<string> {
-  return request<string>(`${BASE}/create-manual`, {
+export async function createManualWorkOrder(dto: WorkOrderManualCreateDTO): Promise<number> {
+  return request<number>(`${BASE}/create-manual`, {
     method: 'POST',
     body: JSON.stringify(dto),
   })
@@ -140,7 +140,7 @@ export async function createManualWorkOrder(dto: WorkOrderManualCreateDTO): Prom
 
 /** 更新工单状态 */
 export async function updateWorkOrderStatus(
-  id: string,
+  id: number,
   status: string,
   comment?: string
 ): Promise<void> {
@@ -152,7 +152,7 @@ export async function updateWorkOrderStatus(
 
 /** 更新工单严重程度 */
 export async function updateWorkOrderSeverity(
-  id: string,
+  id: number,
   severity: string
 ): Promise<void> {
   return request<void>(`${BASE}/${id}/severity`, {
@@ -162,7 +162,7 @@ export async function updateWorkOrderSeverity(
 }
 
 /** 删除工单 */
-export async function deleteWorkOrder(id: string): Promise<void> {
+export async function deleteWorkOrder(id: number): Promise<void> {
   return request<void>(`${BASE}/${id}`, {
     method: 'DELETE',
   })

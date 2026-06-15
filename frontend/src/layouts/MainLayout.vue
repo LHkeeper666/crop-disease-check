@@ -8,7 +8,7 @@ import AppSidebar from '../components/AppSidebar.vue'
     <AppSidebar />
     <main class="flex-1 overflow-y-auto bg-grid-dots">
       <RouterView v-slot="{ Component }">
-        <Transition name="page-fade" mode="out-in">
+        <Transition name="page-fade">
           <component :is="Component" />
         </Transition>
       </RouterView>

@@ -9,11 +9,13 @@ import com.agriculture.modules.camera.mapper.CameraMapper;
 import com.agriculture.modules.camera.service.CameraDetectService;
 import com.agriculture.modules.camera.service.CameraService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -60,7 +62,23 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
         }
         wrapper.orderByDesc(Camera::getCreatedAt);
 
-        return page(new Page<>(page, size), wrapper);
+        Page<Camera> result = page(new Page<>(page, size), wrapper);
+
+        // 填充覆盖网格关联
+        List<String> cameraIds = result.getRecords().stream()
+                .map(Camera::getId).collect(Collectors.toList());
+        if (!cameraIds.isEmpty()) {
+            LambdaQueryWrapper<CameraGrid> gridWrapper = new LambdaQueryWrapper<>();
+            gridWrapper.in(CameraGrid::getCameraId, cameraIds);
+            Map<String, List<String>> gridMap = cameraGridMapper.selectList(gridWrapper)
+                    .stream().collect(Collectors.groupingBy(
+                            CameraGrid::getCameraId,
+                            Collectors.mapping(CameraGrid::getGridId, Collectors.toList())));
+            result.getRecords().forEach(c ->
+                    c.setCoverageGrids(gridMap.getOrDefault(c.getId(), Collections.emptyList())));
+        }
+
+        return result;
     }
 
     @Override
@@ -117,6 +135,8 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
             throw new BusinessException(40087, "摄像头不存在");
         }
 
+        log.info("[Camera] 更新前: id={}, name={}, rtspUrl={}", camera.getId(), camera.getName(), camera.getRtspUrl());
+
         // 检查名称唯一性（排除自身）
         if (StringUtils.hasText(request.getName())) {
             long count = count(new LambdaQueryWrapper<Camera>()
@@ -158,7 +178,27 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
         }
 
         camera.setUpdatedAt(LocalDateTime.now());
-        updateById(camera);
+
+        // 使用LambdaUpdateWrapper显式更新所有字段，避免IdType相关问题
+        LambdaUpdateWrapper<Camera> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(Camera::getId, id)
+                .set(Camera::getName, camera.getName())
+                .set(Camera::getRtspUrl, camera.getRtspUrl())
+                .set(Camera::getRtspUrlSub, camera.getRtspUrlSub())
+                .set(Camera::getLocationX, camera.getLocationX())
+                .set(Camera::getLocationY, camera.getLocationY())
+                .set(Camera::getDirection, camera.getDirection())
+                .set(Camera::getCaptureResolution, camera.getCaptureResolution())
+                .set(Camera::getCaptureQuality, camera.getCaptureQuality())
+                .set(Camera::getReconnectInterval, camera.getReconnectInterval())
+                .set(Camera::getStatus, camera.getStatus())
+                .set(Camera::getUpdatedAt, camera.getUpdatedAt());
+        boolean success = update(null, updateWrapper);
+        log.info("[Camera] update结果: success={}, rtspUrl={}", success, camera.getRtspUrl());
+
+        // 验证更新是否生效
+        Camera verify = getById(id);
+        log.info("[Camera] 验证查询: id={}, rtspUrl={}", verify.getId(), verify.getRtspUrl());
 
         // 更新覆盖网格
         if (request.getCoverageGrids() != null) {
@@ -232,7 +272,7 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
                 .lastFrameAt(camera.getLastFrameAt() != null
                         ? camera.getLastFrameAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
                         : null)
-                .streamUrl(isOnline ? "/stream/" + id + ".m3u8" : null)
+                .httpUrl(isOnline ? camera.getHttpUrl() : null)
                 .connectionInfo(CameraStatusVO.ConnectionInfo.builder()
                         .protocol("RTSP")
                         .transport("TCP")
@@ -240,8 +280,6 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
                         .retryCount(0)
                         .build())
                 .frameInfo(isOnline ? CameraStatusVO.FrameInfo.builder()
-                        .width(640)
-                        .height(640)
                         .fps(25)
                         .codec("H.264")
                         .build() : null)
@@ -276,7 +314,7 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
                     .lastFrameAt(camera.getLastFrameAt() != null
                             ? camera.getLastFrameAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
                             : null)
-                    .streamUrl(isOnline ? "/stream/" + cameraId + ".m3u8" : null)
+                    .httpUrl(isOnline ? camera.getHttpUrl() : null)
                     .build());
         }
 
@@ -344,26 +382,71 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
 
                 try (java.net.Socket socket = new java.net.Socket()) {
                     socket.connect(new java.net.InetSocketAddress(host, port), 5000);
-                    // 连接成功，更新状态为ONLINE
+                    // TCP端口可达，标记为ONLINE
+                    // 注意：仅TCP可达不代表有真实视频流，如需更严格验证应在此处增加抽帧检测
                     Camera camera = getById(cameraId);
                     if (camera != null) {
                         camera.setStatus("ONLINE");
                         camera.setLastOnlineAt(LocalDateTime.now());
                         updateById(camera);
-                        // 记录连接建立时间
                         recordConnectionStart(cameraId);
                         log.info("RTSP连接成功，状态已更新为ONLINE: cameraId={}", cameraId);
                     }
                 }
             } catch (Exception e) {
-                // 连接失败，状态保持OFFLINE
+                // TCP连接失败，标记为FAULT（设备不可达）
                 log.warn("RTSP连接失败: cameraId={}, error={}", cameraId, e.getMessage());
                 Camera camera = getById(cameraId);
                 if (camera != null) {
-                    camera.setStatus("OFFLINE");
+                    camera.setStatus("FAULT");
                     updateById(camera);
                 }
             }
         }, "rtsp-connect-" + cameraId).start();
+    }
+
+    @Override
+    public void reconnect(String cameraId) {
+        Camera camera = getById(cameraId);
+        if (camera == null) {
+            throw new BusinessException(40087, "摄像头不存在");
+        }
+        if (camera.getRtspUrl() == null || camera.getRtspUrl().isEmpty()) {
+            throw new BusinessException(40084, "摄像头RTSP地址未配置");
+        }
+        log.info("手动重连摄像头: cameraId={}", cameraId);
+        tryConnectAsync(cameraId, camera.getRtspUrl());
+    }
+
+    /**
+     * 定时重连OFFLINE摄像头（每30秒）
+     * FAULT状态的摄像头不会被自动重连，需要人工排查后手动重连
+     */
+    @Scheduled(fixedDelay = 30000, initialDelay = 10000)
+    public void autoReconnectOfflineCameras() {
+        LambdaQueryWrapper<Camera> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Camera::getStatus, "OFFLINE");
+        wrapper.isNotNull(Camera::getRtspUrl);
+        wrapper.ne(Camera::getRtspUrl, "");
+        java.util.List<Camera> offlineCameras = list(wrapper);
+
+        for (Camera camera : offlineCameras) {
+            try {
+                java.net.URI uri = new java.net.URI(camera.getRtspUrl());
+                String host = uri.getHost();
+                int port = uri.getPort() > 0 ? uri.getPort() : 554;
+
+                try (java.net.Socket socket = new java.net.Socket()) {
+                    socket.connect(new java.net.InetSocketAddress(host, port), 3000);
+                    camera.setStatus("ONLINE");
+                    camera.setLastOnlineAt(LocalDateTime.now());
+                    updateById(camera);
+                    recordConnectionStart(camera.getId());
+                    log.info("自动重连成功: cameraId={}, name={}", camera.getId(), camera.getName());
+                }
+            } catch (Exception ignored) {
+                // 仍然离线/故障，不更新状态
+            }
+        }
     }
 }

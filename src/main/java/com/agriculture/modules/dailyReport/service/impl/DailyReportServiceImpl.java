@@ -1,19 +1,19 @@
-package com.agriculture.modules.dailyreport.service.impl;
+package com.agriculture.modules.dailyReport.service.impl;
 
 import com.agriculture.modules.inference.mapper.InferenceMapper;
 import com.agriculture.modules.inspection.mapper.InspectionLogMapper;
 import com.agriculture.modules.workorder.mapper.WorkOrderMapper;
-import com.agriculture.modules.dailyreport.dto.DailyReportGenerateDTO;
-import com.agriculture.modules.dailyreport.entity.DailyReport;
-import com.agriculture.modules.dailyreport.mapper.DailyReportMapper;
+import com.agriculture.modules.dailyReport.dto.DailyReportGenerateDTO;
+import com.agriculture.modules.dailyReport.entity.DailyReport;
+import com.agriculture.modules.dailyReport.mapper.DailyReportMapper;
 import com.agriculture.modules.inference.entity.Inference;
 import com.agriculture.modules.inspection.entity.InspectionLog;
 import com.agriculture.modules.workorder.entity.WorkOrder;
 import com.agriculture.common.exception.BusinessException;
-import com.agriculture.modules.dailyreport.service.DailyReportService;
-import com.agriculture.modules.dailyreport.vo.DailyReportDetailVO;
-import com.agriculture.modules.dailyreport.vo.DailyReportSummaryDTO;
-import com.agriculture.modules.dailyreport.vo.DailyReportVO;
+import com.agriculture.modules.dailyReport.service.DailyReportService;
+import com.agriculture.modules.dailyReport.vo.DailyReportDetailVO;
+import com.agriculture.modules.dailyReport.vo.DailyReportSummaryDTO;
+import com.agriculture.modules.dailyReport.vo.DailyReportVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;

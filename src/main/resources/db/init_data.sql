@@ -10,20 +10,45 @@ USE agriculture_db;
 -- ========================================
 
 -- 管理员账号 (密码: admin123)
-INSERT INTO sys_user (id, username, password, name, role, email, status) VALUES
-('u001', 'admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '系统管理员', 'ADMIN', 'admin@agriculture.com', 'ACTIVE');
+INSERT INTO sys_user (id, username, password, name, role, email, status, company_id, approved) VALUES
+('u001', 'admin', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '系统管理员', 'ADMIN', 'admin@agriculture.com', 'ACTIVE', 'comp001', 1);
+
+-- 企业2管理员账号 (密码: admin123)
+INSERT INTO sys_user (id, username, password, name, role, email, status, company_id, approved) VALUES
+('u011', 'admin2', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '绿丰管理员', 'ADMIN', 'admin2@agriculture.com', 'ACTIVE', 'comp002', 1);
 
 -- 示例专家账号
-INSERT INTO sys_user (id, username, password, name, role, phone, email, status) VALUES
-('u002', 'expert01', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '李专家', 'EXPERT', '13800138001', 'expert@agriculture.com', 'ACTIVE');
+INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
+('u002', 'expert01', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '李专家', 'EXPERT', '13800138001', 'expert@agriculture.com', 'ACTIVE', 'comp001', 1);
 
 -- 示例管理者账号
-INSERT INTO sys_user (id, username, password, name, role, phone, email, status) VALUES
-('u003', 'manager01', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '张经理', 'MANAGER', '13800138002', 'manager@agriculture.com', 'ACTIVE');
+INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
+('u003', 'manager01', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '张经理', 'MANAGER', '13800138002', 'manager@agriculture.com', 'ACTIVE', 'comp001', 1);
 
 -- 示例员工账号
-INSERT INTO sys_user (id, username, password, name, role, phone, status) VALUES
-('u004', 'staff01', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '王员工', 'VISITOR', '13800138003', 'ACTIVE');
+INSERT INTO sys_user (id, username, password, name, role, phone, status, company_id, approved) VALUES
+('u004', 'staff01', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '王员工', 'VISITOR', '13800138003', 'ACTIVE', 'comp001', 1);
+
+
+-- ========================================
+-- 1.5 企业数据
+-- ========================================
+
+INSERT INTO company (id, name, invite_code, expire_at, member_limit) VALUES
+('comp001', '智慧农业示范园', 'AG2026', '2027-12-31 23:59:59', 100),
+('comp002', '绿丰农业科技', 'TF2026', '2027-12-31 23:59:59', 100);
+
+
+-- ========================================
+-- 1.6 温室数据
+-- ========================================
+
+INSERT INTO greenhouse (id, sector_id, crop_species, planting_date, location, area, status, company_id) VALUES
+('gh001', 'GH-A1', '番茄', '2026-03-15', '120.500000,35.200000', 500.00, 'ACTIVE', 'comp001'),
+('gh002', 'GH-A2', '黄瓜', '2026-03-20', '120.500100,35.200100', 600.00, 'ACTIVE', 'comp001'),
+('gh003', 'GH-B1', '辣椒', '2026-04-01', '120.500200,35.200200', 450.00, 'ACTIVE', 'comp001'),
+('gh004', 'GH-B2', '草莓', '2026-04-10', '120.500300,35.200300', 400.00, 'ACTIVE', 'comp001'),
+('gh005', 'GH-C1', '茄子', '2026-04-15', '120.500400,35.200400', 350.00, 'ACTIVE', 'comp001');
 
 
 -- ========================================
@@ -33,9 +58,13 @@ INSERT INTO sys_user (id, username, password, name, role, phone, status) VALUES
 INSERT INTO grid (id, label, greenhouse_id, polygon_coords, area_m2, crop_type) VALUES
 ('g001', 'A1', 'gh001', '[{"x":0,"y":0},{"x":100,"y":0},{"x":100,"y":100},{"x":0,"y":100}]', 100.00, '番茄'),
 ('g002', 'A2', 'gh001', '[{"x":100,"y":0},{"x":200,"y":0},{"x":200,"y":100},{"x":100,"y":100}]', 100.00, '番茄'),
-('g003', 'B1', 'gh002', '[{"x":0,"y":100},{"x":100,"y":100},{"x":100,"y":200},{"x":0,"y":200}]', 100.00, '黄瓜'),
-('g004', 'B2', 'gh002', '[{"x":100,"y":100},{"x":200,"y":100},{"x":200,"y":200},{"x":100,"y":200}]', 100.00, '黄瓜'),
-('g005', 'B3', 'gh002', '[{"x":200,"y":100},{"x":300,"y":100},{"x":300,"y":200},{"x":200,"y":200}]', 100.00, '番茄');
+('g003', 'A3', 'gh001', '[{"x":200,"y":0},{"x":300,"y":0},{"x":300,"y":100},{"x":200,"y":100}]', 100.00, '番茄'),
+('g004', 'B1', 'gh002', '[{"x":0,"y":100},{"x":100,"y":100},{"x":100,"y":200},{"x":0,"y":200}]', 100.00, '黄瓜'),
+('g005', 'B2', 'gh002', '[{"x":100,"y":100},{"x":200,"y":100},{"x":200,"y":200},{"x":100,"y":200}]', 100.00, '黄瓜'),
+('g006', 'B3', 'gh002', '[{"x":200,"y":100},{"x":300,"y":100},{"x":300,"y":200},{"x":200,"y":200}]', 100.00, '黄瓜'),
+('g007', 'C1', 'gh003', '[{"x":0,"y":200},{"x":100,"y":200},{"x":100,"y":300},{"x":0,"y":300}]', 120.00, '辣椒'),
+('g008', 'C2', 'gh003', '[{"x":100,"y":200},{"x":200,"y":200},{"x":200,"y":300},{"x":100,"y":300}]', 120.00, '辣椒'),
+('g009', 'C3', 'gh003', '[{"x":200,"y":200},{"x":300,"y":200},{"x":300,"y":300},{"x":200,"y":300}]', 120.00, '辣椒');
 
 
 -- ========================================
@@ -43,20 +72,28 @@ INSERT INTO grid (id, label, greenhouse_id, polygon_coords, area_m2, crop_type) 
 -- ========================================
 
 INSERT INTO camera (id, name, rtsp_url, location_x, location_y, direction, status) VALUES
-('c001', 'A区-1号摄像头', 'rtsp://192.168.1.101:554/stream1', 120.500000, 35.200000, 90.0, 'ONLINE'),
-('c002', 'A区-2号摄像头', 'rtsp://192.168.1.102:554/stream1', 120.500100, 35.200100, 180.0, 'ONLINE'),
-('c003', 'B区-1号摄像头', 'rtsp://192.168.1.103:554/stream1', 120.500200, 35.200200, 270.0, 'ONLINE'),
-('c004', 'B区-2号摄像头', 'rtsp://192.168.1.104:554/stream1', 120.500300, 35.200300, 0.0, 'OFFLINE');
+('c001', 'A区-1号摄像头', 'rtsp://192.168.1.101:554/stream1', 120.500000, 35.200000, 90.0, 'FAULT'),
+('c002', 'A区-2号摄像头', 'rtsp://192.168.1.102:554/stream1', 120.500100, 35.200100, 135.0, 'FAULT'),
+('c003', 'A区-3号摄像头', 'rtsp://192.168.1.103:554/stream1', 120.500200, 35.200200, 180.0, 'FAULT'),
+('c004', 'B区-1号摄像头', 'rtsp://192.168.1.104:554/stream1', 120.500300, 35.200300, 45.0, 'FAULT'),
+('c005', 'B区-2号摄像头', 'rtsp://192.168.1.105:554/stream1', 120.500400, 35.200400, 90.0, 'FAULT'),
+('c006', 'B区-3号摄像头', 'rtsp://192.168.1.106:554/stream1', 120.500500, 35.200500, 135.0, 'FAULT'),
+('c007', 'C区-1号摄像头', 'rtsp://192.168.1.107:554/stream1', 120.500600, 35.200600, 270.0, 'FAULT'),
+('c008', 'C区-2号摄像头', 'rtsp://192.168.1.108:554/stream1', 120.500700, 35.200700, 315.0, 'FAULT'),
+('c009', 'C区-3号摄像头', 'rtsp://192.168.1.109:554/stream1', 120.500800, 35.200800, 0.0, 'FAULT');
 
 
 -- 摄像头覆盖网格关联
 INSERT INTO camera_grid (camera_id, grid_id) VALUES
 ('c001', 'g001'),
-('c001', 'g002'),
-('c002', 'g002'),
-('c003', 'g003'),
-('c003', 'g004'),
-('c004', 'g005');
+('c002', 'g001'),
+('c003', 'g002'),
+('c004', 'g003'),
+('c005', 'g004'),
+('c006', 'g004'),
+('c007', 'g005'),
+('c008', 'g006'),
+('c009', 'g006');
 
 
 -- ========================================
@@ -241,69 +278,48 @@ INSERT INTO inspection_camera (plan_id, camera_id) VALUES
 -- ========================================
 
 -- 更多专家
-INSERT INTO sys_user (id, username, password, name, role, phone, email, status) VALUES
-('u005', 'expert02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '赵植保专家', 'EXPERT', '13800138005', 'expert02@agriculture.com', 'ACTIVE'),
-('u006', 'expert03', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '钱昆虫专家', 'EXPERT', '13800138006', 'expert03@agriculture.com', 'ACTIVE');
+INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
+('u005', 'expert02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '赵植保专家', 'EXPERT', '13800138005', 'expert02@agriculture.com', 'ACTIVE', 'comp001', 1),
+('u006', 'expert03', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '钱昆虫专家', 'EXPERT', '13800138006', 'expert03@agriculture.com', 'ACTIVE', 'comp001', 1);
 
 -- 更多管理者
-INSERT INTO sys_user (id, username, password, name, role, phone, email, status) VALUES
-('u007', 'manager02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '孙经理', 'MANAGER', '13800138007', 'manager02@agriculture.com', 'ACTIVE');
+INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
+('u007', 'manager02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '孙经理', 'MANAGER', '13800138007', 'manager02@agriculture.com', 'ACTIVE', 'comp001', 1);
 
 -- 更多员工
-INSERT INTO sys_user (id, username, password, name, role, phone, status) VALUES
-('u008', 'staff02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '刘员工', 'VISITOR', '13800138008', 'ACTIVE'),
-('u009', 'staff03', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '陈员工', 'VISITOR', '13800138009', 'ACTIVE'),
-('u010', 'staff04', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '杨员工', 'VISITOR', '13800138010', 'DISABLED');
+INSERT INTO sys_user (id, username, password, name, role, phone, status, company_id, approved) VALUES
+('u008', 'staff02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '刘员工', 'VISITOR', '13800138008', 'ACTIVE', 'comp001', 1),
+('u009', 'staff03', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '陈员工', 'VISITOR', '13800138009', 'ACTIVE', 'comp001', 1),
+('u010', 'staff04', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '杨员工', 'VISITOR', '13800138010', 'DISABLED', 'comp001', 1);
 
 
 -- ========================================
 -- 7. 扩充网格区域数据
 -- ========================================
 
-INSERT INTO grid (id, label, greenhouse_id, polygon_coords, area_m2, crop_type) VALUES
-('g006', 'C1', 'gh003', '[{"x":0,"y":200},{"x":100,"y":200},{"x":100,"y":300},{"x":0,"y":300}]', 120.00, '辣椒'),
-('g007', 'C2', 'gh003', '[{"x":100,"y":200},{"x":200,"y":200},{"x":200,"y":300},{"x":100,"y":300}]', 120.00, '辣椒'),
-('g008', 'D1', 'gh004', '[{"x":0,"y":300},{"x":100,"y":300},{"x":100,"y":400},{"x":0,"y":400}]', 150.00, '草莓'),
-('g009', 'D2', 'gh004', '[{"x":100,"y":300},{"x":200,"y":300},{"x":200,"y":400},{"x":100,"y":400}]', 150.00, '草莓'),
-('g010', 'E1', 'gh005', '[{"x":200,"y":200},{"x":300,"y":200},{"x":300,"y":300},{"x":200,"y":300}]', 80.00, '茄子');
-
 
 -- ========================================
--- 8. 扩充摄像头数据
+-- 8. 扩充摄像头数据（已在上方统一初始化，此节保留兼容）
 -- ========================================
 
-INSERT INTO camera (id, name, rtsp_url, location_x, location_y, direction, status, last_frame_at) VALUES
-('c005', 'C区-1号摄像头', 'rtsp://192.168.1.105:554/stream1', 120.500400, 35.200400, 45.0, 'ONLINE', '2026-06-10 06:15:32'),
-('c006', 'D区-1号摄像头', 'rtsp://192.168.1.106:554/stream1', 120.500500, 35.200500, 135.0, 'ONLINE', '2026-06-10 06:15:45'),
-('c007', 'D区-2号摄像头', 'rtsp://192.168.1.107:554/stream1', 120.500600, 35.200600, 225.0, 'FAULT', NULL),
-('c008', 'E区-1号摄像头', 'rtsp://192.168.1.108:554/stream1', 120.500700, 35.200700, 315.0, 'ONLINE', '2026-06-10 06:16:01');
-
--- 扩充摄像头覆盖关联
-INSERT INTO camera_grid (camera_id, grid_id) VALUES
-('c005', 'g006'),
-('c005', 'g007'),
-('c006', 'g008'),
-('c006', 'g009'),
-('c007', 'g008'),
-('c007', 'g009'),
-('c008', 'g010');
+-- 摄像头数据已在上方统一配置：A区3个、B区3个、C区3个，共9个
 
 
 -- ========================================
 -- 9. 扩充病虫害知识库
 -- ========================================
 
-INSERT INTO pest_info (id, pest_name, pest_type, description, conditions, prevention) VALUES
-('p011', '番茄病毒病', 'DISEASE', '由烟草花叶病毒等引起的病害，叶片花叶、卷曲、畸形', '高温干旱，蚜虫传播，温度25-30℃', '防治蚜虫，选用抗病品种，喷洒宁南霉素'),
-('p012', '番茄灰霉病', 'DISEASE', '由灰葡萄孢菌引起的真菌性病害，果实软腐长灰毛', '低温高湿，温度15-23℃，湿度>90%', '喷洒嘧霉胺，及时摘除病果，通风排湿'),
-('p013', '黄瓜枯萎病', 'DISEASE', '由尖孢镰刀菌引起的土传病害，植株萎蔫枯死', '土壤温度24-28℃，连作地块', '嫁接防病，土壤消毒，灌施多菌灵'),
-('p014', '蓟马', 'PEST', '锉吸式口器害虫，危害嫩叶和花，造成叶片银斑', '温暖干燥，温度20-28℃', '蓝色粘板诱杀，喷洒乙基多杀菌素'),
-('p015', '白粉虱', 'PEST', '成虫在叶背吸食汁液，分泌蜜露引发煤污病', '温暖环境，温度22-28℃', '黄色粘板诱杀，释放丽蚜小蜂，喷洒噻虫嗪'),
-('p016', '草莓白粉病', 'DISEASE', '由白粉菌引起的病害，叶片和果实表面覆白色粉层', '温度15-25℃，湿度>70%', '喷洒醚菌酯，增加通风，控制种植密度'),
-('p017', '草莓灰霉病', 'DISEASE', '由灰葡萄孢菌引起的病害，果实软腐', '低温高湿，温度17-23℃', '喷洒啶酰菌胺，及时摘除病果'),
-('p018', '辣椒疫病', 'DISEASE', '由辣椒疫霉菌引起的病害，茎基部水渍状腐烂', '高温高湿，温度25-30℃，雨后积水', '喷洒甲霜灵锰锌，高畦栽培，排水降湿'),
-('p019', '茶黄螨', 'PEST', '体型极小的螨类，危害嫩叶和生长点，叶片卷曲', '高温高湿，温度22-28℃，湿度>80%', '喷洒联苯肼酯，增加通风'),
-('p020', 'WEED杂草', 'WEED', '棚内常见杂草包括马齿苋、灰菜等，与作物争肥争光', '温暖湿润环境', '人工除草，覆盖黑色地膜，合理使用除草剂');
+INSERT INTO pest_info (id, pest_name, description, conditions, prevention) VALUES
+(102, '番茄病毒病', '由烟草花叶病毒等引起的病害，叶片花叶、卷曲、畸形', '高温干旱，蚜虫传播，温度25-30℃', '防治蚜虫，选用抗病品种，喷洒宁南霉素'),
+(103, '番茄灰霉病', '由灰葡萄孢菌引起的真菌性病害，果实软腐长灰毛', '低温高湿，温度15-23℃，湿度>90%', '喷洒嘧霉胺，及时摘除病果，通风排湿'),
+(104, '黄瓜枯萎病', '由尖孢镰刀菌引起的土传病害，植株萎蔫枯死', '土壤温度24-28℃，连作地块', '嫁接防病，土壤消毒，灌施多菌灵'),
+(105, '蓟马', '锉吸式口器害虫，危害嫩叶和花，造成叶片银斑', '温暖干燥，温度20-28℃', '蓝色粘板诱杀，喷洒乙基多杀菌素'),
+(106, '白粉虱', '成虫在叶背吸食汁液，分泌蜜露引发煤污病', '温暖环境，温度22-28℃', '黄色粘板诱杀，释放丽蚜小蜂，喷洒噻虫嗪'),
+(107, '草莓白粉病', '由白粉菌引起的病害，叶片和果实表面覆白色粉层', '温度15-25℃，湿度>70%', '喷洒醚菌酯，增加通风，控制种植密度'),
+(108, '草莓灰霉病', '由灰葡萄孢菌引起的病害，果实软腐', '低温高湿，温度17-23℃', '喷洒啶酰菌胺，及时摘除病果'),
+(109, '辣椒疫病', '由辣椒疫霉菌引起的病害，茎基部水渍状腐烂', '高温高湿，温度25-30℃，雨后积水', '喷洒甲霜灵锰锌，高畦栽培，排水降湿'),
+(110, '茶黄螨', '体型极小的螨类，危害嫩叶和生长点，叶片卷曲', '高温高湿，温度22-28℃，湿度>80%', '喷洒联苯肼酯，增加通风'),
+(111, 'WEED杂草', '棚内常见杂草包括马齿苋、灰菜等，与作物争肥争光', '温暖湿润环境', '人工除草，覆盖黑色地膜，合理使用除草剂');
 
 
 -- ========================================
@@ -329,18 +345,18 @@ INSERT INTO report (id, user_id, grid_id, crop_type, image_urls, found_at, descr
 -- 11. 识别结果数据
 -- ========================================
 
-INSERT INTO inference (id, report_id, pest_id, pest_name, confidence, is_low_confidence, pipeline, bbox) VALUES
-('inf001', 'r001', 'p001', '番茄晚疫病', 0.9230, 0, 'DISEASE', '{"x":120,"y":80,"w":200,"h":180}'),
-('inf002', 'r002', 'p005', '黄瓜霜霉病', 0.8870, 0, 'DISEASE', '{"x":50,"y":30,"w":150,"h":120}'),
-('inf003', 'r003', 'p011', '番茄病毒病', 0.9510, 0, 'DISEASE', '{"x":80,"y":60,"w":180,"h":160}'),
-('inf004', 'r004', 'p006', '黄瓜白粉病', 0.8120, 0, 'DISEASE', '{"x":40,"y":20,"w":220,"h":190}'),
-('inf005', 'r005', 'p018', '辣椒疫病', 0.9680, 0, 'DISEASE', '{"x":30,"y":150,"w":100,"h":80}'),
-('inf006', 'r006', 'p004', '红蜘蛛', 0.7850, 0, 'PEST', '{"x":90,"y":50,"w":60,"h":40}'),
-('inf007', 'r007', 'p016', '草莓白粉病', 0.9340, 0, 'DISEASE', '{"x":60,"y":40,"w":170,"h":140}'),
-('inf008', 'r008', 'p015', '白粉虱', 0.5230, 1, 'PEST', '{"x":100,"y":70,"w":50,"h":35}'),
-('inf009', 'r009', 'p007', '棉铃虫', 0.8920, 0, 'PEST', '{"x":70,"y":90,"w":110,"h":85}'),
-('inf010', 'r010', 'p017', '草莓灰霉病', 0.4510, 1, 'DISEASE', '{"x":55,"y":45,"w":90,"h":70}'),
-('inf011', 'r011', 'p014', '蓟马', 0.6780, 0, 'PEST', '{"x":45,"y":25,"w":80,"h":55}');
+INSERT INTO inference (id, report_id, disease_ids, pest_ids, detections, annotated_image_url, total_elapsed_ms) VALUES
+('inf001', 'r001', '[30]', '[]', '[{"class_id":30,"class_name":"Tomato___Late_blight","name_cn":"番茄晚疫病","confidence":0.9230,"bbox":{"x":120,"y":80,"w":200,"h":180},"pipeline":"DISEASE"}]', '/uploads/annotated/inf001.jpg', 3200.50),
+('inf002', 'r002', '[30]', '[]', '[{"class_id":30,"class_name":"Tomato___Late_blight","name_cn":"番茄晚疫病","confidence":0.8870,"bbox":{"x":50,"y":30,"w":150,"h":120},"pipeline":"DISEASE"}]', '/uploads/annotated/inf002.jpg', 2850.30),
+('inf003', 'r003', '[36]', '[]', '[{"class_id":36,"class_name":"Tomato___Mosaic_virus","name_cn":"番茄花叶病毒病","confidence":0.9510,"bbox":{"x":80,"y":60,"w":180,"h":160},"pipeline":"DISEASE"}]', '/uploads/annotated/inf003.jpg', 3100.80),
+('inf004', 'r004', '[25]', '[]', '[{"class_id":25,"class_name":"Squash___Powdery_mildew","name_cn":"南瓜白粉病","confidence":0.8120,"bbox":{"x":40,"y":20,"w":220,"h":190},"pipeline":"DISEASE"}]', '/uploads/annotated/inf004.jpg', 2950.60),
+('inf005', 'r005', '[30]', '[]', '[{"class_id":30,"class_name":"Tomato___Late_blight","name_cn":"番茄晚疫病","confidence":0.9680,"bbox":{"x":30,"y":150,"w":100,"h":80},"pipeline":"DISEASE"}]', '/uploads/annotated/inf005.jpg', 3400.20),
+('inf006', 'r006', '[]', '[21]', '[{"class_id":21,"class_name":"红蜘蛛","name_cn":"红蜘蛛","confidence":0.7850,"bbox":{"x":90,"y":50,"w":60,"h":40},"pipeline":"PEST"}]', '/uploads/annotated/inf006.jpg', 2750.40),
+('inf007', 'r007', '[25]', '[]', '[{"class_id":25,"class_name":"Squash___Powdery_mildew","name_cn":"南瓜白粉病","confidence":0.9340,"bbox":{"x":60,"y":40,"w":170,"h":140},"pipeline":"DISEASE"}]', '/uploads/annotated/inf007.jpg', 3050.70),
+('inf008', 'r008', '[]', '[24]', '[{"class_id":24,"class_name":"蚜虫","name_cn":"蚜虫","confidence":0.5230,"bbox":{"x":100,"y":70,"w":50,"h":35},"pipeline":"PEST"}]', '/uploads/annotated/inf008.jpg', 2600.90),
+('inf009', 'r009', '[]', '[100]', '[{"class_id":100,"class_name":"棉铃虫","name_cn":"棉铃虫","confidence":0.8920,"bbox":{"x":70,"y":90,"w":110,"h":85},"pipeline":"PEST"}]', '/uploads/annotated/inf009.jpg', 3300.10),
+('inf010', 'r010', '[25]', '[]', '[{"class_id":25,"class_name":"Squash___Powdery_mildew","name_cn":"南瓜白粉病","confidence":0.4510,"bbox":{"x":55,"y":45,"w":90,"h":70},"pipeline":"DISEASE"}]', '/uploads/annotated/inf010.jpg', 2800.50),
+('inf011', 'r011', '[]', '[52]', '[{"class_id":52,"class_name":"蓟马","name_cn":"蓟马","confidence":0.6780,"bbox":{"x":45,"y":25,"w":80,"h":55},"pipeline":"PEST"}]', '/uploads/annotated/inf011.jpg', 2900.30);
 
 
 -- ========================================
@@ -381,57 +397,124 @@ INSERT INTO prevention_plan_version (plan_id, content, suggest_time, version) VA
 
 
 -- ========================================
--- 14. 工单数据
+-- 14. 工单数据 (id 自增，不指定)
 -- ========================================
 
-INSERT INTO work_order (id, title, severity, status, inference_id, assigned_to, expert_comment, callback_token, token_expire_at, token_used) VALUES
-('wo001', '番茄晚疫病紧急处理-A1区', 'HIGH', 'DONE', 'inf001', 'u004', '请按方案立即执行，注意做好防护', 'cb_token_001', '2026-06-08 00:00:00', 1),
-('wo002', '黄瓜霜霉病防治-B1区', 'MEDIUM', 'DONE', 'inf002', 'u008', '按计划防治，注意观察效果', 'cb_token_002', '2026-06-08 00:00:00', 1),
-('wo003', '番茄病毒病防治-A2区', 'HIGH', 'PROCESSING', 'inf003', 'u004', '病毒病传播快，需优先处理', 'cb_token_003', '2026-06-15 00:00:00', 0),
-('wo004', '黄瓜白粉病防治-B2区', 'LOW', 'DONE', 'inf004', 'u009', '病情较轻，常规防治即可', NULL, NULL, 0),
-('wo005', '辣椒疫病紧急处置-C1区', 'CRITICAL', 'DONE', 'inf005', 'u008', '病情严重，已安排紧急处理', 'cb_token_005', '2026-06-11 00:00:00', 1),
-('wo006', '红蜘蛛防治-A1区', 'MEDIUM', 'PROCESSING', 'inf006', 'u009', '初期危害，用药后注意观察', 'cb_token_006', '2026-06-12 00:00:00', 0),
-('wo007', '草莓白粉病防治-D1区', 'MEDIUM', 'PENDING', 'inf007', 'u008', NULL, 'cb_token_007', '2026-06-16 00:00:00', 0),
-('wo008', '棉铃虫防治-B3区', 'HIGH', 'DONE', 'inf009', 'u004', '虫害较重，已执行综合防治', 'cb_token_008', '2026-06-15 00:00:00', 1),
-('wo009', '辣椒疫病蔓延预警-C区', 'CRITICAL', 'ESCALATED', 'inf005', 'u007', '疫病有蔓延趋势，建议扩大防治范围', 'cb_token_009', '2026-06-12 00:00:00', 0),
-('wo010', '黄瓜白粉虱监测-B1区', 'LOW', 'PENDING', 'inf008', NULL, '待确认后安排处理', NULL, NULL, 0);
+INSERT INTO work_order (title, severity, status, type, grid_label, pest_name, confidence, inference_id, assigned_to, created_by, expert_comment, callback_token, token_expire_at, token_used, company_id) VALUES
+('番茄晚疫病紧急处理-A1区', 'HIGH', 'DONE', 'disease', 'A1', '番茄晚疫病', 0.92, 'inf001', 'u004', 'u002', '请按方案立即执行，注意做好防护', 'cb_token_001', '2026-06-08 00:00:00', 1, 'comp001'),
+('黄瓜霜霉病防治-B1区', 'MEDIUM', 'DONE', 'disease', 'B1', '黄瓜霜霉病', 0.89, 'inf002', 'u008', 'u002', '按计划防治，注意观察效果', 'cb_token_002', '2026-06-08 00:00:00', 1, 'comp001'),
+('番茄病毒病防治-A2区', 'HIGH', 'PROCESSING', 'disease', 'A2', '番茄病毒病', 0.95, 'inf003', 'u004', 'u005', '病毒病传播快，需优先处理', 'cb_token_003', '2026-06-15 00:00:00', 0, 'comp001'),
+('黄瓜白粉病防治-B2区', 'LOW', 'DONE', 'disease', 'B2', '黄瓜白粉病', 0.81, 'inf004', 'u009', 'u002', '病情较轻，常规防治即可', NULL, NULL, 0, 'comp001'),
+('辣椒疫病紧急处置-C1区', 'CRITICAL', 'DONE', 'disease', 'C1', '辣椒疫病', 0.97, 'inf005', 'u008', 'u006', '病情严重，已安排紧急处理', 'cb_token_005', '2026-06-11 00:00:00', 1, 'comp001'),
+('红蜘蛛防治-A1区', 'MEDIUM', 'PROCESSING', 'pest', 'A1', '红蜘蛛', 0.79, 'inf006', 'u009', 'u005', '初期危害，用药后注意观察', 'cb_token_006', '2026-06-12 00:00:00', 0, 'comp001'),
+('草莓白粉病防治-D1区', 'MEDIUM', 'PENDING', 'disease', 'D1', '草莓白粉病', 0.93, 'inf007', 'u008', 'u002', NULL, 'cb_token_007', '2026-06-16 00:00:00', 0, 'comp001'),
+('棉铃虫防治-B3区', 'HIGH', 'DONE', 'pest', 'B3', '棉铃虫', 0.89, 'inf009', 'u004', 'u006', '虫害较重，已执行综合防治', 'cb_token_008', '2026-06-15 00:00:00', 1, 'comp001'),
+('辣椒疫病蔓延预警-C区', 'CRITICAL', 'PROCESSING', 'disease', 'C1', '辣椒疫病', 0.97, 'inf005', 'u007', 'u006', '疫病有蔓延趋势，建议扩大防治范围', 'cb_token_009', '2026-06-12 00:00:00', 0, 'comp001'),
+('黄瓜白粉虱监测-B1区', 'LOW', 'PENDING', 'pest', 'B1', '白粉虱', 0.52, 'inf008', NULL, 'u002', '待确认后安排处理', NULL, NULL, 0, 'comp001'),
+('南瓜白粉病防治-C3区', 'MEDIUM', 'PENDING', 'disease', 'C3', '南瓜白粉病', 0.45, 'inf010', NULL, 'u005', NULL, NULL, NULL, 0, 'comp001'),
+('蓟马防治-C2区', 'MEDIUM', 'PENDING', 'pest', 'C2', '蓟马', 0.68, 'inf011', NULL, 'u006', NULL, NULL, NULL, 0, 'comp001');
 
 
 -- ========================================
--- 15. 工单状态历史数据
+-- 14.5 七日趋势工单数据 (2026-06-09 ~ 2026-06-15)
+-- 使用真实病害/虫害名称，匹配网格作物类型
+-- ========================================
+
+INSERT INTO work_order (title, severity, status, type, grid_label, pest_name, confidence, assigned_to, created_by, expert_comment, company_id, created_at) VALUES
+-- 6月9日 (4条: 2病害+2虫害)
+('番茄早疫病检测-A1区',     'MEDIUM', 'DONE',       'disease', 'A1', '番茄早疫病',     0.85, 'u004', 'u002', '已按方案执行代森锰锌喷洒', 'comp001', '2026-06-09 08:30:00'),
+('黄瓜白粉虱监测-B2区',     'LOW',    'DONE',       'pest',    'B2', '白粉虱',         0.62, 'u009', 'u002', '已黄板诱杀处理', 'comp001', '2026-06-09 10:15:00'),
+('番茄晚疫病防治-A2区',     'HIGH',   'DONE',       'disease', 'A2', '番茄晚疫病',     0.91, 'u004', 'u005', '已喷洒甲霜灵锰锌', 'comp001', '2026-06-09 14:00:00'),
+('辣椒蓟马防治-C2区',       'MEDIUM', 'DONE',       'pest',    'C2', '蓟马',           0.73, 'u008', 'u006', '蓝板诱杀+药剂处理完成', 'comp001', '2026-06-09 16:30:00'),
+
+-- 6月10日 (6条: 4病害+2虫害)
+('番茄叶霉病防治-A3区',     'MEDIUM', 'DONE',       'disease', 'A3', '番茄叶霉病',     0.88, 'u004', 'u002', '多菌灵喷洒完成', 'comp001', '2026-06-10 07:45:00'),
+('黄瓜霜霉病防治-B1区',     'HIGH',   'DONE',       'disease', 'B1', '黄瓜霜霉病',     0.93, 'u008', 'u005', '霜脲氰锰锌喷洒完成', 'comp001', '2026-06-10 09:00:00'),
+('辣椒疫病处置-C1区',       'CRITICAL','DONE',      'disease', 'C1', '辣椒疫病',       0.96, 'u008', 'u006', '紧急处置完成，病株已销毁', 'comp001', '2026-06-10 10:30:00'),
+('番茄红蜘蛛防治-A1区',     'MEDIUM', 'DONE',       'pest',    'A1', '红蜘蛛',         0.79, 'u009', 'u005', '阿维菌素喷洒完成', 'comp001', '2026-06-10 11:15:00'),
+('辣椒细菌性斑点病-C3区',   'HIGH',   'DONE',       'disease', 'C3', '辣椒细菌性斑点病', 0.90, 'u008', 'u006', '铜制剂喷洒完成', 'comp001', '2026-06-10 14:00:00'),
+('黄瓜蚜虫防治-B3区',       'LOW',    'DONE',       'pest',    'B3', '蚜虫',           0.65, 'u009', 'u002', '吡虫啉处理完成', 'comp001', '2026-06-10 15:45:00'),
+
+-- 6月11日 (5条: 3病害+2虫害)
+('番茄靶斑病检测-A2区',     'MEDIUM', 'DONE',       'disease', 'A2', '番茄靶斑病',     0.82, 'u004', 'u002', '嘧菌酯喷洒完成', 'comp001', '2026-06-11 08:00:00'),
+('番茄斑枯病防治-A1区',     'LOW',    'DONE',       'disease', 'A1', '番茄斑枯病',     0.76, 'u004', 'u005', '苯醚甲环唑处理完成', 'comp001', '2026-06-11 09:30:00'),
+('辣椒茶黄螨防治-C1区',     'HIGH',   'DONE',       'pest',    'C1', '茶黄螨',         0.87, 'u008', 'u006', '联苯肼酯喷洒完成', 'comp001', '2026-06-11 10:45:00'),
+('黄瓜白粉虱监测-B2区',     'MEDIUM', 'DONE',       'pest',    'B2', '白粉虱',         0.71, 'u009', 'u002', '丽蚜小蜂释放完成', 'comp001', '2026-06-11 14:00:00'),
+('番茄细菌性斑点病-A3区',   'MEDIUM', 'DONE',       'disease', 'A3', '番茄细菌性斑点病', 0.84, 'u004', 'u005', '氢氧化铜喷洒完成', 'comp001', '2026-06-11 16:00:00'),
+
+-- 6月12日 (5条: 3病害+2虫害)
+('黄瓜白粉病防治-B1区',     'MEDIUM', 'DONE',       'disease', 'B1', '黄瓜白粉病',     0.86, 'u008', 'u002', '三唑酮喷洒完成', 'comp001', '2026-06-12 08:15:00'),
+('番茄早疫病防治-A2区',     'MEDIUM', 'DONE',       'disease', 'A2', '番茄早疫病',     0.83, 'u004', 'u005', '代森锰锌轮换用药完成', 'comp001', '2026-06-12 09:45:00'),
+('辣椒蓟马防治-C3区',       'LOW',    'DONE',       'pest',    'C3', '蓟马',           0.68, 'u009', 'u006', '乙基多杀菌素喷洒完成', 'comp001', '2026-06-12 11:00:00'),
+('番茄花叶病毒病-A1区',     'HIGH',   'PROCESSING', 'disease', 'A1', '番茄花叶病毒病', 0.94, 'u004', 'u002', '正在执行综合防治', 'comp001', '2026-06-12 13:30:00'),
+('黄瓜蚜虫防治-B3区',       'LOW',    'DONE',       'pest',    'B3', '蚜虫',           0.58, 'u009', 'u005', '黄板诱杀+啶虫脒处理', 'comp001', '2026-06-12 15:00:00'),
+
+-- 6月13日 (5条: 3病害+2虫害)
+('辣椒茶黄螨防治-C2区',     'MEDIUM', 'DONE',       'pest',    'C2', '茶黄螨',         0.81, 'u008', 'u006', '联苯肼酯二次喷洒完成', 'comp001', '2026-06-13 07:30:00'),
+('番茄细菌性斑点病-A3区',   'MEDIUM', 'DONE',       'disease', 'A3', '番茄细菌性斑点病', 0.87, 'u004', 'u002', '噻唑锌喷洒完成', 'comp001', '2026-06-13 09:00:00'),
+('黄瓜霜霉病防治-B1区',     'HIGH',   'DONE',       'disease', 'B1', '黄瓜霜霉病',     0.91, 'u008', 'u005', '烯酰吗啉防治完成', 'comp001', '2026-06-13 10:30:00'),
+('蚜虫防治-A2区',           'LOW',    'DONE',       'pest',    'A2', '蚜虫',           0.72, 'u009', 'u002', '瓢虫释放+药剂处理', 'comp001', '2026-06-13 14:00:00'),
+('番茄叶霉病防治-A1区',     'MEDIUM', 'DONE',       'disease', 'A1', '番茄叶霉病',     0.89, 'u004', 'u005', '苯醚甲环唑喷洒完成', 'comp001', '2026-06-13 16:30:00'),
+
+-- 6月14日 (6条: 3病害+3虫害)
+('番茄靶斑病检测-A3区',     'MEDIUM', 'DONE',       'disease', 'A3', '番茄靶斑病',     0.80, 'u004', 'u002', '嘧菌酯防治完成', 'comp001', '2026-06-14 08:00:00'),
+('黄瓜红蜘蛛防治-B2区',     'MEDIUM', 'PROCESSING', 'pest',    'B2', '红蜘蛛',         0.77, 'u009', 'u005', '阿维菌素喷洒中', 'comp001', '2026-06-14 09:30:00'),
+('辣椒疫病处置-C1区',       'CRITICAL','DONE',      'disease', 'C1', '辣椒疫病',       0.95, 'u008', 'u006', '二次封锁处置完成', 'comp001', '2026-06-14 10:00:00'),
+('番茄早疫病防治-A1区',     'MEDIUM', 'DONE',       'disease', 'A1', '番茄早疫病',     0.84, 'u004', 'u002', '嘧菌酯轮换喷洒完成', 'comp001', '2026-06-14 11:30:00'),
+('辣椒蓟马防治-C3区',       'LOW',    'DONE',       'pest',    'C3', '蓟马',           0.63, 'u009', 'u006', '蓝板诱杀完成', 'comp001', '2026-06-14 14:15:00'),
+('白粉虱防治-B1区',         'MEDIUM', 'DONE',       'pest',    'B1', '白粉虱',         0.75, 'u008', 'u002', '噻虫嗪喷洒完成', 'comp001', '2026-06-14 15:45:00'),
+
+-- 6月15日 (7条: 4病害+3虫害)
+('番茄黄化曲叶病毒病-A2区', 'HIGH',   'PENDING',    'disease', 'A2', '番茄黄化曲叶病毒病', 0.92, NULL, 'u005', NULL, 'comp001', '2026-06-15 07:00:00'),
+('黄瓜枯萎病防治-B3区',     'HIGH',   'PENDING',    'disease', 'B3', '黄瓜枯萎病',     0.88, NULL, 'u002', NULL, 'comp001', '2026-06-15 08:00:00'),
+('番茄晚疫病检测-A1区',     'MEDIUM', 'PENDING',    'disease', 'A1', '番茄晚疫病',     0.86, NULL, 'u005', NULL, 'comp001', '2026-06-15 08:30:00'),
+('辣椒细菌性斑点病-C2区',   'MEDIUM', 'PENDING',    'disease', 'C2', '辣椒细菌性斑点病', 0.83, NULL, 'u006', NULL, 'comp001', '2026-06-15 09:00:00'),
+('黄瓜蚜虫防治-B1区',       'LOW',    'PENDING',    'pest',    'B1', '蚜虫',           0.67, NULL, 'u002', NULL, 'comp001', '2026-06-15 09:30:00'),
+('蓟马防治-A3区',           'LOW',    'PENDING',    'pest',    'A3', '蓟马',           0.61, NULL, 'u005', NULL, 'comp001', '2026-06-15 10:00:00'),
+('辣椒疫病预警-C1区',       'CRITICAL','PENDING',   'disease', 'C1', '辣椒疫病',       0.95, NULL, 'u006', NULL, 'comp001', '2026-06-15 10:30:00');
+
+
+-- ========================================
+-- 15. 工单状态历史数据 (workorder_id 对应自增ID: 1-12)
 -- ========================================
 
 INSERT INTO work_order_history (workorder_id, status, operator_id, operator_name, comment) VALUES
-('wo001', 'PENDING', 'u002', '李专家', '创建工单：番茄晚疫病紧急处理'),
-('wo001', 'PROCESSING', 'u004', '王员工', '开始执行防治方案'),
-('wo001', 'DONE', 'u004', '王员工', '防治完成，已喷洒药剂并清理病株'),
+(1, 'PENDING', 'u002', '李专家', '创建工单：番茄晚疫病紧急处理'),
+(1, 'PROCESSING', 'u004', '王员工', '开始执行防治方案'),
+(1, 'DONE', 'u004', '王员工', '防治完成，已喷洒药剂并清理病株'),
 
-('wo002', 'PENDING', 'u002', '李专家', '创建工单：黄瓜霜霉病防治'),
-('wo002', 'PROCESSING', 'u008', '刘员工', '开始执行防治'),
-('wo002', 'DONE', 'u008', '刘员工', '防治完成，药剂喷洒到位'),
+(2, 'PENDING', 'u002', '李专家', '创建工单：黄瓜霜霉病防治'),
+(2, 'PROCESSING', 'u008', '刘员工', '开始执行防治'),
+(2, 'DONE', 'u008', '刘员工', '防治完成，药剂喷洒到位'),
 
-('wo003', 'PENDING', 'u005', '赵植保专家', '创建工单：番茄病毒病防治'),
-('wo003', 'PROCESSING', 'u004', '王员工', '正在执行蚜虫防治和药剂喷洒'),
+(3, 'PENDING', 'u005', '赵植保专家', '创建工单：番茄病毒病防治'),
+(3, 'PROCESSING', 'u004', '王员工', '正在执行蚜虫防治和药剂喷洒'),
 
-('wo004', 'PENDING', 'u002', '李专家', '创建工单：黄瓜白粉病防治'),
-('wo004', 'PROCESSING', 'u009', '陈员工', '开始常规防治'),
-('wo004', 'DONE', 'u009', '陈员工', '防治完成'),
+(4, 'PENDING', 'u002', '李专家', '创建工单：黄瓜白粉病防治'),
+(4, 'PROCESSING', 'u009', '陈员工', '开始常规防治'),
+(4, 'DONE', 'u009', '陈员工', '防治完成'),
 
-('wo005', 'PENDING', 'u006', '钱昆虫专家', '创建工单：辣椒疫病紧急处置'),
-('wo005', 'PROCESSING', 'u008', '刘员工', '紧急处理中，已拔除3株病株'),
-('wo005', 'DONE', 'u008', '刘员工', '紧急处置完成，病株已销毁，药剂已喷洒'),
+(5, 'PENDING', 'u006', '钱昆虫专家', '创建工单：辣椒疫病紧急处置'),
+(5, 'PROCESSING', 'u008', '刘员工', '紧急处理中，已拔除3株病株'),
+(5, 'DONE', 'u008', '刘员工', '紧急处置完成，病株已销毁，药剂已喷洒'),
 
-('wo006', 'PENDING', 'u005', '赵植保专家', '创建工单：红蜘蛛防治'),
-('wo006', 'PROCESSING', 'u009', '陈员工', '已开始喷洒阿维菌素'),
+(6, 'PENDING', 'u005', '赵植保专家', '创建工单：红蜘蛛防治'),
+(6, 'PROCESSING', 'u009', '陈员工', '已开始喷洒阿维菌素'),
 
-('wo007', 'PENDING', 'u002', '李专家', '创建工单：草莓白粉病防治'),
+(7, 'PENDING', 'u002', '李专家', '创建工单：草莓白粉病防治'),
 
-('wo008', 'PENDING', 'u006', '钱昆虫专家', '创建工单：棉铃虫防治'),
-('wo008', 'PROCESSING', 'u004', '王员工', '开始综合防治'),
-('wo008', 'DONE', 'u004', '王员工', '防治完成，已安装杀虫灯'),
+(8, 'PENDING', 'u006', '钱昆虫专家', '创建工单：棉铃虫防治'),
+(8, 'PROCESSING', 'u004', '王员工', '开始综合防治'),
+(8, 'DONE', 'u004', '王员工', '防治完成，已安装杀虫灯'),
 
-('wo009', 'PENDING', 'u006', '钱昆虫专家', '创建工单：辣椒疫病蔓延预警'),
-('wo009', 'ESCALATED', 'u007', '孙经理', '疫病蔓延风险高，升级为区域联防');
+(9, 'PENDING', 'u006', '钱昆虫专家', '创建工单：辣椒疫病蔓延预警'),
+(9, 'PROCESSING', 'u007', '孙经理', '疫病蔓延风险高，升级为区域联防'),
+
+(10, 'PENDING', 'u002', '李专家', '创建工单：黄瓜白粉虱监测'),
+
+(11, 'PENDING', 'u005', '赵植保专家', '创建工单：南瓜白粉病防治'),
+
+(12, 'PENDING', 'u006', '钱昆虫专家', '创建工单：蓟马防治');
 
 
 -- ========================================
@@ -602,3 +685,13 @@ INSERT INTO sys_log (user_id, username, operation, method, params, ip, duration,
 ('u008', 'staff02', '处理工单', 'PUT /api/work-order/wo005/status', '{"status":"PROCESSING"}', '192.168.1.53', 145, 1, NULL),
 ('u008', 'staff02', '完成工单', 'PUT /api/work-order/wo005/status', '{"status":"DONE"}', '192.168.1.53', 160, 1, NULL),
 ('u001', 'admin', '查看系统概览', 'GET /api/dashboard', NULL, '192.168.1.50', 220, 1, NULL);
+
+
+-- ========================================
+-- 20. 环境数据
+-- ========================================
+
+INSERT INTO environment_record (id, greenhouse_id, company_id, air_temp, soil_moisture, humidity, light_level, co2, soil_ph, ec, nitrogen, phosphorus, potassium, energy_current, energy_max, recorded_at) VALUES
+('env001', 'gh001', 'comp001', 25.50, 65.30, 72.80, 45000.00, 420.50, 6.80, 1.20, 150.00, 45.00, 180.00, 3.50, 5.00, '2026-06-10 08:00:00'),
+('env002', 'gh002', 'comp001', 24.80, 68.20, 75.50, 42000.00, 435.20, 6.90, 1.15, 145.00, 42.00, 175.00, 3.20, 5.00, '2026-06-10 08:00:00'),
+('env003', 'gh003', 'comp001', 26.20, 62.50, 70.30, 48000.00, 410.80, 7.00, 1.30, 155.00, 48.00, 185.00, 3.80, 5.00, '2026-06-10 08:00:00');

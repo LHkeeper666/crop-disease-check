@@ -57,5 +57,5 @@ public interface UserService {
     /**
      * 重置密码（管理员）
      */
-    String resetPassword(String id);
+    void resetPassword(String id, String newPassword);
 }

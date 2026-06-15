@@ -83,7 +83,7 @@ class GridControllerTest {
             when(gridService.listGrids(isNull()))
                     .thenReturn(List.of(mockGridVO));
 
-            mockMvc.perform(get("/api/grid/list"))
+            mockMvc.perform(get("/grid/list"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
                     .andExpect(jsonPath("$.data").isArray())
@@ -99,7 +99,7 @@ class GridControllerTest {
             when(gridService.listGrids(eq("gh-001")))
                     .thenReturn(List.of(mockGridVO));
 
-            mockMvc.perform(get("/api/grid/list").param("greenhouseId", "gh-001"))
+            mockMvc.perform(get("/grid/list").param("greenhouseId", "gh-001"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
                     .andExpect(jsonPath("$.data.length()").value(1));
@@ -111,7 +111,7 @@ class GridControllerTest {
             when(gridService.listGrids(isNull()))
                     .thenReturn(List.of());
 
-            mockMvc.perform(get("/api/grid/list"))
+            mockMvc.perform(get("/grid/list"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
                     .andExpect(jsonPath("$.data").isEmpty());
@@ -135,7 +135,7 @@ class GridControllerTest {
             when(gridService.createGrid(any(GridCreateDTO.class)))
                     .thenReturn("grid-new-001");
 
-            mockMvc.perform(post("/api/grid")
+            mockMvc.perform(post("/grid")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -151,7 +151,7 @@ class GridControllerTest {
             dto.setLabel("");
             dto.setGreenhouseId("gh-001");
 
-            mockMvc.perform(post("/api/grid")
+            mockMvc.perform(post("/grid")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest())
@@ -169,7 +169,7 @@ class GridControllerTest {
             when(gridService.createGrid(any(GridCreateDTO.class)))
                     .thenThrow(new BusinessException("网格编号已存在"));
 
-            mockMvc.perform(post("/api/grid")
+            mockMvc.perform(post("/grid")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -193,7 +193,7 @@ class GridControllerTest {
 
             doNothing().when(gridService).updateGrid(eq("grid-001"), any(GridUpdateDTO.class));
 
-            mockMvc.perform(put("/api/grid/grid-001")
+            mockMvc.perform(put("/grid/grid-001")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -210,7 +210,7 @@ class GridControllerTest {
             doThrow(new BusinessException("网格不存在"))
                     .when(gridService).updateGrid(eq("not-exist"), any(GridUpdateDTO.class));
 
-            mockMvc.perform(put("/api/grid/not-exist")
+            mockMvc.perform(put("/grid/not-exist")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -227,7 +227,7 @@ class GridControllerTest {
             doThrow(new BusinessException("网格编号已存在"))
                     .when(gridService).updateGrid(eq("grid-001"), any(GridUpdateDTO.class));
 
-            mockMvc.perform(put("/api/grid/grid-001")
+            mockMvc.perform(put("/grid/grid-001")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -247,7 +247,7 @@ class GridControllerTest {
         void delete_existingId_success() throws Exception {
             doNothing().when(gridService).deleteGrid("grid-001");
 
-            mockMvc.perform(delete("/api/grid/grid-001"))
+            mockMvc.perform(delete("/grid/grid-001"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
                     .andExpect(jsonPath("$.message").value("网格删除成功"));
@@ -259,7 +259,7 @@ class GridControllerTest {
             doThrow(new BusinessException("网格不存在"))
                     .when(gridService).deleteGrid("not-exist");
 
-            mockMvc.perform(delete("/api/grid/not-exist"))
+            mockMvc.perform(delete("/grid/not-exist"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(500))
                     .andExpect(jsonPath("$.message").value("网格不存在"));

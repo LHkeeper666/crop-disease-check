@@ -61,7 +61,7 @@ class WorkOrderControllerTest {
                 .build();
 
         mockWorkOrderVO = new WorkOrderVO();
-        mockWorkOrderVO.setId("wo-001");
+        mockWorkOrderVO.setId(1L);
         mockWorkOrderVO.setTitle("【HIGH】番茄晚疫病 工单");
         mockWorkOrderVO.setSeverity("HIGH");
         mockWorkOrderVO.setStatus("PENDING");
@@ -123,7 +123,7 @@ class WorkOrderControllerTest {
                             .requestAttr("userId", "u-001"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
-                    .andExpect(jsonPath("$.data.records[0].id").value("wo-001"))
+                    .andExpect(jsonPath("$.data.records[0].id").value(1))
                     .andExpect(jsonPath("$.data.records[0].title").value("【HIGH】番茄晚疫病 工单"))
                     .andExpect(jsonPath("$.data.records[0].type").value("DISEASE"))
                     .andExpect(jsonPath("$.data.records[0].gridLabel").value("A1"))
@@ -195,12 +195,12 @@ class WorkOrderControllerTest {
         @Test
         @DisplayName("查询存在的工单")
         void getDetail_existingId_returnsDetail() throws Exception {
-            when(workOrderService.getWorkOrderDetail("wo-001")).thenReturn(mockDetailVO);
+            when(workOrderService.getWorkOrderDetail(1L)).thenReturn(mockDetailVO);
 
-            mockMvc.perform(get("/workorder/wo-001"))
+            mockMvc.perform(get("/workorder/1"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
-                    .andExpect(jsonPath("$.data.id").value("wo-001"))
+                    .andExpect(jsonPath("$.data.id").value(1))
                     .andExpect(jsonPath("$.data.inferenceId").value("inf-001"))
                     .andExpect(jsonPath("$.data.statusHistory").isArray())
                     .andExpect(jsonPath("$.data.statusHistory[0].status").value("PENDING"))
@@ -212,10 +212,10 @@ class WorkOrderControllerTest {
         @Test
         @DisplayName("查询不存在的工单返回404")
         void getDetail_nonExistingId_returns404() throws Exception {
-            when(workOrderService.getWorkOrderDetail("not-exist"))
+            when(workOrderService.getWorkOrderDetail(999L))
                     .thenThrow(new BusinessException(404, "工单不存在"));
 
-            mockMvc.perform(get("/workorder/not-exist"))
+            mockMvc.perform(get("/workorder/999"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(404))
                     .andExpect(jsonPath("$.message").value("工单不存在"));
@@ -238,7 +238,7 @@ class WorkOrderControllerTest {
             dto.setAssignedTo("user-expert-001");
 
             when(workOrderService.createWorkOrder(any(WorkOrderCreateDTO.class), eq("u-001"), eq("系统管理员"), eq("company-001")))
-                    .thenReturn("wo-new-001");
+                    .thenReturn(1L);
 
             mockMvc.perform(post("/workorder/create")
                             .requestAttr("userId", "u-001")
@@ -246,7 +246,7 @@ class WorkOrderControllerTest {
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
-                    .andExpect(jsonPath("$.data").value("wo-new-001"))
+                    .andExpect(jsonPath("$.data").value(1))
                     .andExpect(jsonPath("$.message").value("工单创建成功"));
         }
 
@@ -263,7 +263,7 @@ class WorkOrderControllerTest {
             dto.setConfidence(0.95);
 
             when(workOrderService.createManualWorkOrder(any(WorkOrderManualCreateDTO.class), eq("u-001"), eq("系统管理员"), eq("company-001")))
-                    .thenReturn("wo-manual-001");
+                    .thenReturn(2L);
 
             mockMvc.perform(post("/workorder/create-manual")
                             .requestAttr("userId", "u-001")
@@ -271,7 +271,7 @@ class WorkOrderControllerTest {
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
-                    .andExpect(jsonPath("$.data").value("wo-manual-001"))
+                    .andExpect(jsonPath("$.data").value(2))
                     .andExpect(jsonPath("$.message").value("工单创建成功"));
         }
 
@@ -325,7 +325,7 @@ class WorkOrderControllerTest {
             StatusUpdateDTO dto = new StatusUpdateDTO();
             dto.setStatus("PROCESSING");
 
-            mockMvc.perform(put("/workorder/wo-001/status")
+            mockMvc.perform(put("/workorder/1/status")
                             .requestAttr("userId", "u-001")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
@@ -342,7 +342,7 @@ class WorkOrderControllerTest {
             dto.setStatus("DONE");
             dto.setComment("已处理完毕");
 
-            mockMvc.perform(put("/workorder/wo-001/status")
+            mockMvc.perform(put("/workorder/1/status")
                             .requestAttr("userId", "u-001")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
@@ -358,9 +358,9 @@ class WorkOrderControllerTest {
             dto.setStatus("DONE");
 
             org.mockito.Mockito.doThrow(new BusinessException("非法的状态变更: PENDING -> DONE"))
-                    .when(workOrderService).updateStatus(eq("wo-001"), eq("DONE"), isNull(), eq("u-001"), eq("系统管理员"));
+                    .when(workOrderService).updateStatus(eq(1L), eq("DONE"), isNull(), eq("u-001"), eq("系统管理员"));
 
-            mockMvc.perform(put("/workorder/wo-001/status")
+            mockMvc.perform(put("/workorder/1/status")
                             .requestAttr("userId", "u-001")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
@@ -382,7 +382,7 @@ class WorkOrderControllerTest {
             SeverityUpdateDTO dto = new SeverityUpdateDTO();
             dto.setSeverity("CRITICAL");
 
-            mockMvc.perform(put("/workorder/wo-001/severity")
+            mockMvc.perform(put("/workorder/1/severity")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
@@ -396,7 +396,7 @@ class WorkOrderControllerTest {
             SeverityUpdateDTO dto = new SeverityUpdateDTO();
             dto.setSeverity("");
 
-            mockMvc.perform(put("/workorder/wo-001/severity")
+            mockMvc.perform(put("/workorder/1/severity")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest())
@@ -413,7 +413,7 @@ class WorkOrderControllerTest {
         @Test
         @DisplayName("删除存在的工单")
         void delete_existingId_success() throws Exception {
-            mockMvc.perform(delete("/workorder/wo-001"))
+            mockMvc.perform(delete("/workorder/1"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
                     .andExpect(jsonPath("$.message").value("工单已删除"));
@@ -423,9 +423,9 @@ class WorkOrderControllerTest {
         @DisplayName("删除不存在的工单返回404")
         void delete_nonExistingId_returns404() throws Exception {
             org.mockito.Mockito.doThrow(new BusinessException(404, "工单不存在"))
-                    .when(workOrderService).deleteWorkOrder("not-exist");
+                    .when(workOrderService).deleteWorkOrder(999L);
 
-            mockMvc.perform(delete("/workorder/not-exist"))
+            mockMvc.perform(delete("/workorder/999"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(404))
                     .andExpect(jsonPath("$.message").value("工单不存在"));
@@ -447,7 +447,7 @@ class WorkOrderControllerTest {
             dto.setComment("已确认，建议立即喷药");
 
             CallbackResponseVO response = new CallbackResponseVO();
-            response.setWorkorderId("wo-001");
+            response.setWorkorderId(1L);
             response.setNewStatus("DONE");
 
             when(workOrderService.handleCallback(any(CallbackDTO.class))).thenReturn(response);
@@ -457,7 +457,7 @@ class WorkOrderControllerTest {
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
-                    .andExpect(jsonPath("$.data.workorderId").value("wo-001"))
+                    .andExpect(jsonPath("$.data.workorderId").value(1))
                     .andExpect(jsonPath("$.data.newStatus").value("DONE"));
         }
 
@@ -470,7 +470,7 @@ class WorkOrderControllerTest {
             dto.setComment("误报，忽略");
 
             CallbackResponseVO response = new CallbackResponseVO();
-            response.setWorkorderId("wo-001");
+            response.setWorkorderId(1L);
             response.setNewStatus("IGNORED");
 
             when(workOrderService.handleCallback(any(CallbackDTO.class))).thenReturn(response);

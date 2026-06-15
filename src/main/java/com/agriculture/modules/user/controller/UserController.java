@@ -3,6 +3,7 @@ package com.agriculture.modules.user.controller;
 import com.agriculture.common.annotation.RequireRole;
 import com.agriculture.modules.user.dto.AdminUpdateUserDTO;
 import com.agriculture.modules.user.dto.ChangePasswordDTO;
+import com.agriculture.modules.user.dto.ResetPasswordDTO;
 import com.agriculture.modules.user.dto.UpdateStatusDTO;
 import com.agriculture.modules.user.dto.UpdateUserDTO;
 import com.agriculture.modules.user.dto.UserQueryDTO;
@@ -14,8 +15,6 @@ import com.agriculture.modules.user.vo.UserVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
@@ -23,7 +22,7 @@ import jakarta.validation.Valid;
  * 用户管理控制器
  */
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/users")
 @RequiredArgsConstructor
 public class UserController {
 
@@ -122,8 +121,10 @@ public class UserController {
      */
     @RequireRole("ADMIN")
     @PostMapping("/{id}/reset-password")
-    public Result<Map<String, String>> resetPassword(@PathVariable String id) {
-        String newPassword = userService.resetPassword(id);
-        return Result.success("密码重置成功", Map.of("newPassword", newPassword));
+    public Result<Void> resetPassword(
+            @PathVariable String id,
+            @Valid @RequestBody ResetPasswordDTO dto) {
+        userService.resetPassword(id, dto.getNewPassword());
+        return Result.success("密码重置成功", null);
     }
 }

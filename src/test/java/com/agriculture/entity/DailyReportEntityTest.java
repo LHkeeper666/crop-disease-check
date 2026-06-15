@@ -1,6 +1,6 @@
 package com.agriculture.entity;
 
-import com.agriculture.modules.dailyreport.entity.DailyReport;
+import com.agriculture.modules.dailyReport.entity.DailyReport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

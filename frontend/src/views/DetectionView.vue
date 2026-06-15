@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
+import { useWorkOrderStore } from '../stores/workorder'
+import { createManualWorkOrder } from '../api/workorder'
 
 interface Detection {
   class_name: string
@@ -12,7 +14,6 @@ interface Detection {
 interface SingleResult {
   disease: { detections: Detection[]; count: number; elapsed_ms: number }
   pest: { detections: Detection[]; count: number; elapsed_ms: number }
-  annotated_image: string | null
   annotated_url: string | null
   total_elapsed_ms: number
   error?: string | null
@@ -37,6 +38,19 @@ const dragOver = ref(false)
 const fileInputRef = ref<HTMLInputElement>()
 const activeIndex = ref(0)
 const uploadProgress = ref({ done: 0, total: 0 })
+const showEnlarged = ref(false)
+
+// 工单联动
+const woStore = useWorkOrderStore()
+const selectedGrid = ref('')
+const gridOptions = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3']
+const workorderGenerated = ref(0)
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') showEnlarged.value = false
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 const isBatch = computed(() => files.value.length > 1)
 const activeItem = computed(() => files.value[activeIndex.value] || null)
@@ -95,8 +109,6 @@ function removeFile(index: number) {
 function clearAll() {
   files.value.forEach(f => {
     URL.revokeObjectURL(f.previewUrl)
-    // 只 revoke blob URL（base64 转换的），MinIO 远程 URL 无需 revoke
-    if (f.annotatedUrl && f.annotatedUrl.startsWith('blob:')) URL.revokeObjectURL(f.annotatedUrl)
   })
   files.value = []
   activeIndex.value = 0
@@ -113,7 +125,6 @@ async function detectSingle(item: BatchItem): Promise<SingleResult> {
     body: JSON.stringify({
       image: { type: 'base64', data: base64 },
       confidence: confidenceThreshold.value,
-      return_annotated_image: true,
     }),
   })
   if (!response.ok) {
@@ -139,7 +150,6 @@ async function detectBatch(): Promise<SingleResult[]> {
     body: JSON.stringify({
       images,
       confidence: confidenceThreshold.value,
-      return_annotated_image: true,
     }),
   })
   if (!response.ok) {
@@ -156,6 +166,7 @@ async function handleDetect() {
   if (!files.value.length) return
   isUploading.value = true
   error.value = ''
+  workorderGenerated.value = 0
 
   try {
     if (isBatch.value) {
@@ -170,10 +181,6 @@ async function handleDetect() {
           item.result = r
           if (r.annotated_url) {
             item.annotatedUrl = r.annotated_url
-          } else if (r.annotated_image) {
-            item.annotatedUrl = URL.createObjectURL(
-              base64ToBlob(r.annotated_image, 'image/jpeg')
-            )
           }
         }
       })
@@ -184,19 +191,81 @@ async function handleDetect() {
         item.result = await detectSingle(item)
         if (item.result.annotated_url) {
           item.annotatedUrl = item.result.annotated_url
-        } else if (item.result.annotated_image) {
-          item.annotatedUrl = URL.createObjectURL(
-            base64ToBlob(item.result.annotated_image, 'image/jpeg')
-          )
         }
       } catch (err: any) {
         item.error = err.message
       }
     }
+
+    // 阈值联动：对置信度 >= 阈值的检测结果自动生成工单
+    await autoGenerateWorkOrders()
   } catch (err: any) {
     error.value = err.message || '检测请求失败，请检查推理服务是否运行'
   } finally {
     isUploading.value = false
+  }
+}
+
+// ========== 自动生成工单（阈值判定 + 重复工单判定） ==========
+async function autoGenerateWorkOrders() {
+  // 需要选择网格区域才能生成工单
+  if (!selectedGrid.value) return
+
+  // 加载现有工单列表（用于重复工单判定）
+  await woStore.fetchOrders()
+
+  const grid = selectedGrid.value
+  let generated = 0
+
+  for (const item of files.value) {
+    if (!item.result || item.error) continue
+
+    const allDetections = [
+      ...item.result.disease.detections.map(d => ({ ...d, type: 'disease' as const })),
+      ...item.result.pest.detections.map(d => ({ ...d, type: 'pest' as const })),
+    ]
+
+    for (const det of allDetections) {
+      // 阈值判定：置信度 >= 前端设置的阈值才生成工单
+      if (det.confidence < confidenceThreshold.value) continue
+
+      // 重复工单判定：同一地点 + 相同问题 → 不重复生成
+      const isDuplicate = woStore.orders.some(o =>
+        o.gridLabel === grid &&
+        o.pestName === det.name_cn &&
+        (o.status === 'PENDING' || o.status === 'PROCESSING')
+      )
+      if (isDuplicate) continue
+
+      // 判断严重程度
+      let severity = 'MEDIUM'
+      if (det.confidence >= 0.9) severity = 'CRITICAL'
+      else if (det.confidence >= 0.8) severity = 'HIGH'
+      else if (det.confidence >= 0.6) severity = 'MEDIUM'
+      else severity = 'LOW'
+
+      const typeLabel = det.type === 'disease' ? '病害' : '虫害'
+
+      try {
+        await createManualWorkOrder({
+          title: `【${severity === 'CRITICAL' ? '紧急' : severity === 'HIGH' ? '高危' : severity === 'MEDIUM' ? '中等' : '低'}】Grid-${grid} ${det.name_cn} ${typeLabel}预警`,
+          severity,
+          type: det.type,
+          gridLabel: grid,
+          pestName: det.name_cn,
+          confidence: det.confidence,
+        })
+        generated++
+      } catch (e) {
+        console.warn('[Detection] 自动创建工单失败:', det.name_cn, e)
+      }
+    }
+  }
+
+  workorderGenerated.value = generated
+  if (generated > 0) {
+    // 刷新工单列表
+    await woStore.fetchOrders()
   }
 }
 
@@ -208,13 +277,6 @@ function fileToBase64(file: File): Promise<string> {
     reader.onerror = reject
     reader.readAsDataURL(file)
   })
-}
-
-function base64ToBlob(base64: string, mime: string): Blob {
-  const bytes = atob(base64)
-  const arr = new Uint8Array(bytes.length)
-  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
-  return new Blob([arr], { type: mime })
 }
 
 function getSeverityColor(confidence: number): string {
@@ -245,6 +307,16 @@ function totalDetections(item: BatchItem): number {
       </div>
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-2">
+          <span class="text-[10px] text-slate-500 font-mono uppercase tracking-wider">检测区域</span>
+          <select
+            v-model="selectedGrid"
+            class="select-dark px-2 py-1 rounded-lg bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyber-green/50"
+          >
+            <option value="">不生成工单</option>
+            <option v-for="g in gridOptions" :key="g" :value="g">{{ g }}</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-2">
           <span class="text-[10px] text-slate-500 font-mono uppercase tracking-wider">置信度阈值</span>
           <input
             v-model.number="confidenceThreshold"
@@ -259,9 +331,9 @@ function totalDetections(item: BatchItem): number {
       </div>
     </div>
 
-    <div class="flex-1 min-h-0 grid grid-cols-2 gap-4">
+    <div class="flex-1 min-h-0 grid grid-cols-2 gap-4 overflow-hidden">
       <!-- Left: Upload area -->
-      <GlassCard class="flex flex-col">
+      <GlassCard class="flex flex-col overflow-hidden">
         <div class="flex items-center justify-between mb-3 shrink-0">
           <span class="text-xs text-slate-400 tracking-wider">
             图片上传
@@ -398,6 +470,20 @@ function totalDetections(item: BatchItem): number {
             : isBatch ? `批量检测 (${files.length} 张)` : '开始检测'
           }}
         </button>
+        <!-- 自动生成工单提示 -->
+        <div
+          v-if="workorderGenerated > 0"
+          class="mt-2 px-3 py-2 rounded-lg bg-cyber-green/10 border border-cyber-green/20 text-cyber-green text-xs flex items-center gap-2"
+        >
+          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          已自动生成 {{ workorderGenerated }} 个工单（置信度 ≥ {{ (confidenceThreshold * 100).toFixed(0) }}%）
+        </div>
+        <div
+          v-else-if="selectedGrid && hasResults && !isUploading"
+          class="mt-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-slate-500 text-xs"
+        >
+          未生成新工单（检测结果置信度低于阈值 {{ (confidenceThreshold * 100).toFixed(0) }}% 或已存在相同工单）
+        </div>
       </GlassCard>
 
       <!-- Right: Results -->
@@ -443,8 +529,17 @@ function totalDetections(item: BatchItem): number {
 
           <template v-if="activeItem.result">
             <!-- Annotated image -->
-            <div v-if="activeItem.annotatedUrl" class="rounded-xl overflow-hidden border border-white/10">
-              <img :src="activeItem.annotatedUrl" class="w-full object-contain max-h-48" />
+            <div
+              v-if="activeItem.annotatedUrl"
+              class="rounded-xl overflow-hidden border border-white/10 cursor-pointer group relative"
+              @click="showEnlarged = true"
+            >
+              <img :src="activeItem.annotatedUrl" class="w-full object-contain max-h-48 transition-opacity group-hover:opacity-80" />
+              <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
+                </svg>
+              </div>
             </div>
 
             <!-- Stats bar -->
@@ -552,4 +647,38 @@ function totalDetections(item: BatchItem): number {
       </GlassCard>
     </div>
   </div>
+
+  <!-- Enlarged image overlay -->
+  <Teleport to="body">
+    <div
+      v-if="showEnlarged && activeItem?.annotatedUrl"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      @mousedown.self="showEnlarged = false"
+    >
+      <div class="relative">
+        <img
+          :src="activeItem.annotatedUrl"
+          class="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
+        />
+        <button
+          class="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+          @click="showEnlarged = false"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </Teleport>
 </template>
+
+<style scoped>
+.select-dark {
+  color-scheme: dark;
+}
+.select-dark option {
+  background-color: #1e293b;
+  color: white;
+}
+</style>

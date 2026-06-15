@@ -27,7 +27,7 @@ public class DiseaseInfo implements Serializable {
     /**
      * 病害ID(模型class index)
      */
-    @TableId(value = "id", type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.INPUT)
     private Integer id;
 
     /**

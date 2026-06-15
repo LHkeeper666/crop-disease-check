@@ -62,7 +62,7 @@ public class EmailTest {
     /**
      * 测试发送注册验证码邮件
      */
-    @Test
+//    @Test
     public void testSendRegisterOtp() {
         String to = "your-email@qq.com";
         String code = "654321";

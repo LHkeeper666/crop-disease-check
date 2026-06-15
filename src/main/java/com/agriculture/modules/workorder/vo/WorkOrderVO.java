@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 @Data
 public class WorkOrderVO {
 
-    private String id;
+    private Long id;
     private String title;
     private String severity;
     private String status;

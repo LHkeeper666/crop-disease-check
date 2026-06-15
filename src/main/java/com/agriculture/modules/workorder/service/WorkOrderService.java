@@ -22,17 +22,17 @@ public interface WorkOrderService extends IService<WorkOrder> {
                                        LocalDateTime startDate, LocalDateTime endDate,
                                        int page, int size, String companyId);
 
-    WorkOrderDetailVO getWorkOrderDetail(String id);
+    WorkOrderDetailVO getWorkOrderDetail(Long id);
 
-    String createWorkOrder(WorkOrderCreateDTO dto, String operatorId, String operatorName, String companyId);
+    Long createWorkOrder(WorkOrderCreateDTO dto, String operatorId, String operatorName, String companyId);
 
-    String createManualWorkOrder(WorkOrderManualCreateDTO dto, String operatorId, String operatorName, String companyId);
+    Long createManualWorkOrder(WorkOrderManualCreateDTO dto, String operatorId, String operatorName, String companyId);
 
     CallbackResponseVO handleCallback(CallbackDTO dto);
 
-    void updateStatus(String id, String status, String comment, String operatorId, String operatorName);
+    void updateStatus(Long id, String status, String comment, String operatorId, String operatorName);
 
-    void updateSeverity(String id, String severity);
+    void updateSeverity(Long id, String severity);
 
-    void deleteWorkOrder(String id);
+    void deleteWorkOrder(Long id);
 }

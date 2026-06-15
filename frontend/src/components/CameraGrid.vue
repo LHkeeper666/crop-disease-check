@@ -5,7 +5,7 @@ import CameraMonitor from './CameraMonitor.vue'
 interface CameraItem {
   id: string
   name: string
-  streamUrl?: string
+  streamUrl?: string   // IP Webcam HTTP 直连地址
   status?: string
 }
 

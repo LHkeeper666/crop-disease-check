@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { validateInviteCode as apiValidateInvite, joinCompany as apiJoinCompany } from '../api/company'
 
 export interface UserInfo {
   id: string
@@ -13,9 +14,9 @@ export interface UserInfo {
   approved: boolean
 }
 
-// 企业邀请码 → 企业信息
+// 企业邀请码 → 企业信息（本地 mock 回退用）
 const companyInvites: Record<string, { companyId: string; companyName: string }> = {
-  TF2026: { companyId: 'company-001', companyName: 'TreeForge 智慧农场' },
+  TF2026: { companyId: 'company-001', companyName: '农作物疾病检测系统' },
   AG2026: { companyId: 'company-002', companyName: '绿丰农业科技' },
 }
 
@@ -65,7 +66,7 @@ export const useAuthStore = defineStore('auth', () => {
           approved: user.approved ?? true,
         }
         localStorage.setItem('treeforge_token', jwtToken)
-        return { success: true }
+        return { success: true, pending: !user.approved }
       }
       return { success: false, message: data.message || '登录失败' }
     } catch {
@@ -110,7 +111,18 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // Validate invitation code and approve user
-  function validateInviteCode(code: string): { success: boolean; companyName?: string; message: string } {
+  async function validateInviteCode(code: string): Promise<{ success: boolean; companyName?: string; message: string }> {
+    // 优先调用后端 API
+    try {
+      const result = await apiValidateInvite(code)
+      if (result.valid) {
+        return { success: true, companyName: result.companyName, message: '' }
+      }
+      return { success: false, message: '邀请码无效' }
+    } catch {
+      // 后端不可用时回退到本地 mock
+      console.warn('[auth] 后端不可用，使用本地邀请码验证')
+    }
     const company = companyInvites[code]
     if (!company) {
       return { success: false, message: '邀请码无效，请联系企业管理员获取' }
@@ -119,7 +131,20 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // Join company via invitation code
-  function joinCompany(code: string): boolean {
+  async function joinCompany(code: string): Promise<boolean> {
+    // 优先调用后端 API
+    try {
+      const result = await apiJoinCompany(code)
+      if (userInfo.value) {
+        userInfo.value.companyId = result.companyId
+        userInfo.value.approved = true
+      }
+      localStorage.removeItem('treeforge_user_pending')
+      return true
+    } catch {
+      // 后端不可用时回退到本地 mock
+      console.warn('[auth] 后端不可用，使用本地加入企业')
+    }
     const company = companyInvites[code]
     if (!company || !userInfo.value) return false
 
@@ -157,12 +182,12 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // 用户注册（调用真实后端API）
-  async function register(email: string, username: string, password: string): Promise<{ ok: boolean; message?: string }> {
+  async function register(email: string, username: string, password: string, code: string): Promise<{ ok: boolean; message?: string }> {
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, username, password }),
+        body: JSON.stringify({ email, username, password, code }),
       })
       const data = await res.json()
       if (data.code === 200) {
@@ -216,18 +241,46 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('treeforge_user_pending')
   }
 
-  // Restore session from localStorage
+  // Restore session from localStorage — try backend first, fallback to mock
   if (token.value && !userInfo.value) {
-    userInfo.value = {
-      id: 'u-001',
-      username: 'admin',
-      name: '系统管理员',
-      role: 'ADMIN',
-      phone: '13800138000',
-      email: 'admin@treeforge.cn',
-      companyId: 'company-001',
-      approved: true,
-    }
+    // Try fetching real user info from backend
+    fetch('/api/users/me', {
+      headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.code === 200 && data.data) {
+          const u = data.data
+          userInfo.value = {
+            id: u.id,
+            username: u.username,
+            name: u.name,
+            role: u.role || 'MANAGER',
+            phone: u.phone || '',
+            email: u.email || '',
+            avatar: u.avatar,
+            companyId: u.companyId || '',
+            approved: u.approved ?? true,
+          }
+        } else {
+          // Token invalid — clear
+          token.value = ''
+          localStorage.removeItem('treeforge_token')
+        }
+      })
+      .catch(() => {
+        // Backend unreachable — keep token for mock mode, set default admin
+        userInfo.value = {
+          id: 'u-001',
+          username: 'admin',
+          name: '系统管理员',
+          role: 'ADMIN',
+          phone: '13800138000',
+          email: 'admin@treeforge.cn',
+          companyId: 'company-001',
+          approved: true,
+        }
+      })
   }
 
   return {

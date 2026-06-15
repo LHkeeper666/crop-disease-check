@@ -156,8 +156,8 @@ services:
       context: ../inference-service
       dockerfile: ../docker-env/cv-inference/Dockerfile
       args:
-        - HTTP_PROXY=http://host.docker.internal:7897
-        - HTTPS_PROXY=http://host.docker.internal:7897
+        - HTTP_PROXY=${DOCKER_BUILD_PROXY:-}
+        - HTTPS_PROXY=${DOCKER_BUILD_PROXY:-}
     container_name: agri-monitor-cv
     restart: always
     ports:
@@ -175,6 +175,7 @@ services:
       - RABBITMQ_VHOST=/agri
       # MinIO
       - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_PUBLIC_ENDPOINT=http://localhost:9000
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-agri_minio_admin}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-agri_minio_2026}
       - MINIO_BUCKET=agri-monitor
@@ -272,8 +273,8 @@ services:
       context: ../frontend
       dockerfile: ../docker-env/frontend/Dockerfile
       args:
-        - HTTP_PROXY=http://host.docker.internal:7897
-        - HTTPS_PROXY=http://host.docker.internal:7897
+        - HTTP_PROXY=${DOCKER_BUILD_PROXY:-}
+        - HTTPS_PROXY=${DOCKER_BUILD_PROXY:-}
     container_name: agri-monitor-frontend
     restart: always
     ports:

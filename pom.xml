@@ -19,6 +19,7 @@
 
     <properties>
         <java.version>17</java.version>
+        <lombok.version>1.18.36</lombok.version>
         <mybatis-plus.version>3.5.7</mybatis-plus.version>
         <hutool.version>5.8.32</hutool.version>
     </properties>
@@ -200,6 +201,13 @@
             <groupId>org.bytedeco</groupId>
             <artifactId>ffmpeg-platform</artifactId>
             <version>6.1.1-1.5.10</version>
+        </dependency>
+
+        <!-- StringTemplate 4 -->
+        <dependency>
+            <groupId>org.antlr</groupId>
+            <artifactId>ST4</artifactId>
+            <version>4.3.4</version>
         </dependency>
     </dependencies>
 
