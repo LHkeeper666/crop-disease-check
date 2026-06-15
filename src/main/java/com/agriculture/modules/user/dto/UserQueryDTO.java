@@ -32,4 +32,9 @@ public class UserQueryDTO {
      * 状态
      */
     private String status;
+
+    /**
+     * 企业ID（筛选本公司员工）
+     */
+    private String companyId;
 }
