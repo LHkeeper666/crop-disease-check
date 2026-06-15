@@ -130,25 +130,77 @@ public class StatisticServiceImpl implements StatisticService {
 
         StatisticsOverviewVO vo = new StatisticsOverviewVO();
 
+        // 如果有 companyId，先获取该企业下的 reportId 集合
+        Set<String> companyReportIds = null;
+        if (hasCompany) {
+            // 查询所有 report，然后过滤出属于该企业的
+            LambdaQueryWrapper<Report> allReportWrapper = new LambdaQueryWrapper<>();
+            allReportWrapper.ge(Report::getCreatedAt, startTime).le(Report::getCreatedAt, now);
+            List<Report> allReports = reportMapper.selectList(allReportWrapper);
+            Set<String> allReportIds = allReports.stream().map(Report::getId).collect(Collectors.toSet());
+            if (!allReportIds.isEmpty()) {
+                companyReportIds = getReportIdsByCompany(allReportIds, companyId);
+            } else {
+                companyReportIds = Collections.emptySet();
+            }
+        }
+
         // 总上报数
         LambdaQueryWrapper<Report> reportWrapper = new LambdaQueryWrapper<>();
         reportWrapper.ge(Report::getCreatedAt, startTime).le(Report::getCreatedAt, now);
-        vo.setTotalReports(reportMapper.selectCount(reportWrapper).intValue());
+        if (hasCompany && companyReportIds != null) {
+            if (companyReportIds.isEmpty()) {
+                vo.setTotalReports(0);
+            } else {
+                reportWrapper.in(Report::getId, companyReportIds);
+                vo.setTotalReports(reportMapper.selectCount(reportWrapper).intValue());
+            }
+        } else {
+            vo.setTotalReports(reportMapper.selectCount(reportWrapper).intValue());
+        }
 
         // 今日上报数
         LambdaQueryWrapper<Report> todayWrapper = new LambdaQueryWrapper<>();
         todayWrapper.ge(Report::getCreatedAt, todayStart).le(Report::getCreatedAt, now);
-        vo.setTodayReports(reportMapper.selectCount(todayWrapper).intValue());
+        if (hasCompany && companyReportIds != null) {
+            // 从 companyReportIds 中筛选今日的
+            if (companyReportIds.isEmpty()) {
+                vo.setTodayReports(0);
+            } else {
+                todayWrapper.in(Report::getId, companyReportIds);
+                vo.setTodayReports(reportMapper.selectCount(todayWrapper).intValue());
+            }
+        } else {
+            vo.setTodayReports(reportMapper.selectCount(todayWrapper).intValue());
+        }
 
         // 待审核数
         LambdaQueryWrapper<Report> pendingWrapper = new LambdaQueryWrapper<>();
         pendingWrapper.in(Report::getStatus, "PENDING", "PENDING_RECOGNITION");
-        vo.setPendingAudit(reportMapper.selectCount(pendingWrapper).intValue());
+        if (hasCompany && companyReportIds != null) {
+            if (companyReportIds.isEmpty()) {
+                vo.setPendingAudit(0);
+            } else {
+                pendingWrapper.in(Report::getId, companyReportIds);
+                vo.setPendingAudit(reportMapper.selectCount(pendingWrapper).intValue());
+            }
+        } else {
+            vo.setPendingAudit(reportMapper.selectCount(pendingWrapper).intValue());
+        }
 
         // 已处理数
         LambdaQueryWrapper<Report> processedWrapper = new LambdaQueryWrapper<>();
         processedWrapper.eq(Report::getStatus, "AUDITED");
-        vo.setProcessed(reportMapper.selectCount(processedWrapper).intValue());
+        if (hasCompany && companyReportIds != null) {
+            if (companyReportIds.isEmpty()) {
+                vo.setProcessed(0);
+            } else {
+                processedWrapper.in(Report::getId, companyReportIds);
+                vo.setProcessed(reportMapper.selectCount(processedWrapper).intValue());
+            }
+        } else {
+            vo.setProcessed(reportMapper.selectCount(processedWrapper).intValue());
+        }
 
         // 高风险告警
         LambdaQueryWrapper<WorkOrder> alertWrapper = new LambdaQueryWrapper<>();
