@@ -33,7 +33,7 @@ import java.util.concurrent.*;
  *
  * 架构说明：
  * - 后端负责：RTSP抽帧 → 调用推理服务 → 推送检测框坐标(bbox)到WebSocket
- * - 前端负责：播放HLS视频流 + Canvas叠加层绘制检测框
+ * - 前端负责：播放MJPEG视频流 + Canvas叠加层绘制检测框
  * - 推理服务不返回标注图(base64)，只返回结构化的检测数据
  */
 @Service
@@ -92,9 +92,9 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         if (camera == null) {
             throw new BusinessException(40087, "摄像头不存在");
         }
-        if (!"ONLINE".equals(camera.getStatus())) {
-            throw new BusinessException(40082, "摄像头离线，无法抓拍");
-        }
+//        if (!"ONLINE".equals(camera.getStatus())) {
+//            throw new BusinessException(40082, "摄像头离线，无法抓拍");
+//        }
 
         String rtspUrl = Boolean.TRUE.equals(request.getUseSubStream()) && camera.getRtspUrlSub() != null
                 ? camera.getRtspUrlSub()
@@ -155,93 +155,6 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         pushDetectionsToWebSocket(camera, parsedResult, captured.width, captured.height);
 
         return response;
-    }
-
-    @Override
-    public CameraCaptureVO capture(String cameraId, CameraCaptureRequest request) {
-        Camera camera = cameraMapper.selectById(cameraId);
-        if (camera == null) {
-            throw new BusinessException(40087, "摄像头不存在");
-        }
-        if (!"ONLINE".equals(camera.getStatus())) {
-            throw new BusinessException(40082, "摄像头离线，无法抓拍");
-        }
-
-        String rtspUrl = camera.getRtspUrl();
-        if (rtspUrl == null || rtspUrl.isEmpty()) {
-            throw new BusinessException(40084, "摄像头RTSP地址未配置");
-        }
-
-        CapturedFrame captured;
-        try {
-            captured = captureFrameFromRtsp(rtspUrl);
-        } catch (Exception e) {
-            log.error("抓拍失败: cameraId={}", cameraId, e);
-            throw new BusinessException(40084, "抓拍失败: " + e.getMessage());
-        }
-
-        String imageUrl = saveCaptureImage(cameraId, captured.bytes);
-        String capturedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-
-        camera.setLastFrameAt(LocalDateTime.now());
-        cameraMapper.updateById(camera);
-
-        // 提交推理（可选）
-        String inferenceTaskId = null;
-        if (Boolean.TRUE.equals(request.getSubmitInference())) {
-            try {
-                String base64Image = Base64.getEncoder().encodeToString(captured.bytes);
-                JsonNode result = inferenceClient.detectByBase64(base64Image, 0.5f, false);
-
-                CameraDetectResponse.InferenceResult parsedResult = parseInferenceResult(result);
-                pushDetectionsToWebSocket(camera, parsedResult, captured.width, captured.height);
-
-                inferenceTaskId = UUID.randomUUID().toString();
-            } catch (Exception e) {
-                log.warn("抓拍推理失败（不影响抓拍结果）: {}", e.getMessage());
-            }
-        }
-
-        return CameraCaptureVO.builder()
-                .imageUrl(imageUrl)
-                .capturedAt(capturedAt)
-                .inferenceTaskId(inferenceTaskId)
-                .build();
-    }
-
-    @Override
-    public CameraBatchCaptureVO batchCapture(CameraBatchCaptureRequest request) {
-        List<CameraBatchCaptureVO.BatchCaptureItem> results = new ArrayList<>();
-
-        for (String cameraId : request.getCameraIds()) {
-            try {
-                CameraCaptureRequest captureReq = new CameraCaptureRequest();
-                captureReq.setSubmitInference(request.getSubmitInference());
-
-                CameraCaptureVO captureResult = capture(cameraId, captureReq);
-                Camera camera = cameraMapper.selectById(cameraId);
-
-                results.add(CameraBatchCaptureVO.BatchCaptureItem.builder()
-                        .cameraId(cameraId)
-                        .cameraName(camera != null ? camera.getName() : "未知")
-                        .success(true)
-                        .imageUrl(captureResult.getImageUrl())
-                        .capturedAt(captureResult.getCapturedAt())
-                        .inferenceTaskId(captureResult.getInferenceTaskId())
-                        .build());
-            } catch (Exception e) {
-                log.warn("批量抓拍失败: cameraId={}, error={}", cameraId, e.getMessage());
-                results.add(CameraBatchCaptureVO.BatchCaptureItem.builder()
-                        .cameraId(cameraId)
-                        .success(false)
-                        .error(e.getMessage())
-                        .build());
-            }
-        }
-
-        return CameraBatchCaptureVO.builder()
-                .results(results)
-                .build();
     }
 
     @Override
@@ -439,7 +352,7 @@ public class CameraDetectServiceImpl implements CameraDetectService {
 
     /**
      * 推送检测框坐标到WebSocket
-     * 前端接收后在Canvas上绘制检测框（覆盖在HLS视频上方）
+     * 前端接收后在Canvas上绘制检测框（覆盖在MJPEG视频上方）
      */
     private void pushDetectionsToWebSocket(Camera camera, CameraDetectResponse.InferenceResult result,
                                             int frameWidth, int frameHeight) {

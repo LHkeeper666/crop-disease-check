@@ -205,12 +205,25 @@ async function loadConversationMessages(convId: string) {
     const res = await fetch(`/api/agri-brain/history?conversationId=${convId}`, { headers: getAuthHeaders() })
     const data = await res.json()
     if (data.code === 200 && data.data) {
-      messages.value = data.data.map((m: any) => ({
-        id: m.id,
-        role: m.role.toLowerCase(),
-        content: m.content,
-        timestamp: new Date(m.createdAt),
-      }))
+      messages.value = data.data.map((m: any) => {
+        const role = m.role.toLowerCase()
+        if (role === 'assistant') {
+          const { toolCalls, cleanContent } = parseToolCallsFromContent(m.content)
+          return {
+            id: m.id,
+            role,
+            content: cleanContent,
+            timestamp: new Date(m.createdAt),
+            toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+          }
+        }
+        return {
+          id: m.id,
+          role,
+          content: m.content,
+          timestamp: new Date(m.createdAt),
+        }
+      })
       conversationId.value = convId
       showHistory.value = false
       nextTick(() => scrollToBottom())
@@ -225,6 +238,15 @@ function newConversation() {
   conversationId.value = null
   messages.value = []
   isToolCalling.value = false
+}
+
+// Toggle history panel
+function toggleHistory() {
+  showHistory.value = !showHistory.value
+  showSettings.value = false
+  if (showHistory.value) {
+    loadConversations()
+  }
 }
 
 // Select conversation from history
@@ -363,6 +385,36 @@ function getToolDisplayName(name: string): string {
   return toolNames[name] || name
 }
 
+function parseToolCallsFromContent(content: string): { toolCalls: ToolCallInfo[]; cleanContent: string } {
+  const separator = '\n---\n'
+  const sepIndex = content.indexOf(separator)
+  if (sepIndex === -1) {
+    return { toolCalls: [], cleanContent: content }
+  }
+
+  const toolBlock = content.substring(0, sepIndex)
+  const cleanContent = content.substring(sepIndex + separator.length)
+  const toolCalls: ToolCallInfo[] = []
+  const regex = /^\[([a-z_]+)\] (.+)$/gm
+  let match: RegExpExecArray | null
+  let index = 0
+
+  while ((match = regex.exec(toolBlock)) !== null) {
+    toolCalls.push({
+      toolCallId: `hist-${match[1]}-${index}`,
+      name: match[1],
+      status: 'done',
+    })
+    index++
+  }
+
+  if (toolCalls.length === 0) {
+    return { toolCalls: [], cleanContent: content }
+  }
+
+  return { toolCalls, cleanContent }
+}
+
 onMounted(() => {
   loadConfig()
   loadConversations()
@@ -380,7 +432,7 @@ onMounted(() => {
       <div class="flex gap-2">
         <button
           class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-          @click="showHistory = !showHistory; showSettings = false"
+          @click="toggleHistory"
         >
           {{ showHistory ? '关闭历史' : '历史对话' }}
         </button>

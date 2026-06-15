@@ -10,6 +10,7 @@ interface CameraItem {
   status: string
   streamUrl?: string
   grid?: string
+  rtspUrl?: string
 }
 
 const cameras = ref<CameraItem[]>([])
@@ -20,6 +21,9 @@ const fetchError = ref('')
 
 // 每个摄像头的最新检测结果
 const detectionsMap = ref<Record<string, DetectionItem[]>>({})
+
+// 当前后端正在监测的摄像头ID集合
+const monitoredCameraIds = ref<Set<string>>(new Set())
 
 const selectedDetections = computed(() => {
   if (!selectedCamera.value) return []
@@ -49,17 +53,95 @@ async function fetchCameras() {
     cameras.value = records.map((c: any) => ({
       id: c.id,
       name: c.name,
-      status: c.status || 'OFFLINE',
+      status: 'OFFLINE', // 默认离线，由探测确定真实状态
       streamUrl: c.httpUrl || undefined,
       grid: c.coverageGrids?.join(', ') || '',
+      rtspUrl: c.rtspUrl || '',
     }))
     if (cameras.value.length > 0 && !selectedCamera.value) {
       selectedCamera.value = cameras.value[0]
     }
+    // 获取列表后立即探测所有摄像头状态
+    await probeAllCameras()
   } catch (e: any) {
     fetchError.value = e.message || '加载摄像头失败'
   } finally {
     isLoading.value = false
+  }
+}
+
+/**
+ * 从前端主动探测摄像头网络可达性
+ * 通过 HTTP fetch 超时判断 IP:port 是否可达
+ */
+async function probeCameraReachability(cam: CameraItem): Promise<string> {
+  if (!cam.rtspUrl) return 'OFFLINE'
+  try {
+    const url = new URL(cam.rtspUrl)
+    const probeUrl = `http://${url.hostname}:${url.port || 554}/`
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 3000)
+    await fetch(probeUrl, { mode: 'no-cors', signal: controller.signal })
+    clearTimeout(timer)
+    return 'ONLINE'
+  } catch {
+    return 'OFFLINE'
+  }
+}
+
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('treeforge_token')
+  return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+}
+
+async function toggleBackendMonitor(cameraId: string, enabled: boolean) {
+  try {
+    await fetch(`/api/camera/${cameraId}/monitor`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ enabled, intervalSeconds: 5, confidence: 0.5 }),
+    })
+  } catch (e) {
+    console.warn(`${enabled ? '启动' : '停止'}后端监测失败: cameraId=${cameraId}`, e)
+  }
+}
+
+async function probeAllCameras() {
+  // 记录探测前的活跃摄像头集合
+  const prevOnlineIds = new Set(
+    cameras.value.filter(c => c.status === 'ONLINE').map(c => c.id)
+  )
+
+  // 并发探测所有摄像头
+  await Promise.allSettled(
+    cameras.value.map(async (cam) => {
+      cam.status = await probeCameraReachability(cam)
+    })
+  )
+
+  // 探测后的活跃摄像头集合
+  const currOnlineIds = new Set(
+    cameras.value.filter(c => c.status === 'ONLINE').map(c => c.id)
+  )
+
+  // 新增上线的摄像头：之前不在监测中，现在在线
+  const newlyOnline = cameras.value.filter(
+    c => currOnlineIds.has(c.id) && !monitoredCameraIds.value.has(c.id)
+  )
+  // 新增离线的摄像头：之前在监测中，现在不在线
+  const newlyOffline = cameras.value.filter(
+    c => !currOnlineIds.has(c.id) && monitoredCameraIds.value.has(c.id)
+  )
+
+  // 启动新增上线摄像头的后端监测
+  for (const cam of newlyOnline) {
+    toggleBackendMonitor(cam.id, true)
+    monitoredCameraIds.value.add(cam.id)
+  }
+  // 停止新增离线摄像头的后端监测
+  for (const cam of newlyOffline) {
+    toggleBackendMonitor(cam.id, false)
+    monitoredCameraIds.value.delete(cam.id)
   }
 }
 
@@ -80,8 +162,8 @@ let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(() => {
   fetchCameras()
-  // 每10秒刷新摄像头状态，自动发现重连成功的摄像头
-  refreshTimer = setInterval(fetchCameras, 10000)
+  // 每30秒重新探测摄像头状态
+  refreshTimer = setInterval(() => probeAllCameras(), 30000)
 })
 
 onUnmounted(() => {
@@ -168,7 +250,7 @@ onUnmounted(() => {
               :camera-id="cam.id"
               :camera-name="cam.name"
               :stream-url="cam.streamUrl"
-              :active="cam.status !== 'OFFLINE'"
+              :active="cam.status === 'ONLINE'"
               @status-change="(s) => handleStatusChange(cam.id, s)"
               @detections="(items) => handleDetections(cam.id, items)"
             />
