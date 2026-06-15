@@ -11,7 +11,7 @@ USE agriculture_db;
 
 -- 管理员账号 (密码: admin123)
 INSERT INTO sys_user (id, username, password, name, role, email, status, company_id, approved) VALUES
-('u001', 'admin', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '系统管理员', 'ADMIN', 'admin@agriculture.com', 'ACTIVE', 'comp001', 1);
+('u001', 'admin', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '智慧农业管理员', 'ADMIN', 'admin@agriculture.com', 'ACTIVE', 'comp001', 1);
 
 -- 企业2管理员账号 (密码: admin123)
 INSERT INTO sys_user (id, username, password, name, role, email, status, company_id, approved) VALUES
@@ -19,7 +19,7 @@ INSERT INTO sys_user (id, username, password, name, role, email, status, company
 
 -- 示例专家账号
 INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
-('u002', 'expert01', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '李专家', 'EXPERT', '13800138001', 'expert@agriculture.com', 'ACTIVE', 'comp001', 1);
+('u002', 'expert01', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '李专家', 'EXPERT', '13800138001', '1678326026@qq.com', 'ACTIVE', 'comp001', 1);
 
 -- 示例管理者账号
 INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
@@ -279,8 +279,8 @@ INSERT INTO inspection_camera (plan_id, camera_id) VALUES
 
 -- 更多专家
 INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
-('u005', 'expert02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '赵植保专家', 'EXPERT', '13800138005', 'expert02@agriculture.com', 'ACTIVE', 'comp001', 1),
-('u006', 'expert03', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '钱昆虫专家', 'EXPERT', '13800138006', 'expert03@agriculture.com', 'ACTIVE', 'comp001', 1);
+('u005', 'expert02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '赵植保专家', 'EXPERT', '13800138005', '2043412933@qq.com', 'ACTIVE', 'comp001', 1),
+('u006', 'expert03', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '钱昆虫专家', 'EXPERT', '13800138006', '2364602010@qq.com', 'ACTIVE', 'comp001', 1);
 
 -- 更多管理者
 INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
