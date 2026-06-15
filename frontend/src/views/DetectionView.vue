@@ -150,68 +150,10 @@ async function handleDetect() {
       }
       uploadProgress.value = { done: i + 1, total }
     }
-
-    // 自动生成工单
-    await autoGenerateWorkOrders()
   } catch (err: any) {
     error.value = err.message || '检测请求失败，请检查推理服务是否运行'
   } finally {
     isUploading.value = false
-  }
-}
-
-// ========== 自动生成工单 ==========
-async function autoGenerateWorkOrders() {
-  if (!selectedGrid.value) return
-
-  await woStore.fetchOrders()
-
-  const grid = selectedGrid.value
-  let generated = 0
-
-  for (const item of files.value) {
-    if (!item.result || item.error) continue
-
-    const allDetections = [
-      ...item.result.disease.detections.map(d => ({ ...d, type: 'disease' as const })),
-      ...item.result.pest.detections.map(d => ({ ...d, type: 'pest' as const })),
-    ]
-
-    for (const det of allDetections) {
-      const isDuplicate = woStore.orders.some(o =>
-        o.gridLabel === grid &&
-        o.pestName === det.name_cn &&
-        (o.status === 'PENDING' || o.status === 'PROCESSING')
-      )
-      if (isDuplicate) continue
-
-      let severity = 'MEDIUM'
-      if (det.confidence >= 0.9) severity = 'CRITICAL'
-      else if (det.confidence >= 0.8) severity = 'HIGH'
-      else if (det.confidence >= 0.6) severity = 'MEDIUM'
-      else severity = 'LOW'
-
-      const typeLabel = det.type === 'disease' ? '病害' : '虫害'
-
-      try {
-        await createManualWorkOrder({
-          title: `【${severity === 'CRITICAL' ? '紧急' : severity === 'HIGH' ? '高危' : severity === 'MEDIUM' ? '中等' : '低'}】Grid-${grid} ${det.name_cn} ${typeLabel}预警`,
-          severity,
-          type: det.type,
-          gridLabel: grid,
-          pestName: det.name_cn,
-          confidence: det.confidence,
-        })
-        generated++
-      } catch (e) {
-        console.warn('[Detection] 自动创建工单失败:', det.name_cn, e)
-      }
-    }
-  }
-
-  workorderGenerated.value = generated
-  if (generated > 0) {
-    await woStore.fetchOrders()
   }
 }
 
