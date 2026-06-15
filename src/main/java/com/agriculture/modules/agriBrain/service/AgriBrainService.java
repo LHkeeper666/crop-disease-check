@@ -13,4 +13,9 @@ public interface AgriBrainService {
     SseEmitter quickAdvice(String userId);
 
     List<Map<String, Object>> getHistory(String conversationId, String userId, int page, int size);
+
+    /**
+     * 非流式聊天：同步返回完整回答（用于邮件生成等场景）
+     */
+    String chatSync(String message, String userId);
 }
