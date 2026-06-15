@@ -100,12 +100,10 @@ public class DailyReportServiceImpl extends ServiceImpl<DailyReportMapper, Daily
     public String generateReport(DailyReportGenerateDTO dto) {
         LocalDate date = dto.getDate();
 
-        // 检查是否已存在该日期的日报
+        // 如果已存在该日期的日报，删除旧的重新生成
         LambdaQueryWrapper<DailyReport> existWrapper = new LambdaQueryWrapper<>();
         existWrapper.eq(DailyReport::getReportDate, date);
-        if (baseMapper.selectCount(existWrapper) > 0) {
-            throw new BusinessException(400, "该日期的日报已存在");
-        }
+        baseMapper.delete(existWrapper);
 
         // 聚合统计数据
         DailyReportSummaryDTO summary = aggregateStatistics(date);

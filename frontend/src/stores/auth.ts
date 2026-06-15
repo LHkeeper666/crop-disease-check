@@ -239,6 +239,7 @@ export const useAuthStore = defineStore('auth', () => {
     userInfo.value = null
     localStorage.removeItem('treeforge_token')
     localStorage.removeItem('treeforge_user_pending')
+    sessionStorage.removeItem('treeforge_session_auth')
   }
 
   // Restore session from localStorage — try backend first, fallback to mock
@@ -269,17 +270,10 @@ export const useAuthStore = defineStore('auth', () => {
         }
       })
       .catch(() => {
-        // Backend unreachable — keep token for mock mode, set default admin
-        userInfo.value = {
-          id: 'u-001',
-          username: 'admin',
-          name: '系统管理员',
-          role: 'ADMIN',
-          phone: '13800138000',
-          email: 'admin@treeforge.cn',
-          companyId: 'company-001',
-          approved: true,
-        }
+        // Backend unreachable — token 无效，清除并跳转登录
+        token.value = ''
+        userInfo.value = null
+        localStorage.removeItem('treeforge_token')
       })
   }
 

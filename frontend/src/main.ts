@@ -43,17 +43,25 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  const token = localStorage.getItem('treeforge_token')
-
-  // Public pages (login, pending) don't need auth
+  // 公开页面（登录、注册、待审核）不需要认证
   if (to.meta.public) return
 
-  // No token -> redirect to login
-  if (!token) {
+  // 每次打开浏览器/新标签页，必须重新登录
+  // sessionStorage 仅在当前标签页会话内有效，关闭浏览器或新标签页即清除
+  const sessionAuth = sessionStorage.getItem('treeforge_session_auth')
+  if (!sessionAuth) {
+    localStorage.removeItem('treeforge_token')
     return { name: 'Login' }
   }
 
-  // Has token but might be pending - check via a data attribute stored at login time
+  // 会话已验证，检查 token 是否存在
+  const token = localStorage.getItem('treeforge_token')
+  if (!token) {
+    sessionStorage.removeItem('treeforge_session_auth')
+    return { name: 'Login' }
+  }
+
+  // 待审核用户只能访问 Pending 页面
   const pendingKey = 'treeforge_user_pending'
   const isPending = localStorage.getItem(pendingKey) === 'true'
   if (isPending && to.name !== 'Pending') {

@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
-import { useWorkOrderStore } from '../stores/workorder'
-import { createManualWorkOrder } from '../api/workorder'
 
 interface Detection {
   class_name: string
@@ -33,18 +31,11 @@ const MAX_SIZE = 10 * 1024 * 1024 // 10MB
 const files = ref<BatchItem[]>([])
 const isUploading = ref(false)
 const error = ref('')
-const confidenceThreshold = ref(0.5)
 const dragOver = ref(false)
 const fileInputRef = ref<HTMLInputElement>()
 const activeIndex = ref(0)
 const uploadProgress = ref({ done: 0, total: 0 })
 const showEnlarged = ref(false)
-
-// 工单联动
-const woStore = useWorkOrderStore()
-const selectedGrid = ref('')
-const gridOptions = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3']
-const workorderGenerated = ref(0)
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') showEnlarged.value = false
@@ -124,7 +115,7 @@ async function detectSingle(item: BatchItem): Promise<SingleResult> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       image: { type: 'base64', data: base64 },
-      confidence: confidenceThreshold.value,
+      confidence: 0.1,
     }),
   })
   if (!response.ok) {
@@ -136,57 +127,19 @@ async function detectSingle(item: BatchItem): Promise<SingleResult> {
   return data.data
 }
 
-// ========== 批量检测 ==========
-async function detectBatch(): Promise<SingleResult[]> {
-  const images = await Promise.all(
-    files.value.map(async f => ({
-      type: 'base64' as const,
-      data: await fileToBase64(f.file),
-    }))
-  )
-  const response = await fetch('/api/v1/detect/batch', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      images,
-      confidence: confidenceThreshold.value,
-    }),
-  })
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(err.message || `请求失败: ${response.statusText}`)
-  }
-  const data = await response.json()
-  if (data.code !== 200) throw new Error(data.message || '批量检测失败')
-  return data.data.results
-}
-
 // ========== 统一入口 ==========
 async function handleDetect() {
   if (!files.value.length) return
   isUploading.value = true
   error.value = ''
-  workorderGenerated.value = 0
+
+  const total = files.value.length
+  uploadProgress.value = { done: 0, total }
 
   try {
-    if (isBatch.value) {
-      // 批量模式：一次请求
-      const results = await detectBatch()
-      results.forEach((r, i) => {
-        const item = files.value[i]
-        if (!item) return
-        if (r.error) {
-          item.error = r.error
-        } else {
-          item.result = r
-          if (r.annotated_url) {
-            item.annotatedUrl = r.annotated_url
-          }
-        }
-      })
-    } else {
-      // 单张模式
-      const item = files.value[0]
+    // 统一使用单张逐个检测，避免批量接口超时/失败
+    for (let i = 0; i < total; i++) {
+      const item = files.value[i]
       try {
         item.result = await detectSingle(item)
         if (item.result.annotated_url) {
@@ -195,77 +148,12 @@ async function handleDetect() {
       } catch (err: any) {
         item.error = err.message
       }
+      uploadProgress.value = { done: i + 1, total }
     }
-
-    // 阈值联动：对置信度 >= 阈值的检测结果自动生成工单
-    await autoGenerateWorkOrders()
   } catch (err: any) {
     error.value = err.message || '检测请求失败，请检查推理服务是否运行'
   } finally {
     isUploading.value = false
-  }
-}
-
-// ========== 自动生成工单（阈值判定 + 重复工单判定） ==========
-async function autoGenerateWorkOrders() {
-  // 需要选择网格区域才能生成工单
-  if (!selectedGrid.value) return
-
-  // 加载现有工单列表（用于重复工单判定）
-  await woStore.fetchOrders()
-
-  const grid = selectedGrid.value
-  let generated = 0
-
-  for (const item of files.value) {
-    if (!item.result || item.error) continue
-
-    const allDetections = [
-      ...item.result.disease.detections.map(d => ({ ...d, type: 'disease' as const })),
-      ...item.result.pest.detections.map(d => ({ ...d, type: 'pest' as const })),
-    ]
-
-    for (const det of allDetections) {
-      // 阈值判定：置信度 >= 前端设置的阈值才生成工单
-      if (det.confidence < confidenceThreshold.value) continue
-
-      // 重复工单判定：同一地点 + 相同问题 → 不重复生成
-      const isDuplicate = woStore.orders.some(o =>
-        o.gridLabel === grid &&
-        o.pestName === det.name_cn &&
-        (o.status === 'PENDING' || o.status === 'PROCESSING')
-      )
-      if (isDuplicate) continue
-
-      // 判断严重程度
-      let severity = 'MEDIUM'
-      if (det.confidence >= 0.9) severity = 'CRITICAL'
-      else if (det.confidence >= 0.8) severity = 'HIGH'
-      else if (det.confidence >= 0.6) severity = 'MEDIUM'
-      else severity = 'LOW'
-
-      const typeLabel = det.type === 'disease' ? '病害' : '虫害'
-
-      try {
-        await createManualWorkOrder({
-          title: `【${severity === 'CRITICAL' ? '紧急' : severity === 'HIGH' ? '高危' : severity === 'MEDIUM' ? '中等' : '低'}】Grid-${grid} ${det.name_cn} ${typeLabel}预警`,
-          severity,
-          type: det.type,
-          gridLabel: grid,
-          pestName: det.name_cn,
-          confidence: det.confidence,
-        })
-        generated++
-      } catch (e) {
-        console.warn('[Detection] 自动创建工单失败:', det.name_cn, e)
-      }
-    }
-  }
-
-  workorderGenerated.value = generated
-  if (generated > 0) {
-    // 刷新工单列表
-    await woStore.fetchOrders()
   }
 }
 
@@ -306,28 +194,6 @@ function totalDetections(item: BatchItem): number {
         <p class="text-xs text-slate-500 font-mono">AI-POWERED DISEASE & PEST DETECTION</p>
       </div>
       <div class="flex items-center gap-3">
-        <div class="flex items-center gap-2">
-          <span class="text-[10px] text-slate-500 font-mono uppercase tracking-wider">检测区域</span>
-          <select
-            v-model="selectedGrid"
-            class="select-dark px-2 py-1 rounded-lg bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyber-green/50"
-          >
-            <option value="">不生成工单</option>
-            <option v-for="g in gridOptions" :key="g" :value="g">{{ g }}</option>
-          </select>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-[10px] text-slate-500 font-mono uppercase tracking-wider">置信度阈值</span>
-          <input
-            v-model.number="confidenceThreshold"
-            type="range"
-            min="0.1"
-            max="0.9"
-            step="0.05"
-            class="w-24 accent-[#FF6A00]"
-          />
-          <span class="text-xs text-white font-mono w-10">{{ confidenceThreshold.toFixed(2) }}</span>
-        </div>
       </div>
     </div>
 
@@ -470,20 +336,6 @@ function totalDetections(item: BatchItem): number {
             : isBatch ? `批量检测 (${files.length} 张)` : '开始检测'
           }}
         </button>
-        <!-- 自动生成工单提示 -->
-        <div
-          v-if="workorderGenerated > 0"
-          class="mt-2 px-3 py-2 rounded-lg bg-cyber-green/10 border border-cyber-green/20 text-cyber-green text-xs flex items-center gap-2"
-        >
-          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          已自动生成 {{ workorderGenerated }} 个工单（置信度 ≥ {{ (confidenceThreshold * 100).toFixed(0) }}%）
-        </div>
-        <div
-          v-else-if="selectedGrid && hasResults && !isUploading"
-          class="mt-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-slate-500 text-xs"
-        >
-          未生成新工单（检测结果置信度低于阈值 {{ (confidenceThreshold * 100).toFixed(0) }}% 或已存在相同工单）
-        </div>
       </GlassCard>
 
       <!-- Right: Results -->
@@ -673,12 +525,3 @@ function totalDetections(item: BatchItem): number {
   </Teleport>
 </template>
 
-<style scoped>
-.select-dark {
-  color-scheme: dark;
-}
-.select-dark option {
-  background-color: #1e293b;
-  color: white;
-}
-</style>

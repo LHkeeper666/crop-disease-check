@@ -172,6 +172,8 @@ async function handleLogin() {
   const result = await auth.login(loginUsername.value, loginPassword.value)
   loading.value = false
   if (result.success) {
+    // 标记本次会话已通过登录验证
+    sessionStorage.setItem('treeforge_session_auth', 'true')
     if (result.pending) {
       localStorage.setItem('treeforge_user_pending', 'true')
       router.push('/pending')
