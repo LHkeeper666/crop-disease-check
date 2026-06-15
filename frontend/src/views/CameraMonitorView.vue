@@ -25,6 +25,9 @@ const detectionsMap = ref<Record<string, DetectionItem[]>>({})
 // 当前后端正在监测的摄像头ID集合
 const monitoredCameraIds = ref<Set<string>>(new Set())
 
+// 状态确认计数器（key: cameraId, value: { status: string, count: number }）
+const statusConfirmation = ref<Record<string, { status: string; count: number }>>({})
+
 const selectedDetections = computed(() => {
   if (!selectedCamera.value) return []
   return detectionsMap.value[selectedCamera.value.id] || []
@@ -53,7 +56,7 @@ async function fetchCameras() {
     cameras.value = records.map((c: any) => ({
       id: c.id,
       name: c.name,
-      status: 'OFFLINE', // 默认离线，由探测确定真实状态
+      status: 'OFFLINE',
       streamUrl: c.httpUrl || undefined,
       grid: c.coverageGrids?.join(', ') || '',
       rtspUrl: c.rtspUrl || '',
@@ -72,7 +75,6 @@ async function fetchCameras() {
 
 /**
  * 从前端主动探测摄像头网络可达性
- * 通过 HTTP fetch 超时判断 IP:port 是否可达
  */
 async function probeCameraReachability(cam: CameraItem): Promise<string> {
   if (!cam.rtspUrl) return 'OFFLINE'
@@ -94,54 +96,108 @@ function getAuthHeaders(): Record<string, string> {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
 }
 
+/**
+ * 启停后端监测（返回 promise，失败时会抛出异常）
+ */
 async function toggleBackendMonitor(cameraId: string, enabled: boolean) {
-  try {
-    await fetch(`/api/camera/${cameraId}/monitor`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ enabled, intervalSeconds: 5, confidence: 0.5 }),
-    })
-  } catch (e) {
-    console.warn(`${enabled ? '启动' : '停止'}后端监测失败: cameraId=${cameraId}`, e)
+  const res = await fetch(`/api/camera/${cameraId}/monitor`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ enabled, intervalSeconds: 5, confidence: 0.5 }),
+  })
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`)
   }
 }
 
-async function probeAllCameras() {
-  // 记录探测前的活跃摄像头集合
-  const prevOnlineIds = new Set(
-    cameras.value.filter(c => c.status === 'ONLINE').map(c => c.id)
-  )
-
-  // 并发探测所有摄像头
-  await Promise.allSettled(
-    cameras.value.map(async (cam) => {
-      cam.status = await probeCameraReachability(cam)
+/**
+ * 刷新单个摄像头的后端数据（httpUrl、rtspUrl 等字段）
+ */
+async function refreshCameraData(cam: CameraItem) {
+  try {
+    const token = localStorage.getItem('treeforge_token')
+    const res = await fetch(`/api/camera/${cam.id}/status`, {
+      headers: { Authorization: `Bearer ${token}` },
     })
-  )
-
-  // 探测后的活跃摄像头集合
-  const currOnlineIds = new Set(
-    cameras.value.filter(c => c.status === 'ONLINE').map(c => c.id)
-  )
-
-  // 新增上线的摄像头：之前不在监测中，现在在线
-  const newlyOnline = cameras.value.filter(
-    c => currOnlineIds.has(c.id) && !monitoredCameraIds.value.has(c.id)
-  )
-  // 新增离线的摄像头：之前在监测中，现在不在线
-  const newlyOffline = cameras.value.filter(
-    c => !currOnlineIds.has(c.id) && monitoredCameraIds.value.has(c.id)
-  )
-
-  // 启动新增上线摄像头的后端监测
-  for (const cam of newlyOnline) {
-    toggleBackendMonitor(cam.id, true)
-    monitoredCameraIds.value.add(cam.id)
+    if (!res.ok) return
+    const data = await res.json()
+    if (data.code !== 200) return
+    const vo = data.data
+    // 更新摄像头列表中的动态字段
+    if (vo.httpUrl) cam.streamUrl = vo.httpUrl
+    if (vo.status) cam.status = vo.status
+  } catch {
+    // 忽略刷新失败
   }
-  // 停止新增离线摄像头的后端监测
+}
+
+/**
+ * 周期性探测所有摄像头状态，并自动启停后端监测
+ */
+async function probeAllCameras() {
+  // 1. 分批探测（每批5个，间隔200ms）
+  const batchSize = 5
+  for (let i = 0; i < cameras.value.length; i += batchSize) {
+    const batch = cameras.value.slice(i, i + batchSize)
+    await Promise.allSettled(
+      batch.map(async (cam) => {
+        cam.status = await probeCameraReachability(cam)
+      })
+    )
+    if (i + batchSize < cameras.value.length) {
+      await new Promise(r => setTimeout(r, 200))
+    }
+  }
+
+  // 2. 更新状态确认计数器（连续两次相同状态才视为稳定）
+  for (const cam of cameras.value) {
+    const prev = statusConfirmation.value[cam.id]
+    if (!prev || prev.status !== cam.status) {
+      statusConfirmation.value[cam.id] = { status: cam.status, count: 1 }
+    } else {
+      prev.count++
+    }
+  }
+
+  // 3. 确定已稳定在线/离线的摄像头集合（连续2次探测结果一致）
+  const confirmedOnlineIds = new Set(
+    cameras.value
+      .filter(c => 
+        statusConfirmation.value[c.id]?.status === 'ONLINE' &&
+        statusConfirmation.value[c.id]!.count >= 2
+      )
+      .map(c => c.id)
+  )
+
+  // 4. 计算需要启动和停止的摄像头
+  const newlyOnline = cameras.value.filter(
+    c => confirmedOnlineIds.has(c.id) && !monitoredCameraIds.value.has(c.id)
+  )
+  const newlyOffline = cameras.value.filter(
+    c => !confirmedOnlineIds.has(c.id) && monitoredCameraIds.value.has(c.id)
+  )
+
+  // 5. 启动新增上线摄像头的后端监测
+  for (const cam of newlyOnline) {
+    try {
+      await toggleBackendMonitor(cam.id, true)
+      monitoredCameraIds.value.add(cam.id)
+      await refreshCameraData(cam)
+    } catch (e) {
+      console.error('启动监测失败', cam.id, e)
+    }
+  }
+
+  // 6. 停止新增离线摄像头的后端监测，并清理旧检测数据
   for (const cam of newlyOffline) {
-    toggleBackendMonitor(cam.id, false)
-    monitoredCameraIds.value.delete(cam.id)
+    try {
+      await toggleBackendMonitor(cam.id, false)
+      monitoredCameraIds.value.delete(cam.id)
+      // 清理残留的检测结果
+      delete detectionsMap.value[cam.id]
+    } catch (e) {
+      console.error('停止监测失败', cam.id, e)
+    }
   }
 }
 

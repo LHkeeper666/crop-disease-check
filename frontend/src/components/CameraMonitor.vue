@@ -28,10 +28,14 @@ const videoAspect = ref(16 / 9) // 默认16:9，实际由检测帧决定
 let subscription: Subscription | null = null
 let wsCallerId: string | null = null
 let aspectFromDetection = false
+/** MJPEG 流自动重试定时器 */
+let streamRetryTimer: ReturnType<typeof setInterval> | null = null
 
 function onStreamLoad() {
   status.value = 'ONLINE'
   emit('status-change', 'ONLINE')
+  // 流恢复正常，停止重试
+  stopStreamRetry()
   // 尝试从 img 元素获取实际宽高比
   if (imgRef.value && imgRef.value.naturalWidth > 0 && !aspectFromDetection) {
     videoAspect.value = imgRef.value.naturalWidth / imgRef.value.naturalHeight
@@ -41,6 +45,43 @@ function onStreamLoad() {
 function onStreamError() {
   status.value = 'FAULT'
   emit('status-change', 'FAULT')
+  // 启动 MJPEG 自动重试：每 5 秒尝试重载
+  startStreamRetry()
+}
+
+/** 启动 MJPEG 流自动重试：每 5 秒重载，直到成功 */
+function startStreamRetry() {
+  if (streamRetryTimer) return
+  streamRetryTimer = setInterval(() => {
+    if (!props.active || status.value === 'ONLINE') {
+      stopStreamRetry()
+      return
+    }
+    if (props.streamUrl) {
+      reloadStream()
+    }
+  }, 5000)
+}
+
+function stopStreamRetry() {
+  if (streamRetryTimer) {
+    clearInterval(streamRetryTimer)
+    streamRetryTimer = null
+  }
+}
+
+/**
+ * 强制重载 MJPEG 流：<img> 进入错误态后不会自动重试同一个 src，
+ * 需要先清空再重新赋值，或追加时间戳参数来打破浏览器缓存。
+ */
+function reloadStream() {
+  if (!imgRef.value || !props.streamUrl) return
+  imgRef.value.src = ''
+  requestAnimationFrame(() => {
+    if (imgRef.value && props.streamUrl) {
+      imgRef.value.src = props.streamUrl + (props.streamUrl.includes('?') ? '&' : '?') + '_t=' + Date.now()
+    }
+  })
 }
 
 function syncCanvasSize() {
@@ -178,6 +219,8 @@ async function stopBackendMonitor() {
 async function startMonitoring() {
   if (!props.active) return
   startBackendMonitor()
+  // 有 streamUrl 时强制重载 MJPEG 流（处理断线重连场景）
+  if (props.streamUrl) reloadStream()
   try {
     wsCallerId = await connectWs()
     subscription = subscribeTopic(`/topic/camera/${props.cameraId}/detect`, (msg) => {
@@ -194,18 +237,29 @@ function stopMonitoring() {
   disconnectWs(wsCallerId ?? undefined)
   wsCallerId = null
   clearCanvas()
+  stopStreamRetry()
   status.value = 'OFFLINE'
   stopBackendMonitor()
 }
 
-watch(() => props.active, (val) => {
-  if (val) startMonitoring()
-  else stopMonitoring()
+watch(() => props.active, (val, oldVal) => {
+  if (val && !oldVal) {
+    // 从离线变为在线：完全重置状态
+    aspectFromDetection = false
+    clearCanvas()
+    status.value = 'OFFLINE' // 先重置，等 MJPEG 加载成功会切到 ONLINE
+    startMonitoring()
+  } else if (!val) {
+    stopMonitoring()
+  }
 })
 
-watch(() => props.streamUrl, () => {
-  // streamUrl 变化时 img 会自动重新加载
-  aspectFromDetection = false
+watch(() => props.streamUrl, (newUrl, oldUrl) => {
+  // streamUrl 变化（如摄像头重启后 httpUrl 更新）：强制重载
+  if (newUrl && newUrl !== oldUrl) {
+    aspectFromDetection = false
+    reloadStream()
+  }
 })
 
 onMounted(() => {
