@@ -249,12 +249,11 @@ async function composeEmailByAgent() {
 
 要求：简洁专业，说明问题严重性，建议处理措施。`
 
-    const res = await fetch('/api/agri-brain/chat', {
+    const res = await fetch('/api/agri-brain/chat-sync', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: prompt,
-        stream: false,
       }),
     })
     const data = await res.json()
