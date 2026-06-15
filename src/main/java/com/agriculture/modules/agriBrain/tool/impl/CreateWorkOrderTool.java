@@ -1,8 +1,10 @@
 package com.agriculture.modules.agriBrain.tool.impl;
 
 import com.agriculture.modules.agriBrain.tool.AiTool;
-import com.agriculture.modules.workorder.entity.WorkOrder;
-import com.agriculture.modules.workorder.mapper.WorkOrderMapper;
+import com.agriculture.modules.user.entity.SysUser;
+import com.agriculture.modules.user.mapper.SysUserMapper;
+import com.agriculture.modules.workorder.dto.WorkOrderManualCreateDTO;
+import com.agriculture.modules.workorder.service.WorkOrderService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
@@ -19,7 +21,10 @@ public class CreateWorkOrderTool implements AiTool {
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @Resource
-    private WorkOrderMapper workOrderMapper;
+    private WorkOrderService workOrderService;
+
+    @Resource
+    private SysUserMapper sysUserMapper;
 
     @Override
     public String getName() {
@@ -149,33 +154,30 @@ public class CreateWorkOrderTool implements AiTool {
             return objectMapper.writeValueAsString(error);
         }
 
-        // 创建工单
-        WorkOrder workOrder = new WorkOrder();
-        workOrder.setTitle(title);
-        workOrder.setType(type);
-        workOrder.setSeverity(severity);
-        workOrder.setStatus("PENDING");
-        workOrder.setGridLabel((String) arguments.get("gridLabel"));
-        workOrder.setPestName((String) arguments.get("pestName"));
-        workOrder.setExpertComment((String) arguments.get("description"));
-        workOrder.setCreatedBy(userId);
-        workOrder.setCompanyId(companyId);
-        workOrder.setCreatedAt(LocalDateTime.now());
-        workOrder.setUpdatedAt(LocalDateTime.now());
+        // 获取操作人姓名
+        SysUser currentUser = sysUserMapper.selectById(userId);
+        String operatorName = currentUser != null ? currentUser.getName() : "系统";
 
-        workOrderMapper.insert(workOrder);
+        // 构造 DTO，委托 Service 层创建工单
+        WorkOrderManualCreateDTO dto = new WorkOrderManualCreateDTO();
+        dto.setTitle(title);
+        dto.setType(type);
+        dto.setSeverity(severity);
+        dto.setGridLabel((String) arguments.get("gridLabel"));
+        dto.setPestName((String) arguments.get("pestName"));
+
+        Long workOrderId = workOrderService.createManualWorkOrder(dto, userId, operatorName, companyId);
 
         // 返回创建结果
         Map<String, Object> workOrderData = new LinkedHashMap<>();
-        workOrderData.put("id", workOrder.getId());
-        workOrderData.put("title", workOrder.getTitle());
-        workOrderData.put("status", workOrder.getStatus());
-        workOrderData.put("severity", workOrder.getSeverity());
-        workOrderData.put("type", workOrder.getType());
-        workOrderData.put("gridLabel", workOrder.getGridLabel());
-        workOrderData.put("pestName", workOrder.getPestName());
-        workOrderData.put("createdAt", workOrder.getCreatedAt() != null ?
-                workOrder.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : null);
+        workOrderData.put("id", workOrderId);
+        workOrderData.put("title", title);
+        workOrderData.put("status", "PENDING");
+        workOrderData.put("severity", severity);
+        workOrderData.put("type", type);
+        workOrderData.put("gridLabel", arguments.get("gridLabel"));
+        workOrderData.put("pestName", arguments.get("pestName"));
+        workOrderData.put("createdAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("success", true);
