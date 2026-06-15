@@ -30,7 +30,7 @@ class StgTemplateServiceTest {
         assertNotNull(result);
         assertTrue(result.contains("2026-06-13"));
         assertTrue(result.contains("周五"));
-        assertTrue(result.contains("农业遥测专家"));
+        assertTrue(result.contains("农作物疾病检测系统"));
     }
 
     @Test
