@@ -71,7 +71,7 @@ public class CameraController {
     @RequireRole({"ADMIN"})
     public Result<Void> delete(@PathVariable String id) {
         cameraService.deleteCamera(id);
-        return Result.success("摄像头删除成功，已断开RTSP连接并清理关联流资源", null);
+        return Result.success("摄像头删除成功，已断开RTSP连接", null);
     }
 
     // ==================== 状态与流 ====================
@@ -95,7 +95,7 @@ public class CameraController {
     }
 
     /**
-     * 5.9 批量状态查询
+     * 5.7 批量状态查询
      */
     @PostMapping("/batch-status")
     @RequireRole({"ADMIN", "MANAGER"})
@@ -103,29 +103,7 @@ public class CameraController {
         return Result.success(cameraService.batchStatus(request.getCameraIds()));
     }
 
-    // ==================== 抓拍与推理 ====================
-
-    /**
-     * 5.6 手动抓拍
-     */
-    @PostMapping("/{id}/capture")
-    @RequireRole({"ADMIN", "MANAGER"})
-    public Result<CameraCaptureVO> capture(@PathVariable String id,
-                                           @RequestBody(required = false) CameraCaptureRequest request) {
-        if (request == null) {
-            request = new CameraCaptureRequest();
-        }
-        return Result.success(cameraDetectService.capture(id, request));
-    }
-
-    /**
-     * 5.10 批量抓拍
-     */
-    @PostMapping("/batch-capture")
-    @RequireRole({"ADMIN"})
-    public Result<CameraBatchCaptureVO> batchCapture(@RequestBody CameraBatchCaptureRequest request) {
-        return Result.success(cameraDetectService.batchCapture(request));
-    }
+    // ==================== 推理 ====================
 
     /**
      * 摄像头实时识别（对单个摄像头抽帧推理）
@@ -141,7 +119,7 @@ public class CameraController {
     }
 
     /**
-     * 5.8 更新抓拍配置
+     * 5.6 更新抓拍配置
      */
     @PutMapping("/{id}/capture-config")
     @RequireRole({"ADMIN"})

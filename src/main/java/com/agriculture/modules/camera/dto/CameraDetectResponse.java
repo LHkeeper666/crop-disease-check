@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * 摄像头检测响应DTO
  * 注意：不返回标注图(base64)，只返回结构化的检测框坐标
- * 前端通过Canvas在HLS视频上绘制检测框
+ * 前端通过Canvas在MJPEG视频上绘制检测框
  */
 @Data
 @Builder
