@@ -20,7 +20,10 @@ public class StgTemplateService implements TemplateService {
 
     private static final Logger log = LoggerFactory.getLogger(StgTemplateService.class);
 
-    private static final String TEMPLATE_BASE_PATH = "templates/agri-brain/";
+    private static final String[] TEMPLATE_DIRS = {
+            "templates/agri-brain/",
+            "templates/workorder-email/"
+    };
 
     private final Map<String, STGroup> templateGroups = new ConcurrentHashMap<>();
 
@@ -31,16 +34,21 @@ public class StgTemplateService implements TemplateService {
     }
 
     private void preloadTemplates() {
-        String[] templateFiles = {"system_prompt.stg", "quick_advice.stg"};
+        String[][] dirTemplates = {
+                {"system_prompt.stg", "quick_advice.stg"},
+                {"email_prompt.stg"}
+        };
 
-        for (String templateFile : templateFiles) {
-            try {
-                String path = TEMPLATE_BASE_PATH + templateFile;
-                STGroup group = new STGroupFile(path, "UTF-8", '<', '>');
-                templateGroups.put(templateFile, group);
-                log.info("加载模板成功: {}", path);
-            } catch (Exception e) {
-                log.error("加载模板失败: {}", templateFile, e);
+        for (int i = 0; i < TEMPLATE_DIRS.length; i++) {
+            for (String templateFile : dirTemplates[i]) {
+                try {
+                    String path = TEMPLATE_DIRS[i] + templateFile;
+                    STGroup group = new STGroupFile(path, "UTF-8", '<', '>');
+                    templateGroups.put(templateFile, group);
+                    log.info("加载模板成功: {}", path);
+                } catch (Exception e) {
+                    log.error("加载模板失败: {}", templateFile, e);
+                }
             }
         }
     }

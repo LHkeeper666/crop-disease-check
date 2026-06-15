@@ -11,5 +11,6 @@ public class WorkOrderDetailVO extends WorkOrderVO {
 
     private String inferenceId;
     private String expertComment;
+    private String assignedToEmail;
     private List<StatusHistoryVO> statusHistory;
 }

@@ -13,20 +13,25 @@ import com.agriculture.modules.inference.mapper.InferenceMapper;
 import com.agriculture.common.exception.BusinessException;
 import com.agriculture.modules.workorder.service.WorkOrderService;
 import com.agriculture.modules.workorder.vo.CallbackResponseVO;
+import com.agriculture.modules.workorder.vo.EmailPreviewVO;
 import com.agriculture.modules.workorder.vo.StatusHistoryVO;
 import com.agriculture.modules.workorder.vo.WorkOrderDetailVO;
 import com.agriculture.modules.workorder.vo.WorkOrderVO;
 import com.agriculture.common.websocket.WebSocketService;
+import com.agriculture.common.config.LlmProperties;
+import com.agriculture.common.service.TemplateService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClient;
 
 import jakarta.annotation.Resource;
 import java.math.BigDecimal;
@@ -89,6 +94,15 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
     @Resource
     private WebSocketService webSocketService;
 
+    @Resource
+    private TemplateService templateService;
+
+    @Resource
+    private LlmProperties llmProperties;
+
+    @Resource
+    private RestClient llmRestClient;
+
     @Override
     public IPage<WorkOrderVO> listWorkOrders(String status, String severity,
                                               LocalDateTime startDate, LocalDateTime endDate,
@@ -146,6 +160,14 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         BeanUtils.copyProperties(toVO(workOrder), vo);
         vo.setInferenceId(workOrder.getInferenceId());
         vo.setExpertComment(workOrder.getExpertComment());
+
+        // 填充负责人邮箱
+        if (workOrder.getAssignedTo() != null) {
+            SysUser assignedUser = sysUserMapper.selectById(workOrder.getAssignedTo());
+            if (assignedUser != null) {
+                vo.setAssignedToEmail(assignedUser.getEmail());
+            }
+        }
 
         // 查询状态历史
         LambdaQueryWrapper<WorkOrderHistory> historyWrapper = new LambdaQueryWrapper<>();
@@ -412,6 +434,84 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         workOrderHistoryMapper.delete(hw);
         // 删除工单
         baseMapper.deleteById(id);
+    }
+
+    @Override
+    public EmailPreviewVO previewEmail(Long workOrderId) {
+        WorkOrder workOrder = baseMapper.selectById(workOrderId);
+        if (workOrder == null) {
+            throw new BusinessException(404, "工单不存在");
+        }
+
+        // 查找收件人（工单负责人）
+        if (workOrder.getAssignedTo() == null) {
+            throw new BusinessException("该工单未指定负责人，请先指定负责人后再发送邮件");
+        }
+        SysUser expert = sysUserMapper.selectById(workOrder.getAssignedTo());
+        if (expert == null || expert.getEmail() == null || expert.getEmail().isEmpty()) {
+            throw new BusinessException("该专家未配置邮箱地址");
+        }
+
+        // 使用 AI 生成邮件内容
+        String content = generateEmailContent(workOrder);
+
+        EmailPreviewVO preview = new EmailPreviewVO();
+        preview.setToUserId(expert.getId());
+        preview.setToName(expert.getName());
+        preview.setToEmail(expert.getEmail());
+        preview.setSubject("【农作物疾病检测系统】工单通知 - " + workOrder.getTitle());
+        preview.setContent(content);
+        return preview;
+    }
+
+    private String generateEmailContent(WorkOrder workOrder) {
+        try {
+            Map<String, Object> attrs = new HashMap<>();
+            attrs.put("title", workOrder.getTitle());
+            attrs.put("severity", workOrder.getSeverity());
+            attrs.put("gridLabel", workOrder.getGridLabel() != null ? workOrder.getGridLabel() : "无");
+            attrs.put("pestName", workOrder.getPestName() != null ? workOrder.getPestName() : "无");
+            attrs.put("confidence", workOrder.getConfidence() != null ? workOrder.getConfidence().multiply(new BigDecimal(100)).stripTrailingZeros().toPlainString() + "%" : "无");
+            attrs.put("status", workOrder.getStatus());
+            attrs.put("createdAt", workOrder.getCreatedAt() != null ? workOrder.getCreatedAt().toString() : "未知");
+
+            String prompt = templateService.render("email_prompt", attrs);
+
+            // 调用 LLM 生成邮件内容
+            Map<String, Object> requestBody = Map.of(
+                    "model", llmProperties.getModel(),
+                    "messages", List.of(Map.of("role", "user", "content", prompt)),
+                    "stream", false
+            );
+
+            String responseJson = llmRestClient.post()
+                    .uri("/chat/completions")
+                    .body(requestBody)
+                    .retrieve()
+                    .body(String.class);
+
+            // 解析响应
+            JsonNode root = JSON.readTree(responseJson);
+            JsonNode choices = root.get("choices");
+            if (choices != null && choices.size() > 0) {
+                return choices.get(0).get("message").get("content").asText();
+            }
+        } catch (Exception e) {
+            // AI 生成失败时回退到结构化内容
+        }
+
+        // 回退：生成结构化邮件内容
+        return "尊敬的专家：\n\n"
+                + "您有一条新的工单通知，请及时处理。\n\n"
+                + "━━━━━━━━━━━━━━━━━━━━\n"
+                + "工单标题：" + workOrder.getTitle() + "\n"
+                + "严重程度：" + workOrder.getSeverity() + "\n"
+                + "网格区域：" + (workOrder.getGridLabel() != null ? workOrder.getGridLabel() : "无") + "\n"
+                + "病虫害：" + (workOrder.getPestName() != null ? workOrder.getPestName() : "无") + "\n"
+                + "置信度：" + (workOrder.getConfidence() != null ? workOrder.getConfidence().multiply(new BigDecimal(100)).stripTrailingZeros().toPlainString() + "%" : "无") + "\n"
+                + "创建时间：" + workOrder.getCreatedAt() + "\n\n"
+                + "请登录系统查看详情并处理。\n\n"
+                + "—— 农作物疾病检测系统";
     }
 
     /**

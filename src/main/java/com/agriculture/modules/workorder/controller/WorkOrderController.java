@@ -9,6 +9,7 @@ import com.agriculture.modules.workorder.service.WorkOrderService;
 import com.agriculture.modules.workorder.vo.CallbackResponseVO;
 import com.agriculture.common.vo.Result;
 import com.agriculture.common.service.EmailService;
+import com.agriculture.modules.workorder.vo.EmailPreviewVO;
 import com.agriculture.modules.workorder.vo.WorkOrderDetailVO;
 import com.agriculture.modules.workorder.vo.WorkOrderVO;
 import com.agriculture.modules.user.entity.SysUser;
@@ -53,6 +54,18 @@ public class WorkOrderController {
     @GetMapping("/{id}")
     public Result<WorkOrderDetailVO> getWorkOrderDetail(@PathVariable Long id) {
         return Result.success(workOrderService.getWorkOrderDetail(id));
+    }
+
+    /**
+     * 预览工单邮件（AI 自动生成内容，不实际发送）
+     */
+    @PostMapping("/{id}/preview-email")
+    public Result<EmailPreviewVO> previewEmail(@PathVariable Long id) {
+        try {
+            return Result.success(workOrderService.previewEmail(id));
+        } catch (Exception e) {
+            return Result.error(400, e.getMessage());
+        }
     }
 
     @PostMapping("/create")
@@ -118,7 +131,7 @@ public class WorkOrderController {
             return Result.error(401, "未登录");
         }
 
-        // 获取工单详情用于邮件内容
+        // 获取工单详情
         WorkOrderDetailVO detail = workOrderService.getWorkOrderDetail(id);
         if (detail == null) {
             return Result.error(404, "工单不存在");
@@ -130,27 +143,13 @@ public class WorkOrderController {
             return Result.error(400, "收件人邮箱不存在");
         }
 
-        // 构建邮件内容
-        String subject = "【农作物疾病检测系统】工单通知 - " + detail.getTitle();
-        String text = "尊敬的 " + expert.getName() + "：\n\n"
-                + "您有一条新的工单通知，请及时处理。\n\n"
-                + "━━━━━━━━━━━━━━━━━━━━\n"
-                + "工单标题：" + detail.getTitle() + "\n"
-                + "严重程度：" + detail.getSeverity() + "\n"
-                + "工单状态：" + detail.getStatus() + "\n"
-                + "网格区域：" + detail.getGridLabel() + "\n"
-                + "病虫害：" + (detail.getPestName() != null ? detail.getPestName() : "无") + "\n"
-                + "置信度：" + (detail.getConfidence() != null ? detail.getConfidence() + "%" : "无") + "\n"
-                + "创建时间：" + detail.getCreatedAt() + "\n";
+        // 主题：优先使用前端传入，否则自动生成
+        String subject = (dto.getSubject() != null && !dto.getSubject().isEmpty())
+                ? dto.getSubject()
+                : "【农作物疾病检测系统】工单通知 - " + detail.getTitle();
 
-        if (dto.getContent() != null && !dto.getContent().isEmpty()) {
-            text += "\n━━━━━━━━━━━━━━━━━━━━\n"
-                    + "专家分析：\n" + dto.getContent() + "\n";
-        }
-
-        text += "\n━━━━━━━━━━━━━━━━━━━━\n"
-                + "请登录系统查看详情并处理。\n\n"
-                + "—— 农作物疾病检测系统\n";
+        // 正文：直接使用前端传入的内容（由预览接口 AI 生成，管理员已审阅修改）
+        String text = dto.getContent();
 
         try {
             emailService.sendEmail(expert.getEmail(), subject, text);
@@ -163,10 +162,13 @@ public class WorkOrderController {
     /** 发送邮件请求DTO */
     public static class SendEmailDTO {
         private String toUserId;
-        private String content; // Agent 编写的分析内容
+        private String subject;
+        private String content;
 
         public String getToUserId() { return toUserId; }
         public void setToUserId(String toUserId) { this.toUserId = toUserId; }
+        public String getSubject() { return subject; }
+        public void setSubject(String subject) { this.subject = subject; }
         public String getContent() { return content; }
         public void setContent(String content) { this.content = content; }
     }
