@@ -92,9 +92,9 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         if (camera == null) {
             throw new BusinessException(40087, "摄像头不存在");
         }
-        if (!"ONLINE".equals(camera.getStatus())) {
-            throw new BusinessException(40082, "摄像头离线，无法抓拍");
-        }
+//        if (!"ONLINE".equals(camera.getStatus())) {
+//            throw new BusinessException(40082, "摄像头离线，无法抓拍");
+//        }
 
         String rtspUrl = Boolean.TRUE.equals(request.getUseSubStream()) && camera.getRtspUrlSub() != null
                 ? camera.getRtspUrlSub()

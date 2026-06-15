@@ -15,7 +15,6 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -418,35 +417,4 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
         tryConnectAsync(cameraId, camera.getRtspUrl());
     }
 
-    /**
-     * 定时重连OFFLINE摄像头（每30秒）
-     * FAULT状态的摄像头不会被自动重连，需要人工排查后手动重连
-     */
-    @Scheduled(fixedDelay = 30000, initialDelay = 10000)
-    public void autoReconnectOfflineCameras() {
-        LambdaQueryWrapper<Camera> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Camera::getStatus, "OFFLINE");
-        wrapper.isNotNull(Camera::getRtspUrl);
-        wrapper.ne(Camera::getRtspUrl, "");
-        java.util.List<Camera> offlineCameras = list(wrapper);
-
-        for (Camera camera : offlineCameras) {
-            try {
-                java.net.URI uri = new java.net.URI(camera.getRtspUrl());
-                String host = uri.getHost();
-                int port = uri.getPort() > 0 ? uri.getPort() : 554;
-
-                try (java.net.Socket socket = new java.net.Socket()) {
-                    socket.connect(new java.net.InetSocketAddress(host, port), 3000);
-                    camera.setStatus("ONLINE");
-                    camera.setLastOnlineAt(LocalDateTime.now());
-                    updateById(camera);
-                    recordConnectionStart(camera.getId());
-                    log.info("自动重连成功: cameraId={}, name={}", camera.getId(), camera.getName());
-                }
-            } catch (Exception ignored) {
-                // 仍然离线/故障，不更新状态
-            }
-        }
-    }
 }
