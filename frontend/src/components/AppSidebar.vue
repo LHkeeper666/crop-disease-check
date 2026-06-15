@@ -52,11 +52,9 @@ function handleLogout() {
     <!-- Logo -->
     <div class="px-4 xl:px-6 py-5 border-b border-white/5">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-cyber-green to-cyber-green-dark flex items-center justify-center text-base font-bold text-white shrink-0">
-          TF
-        </div>
+        <img src="/images/logo/favicon.svg" alt="农作物疾病检测系统" class="w-9 h-9 rounded-lg shrink-0" />
         <div class="hidden xl:block">
-          <div class="text-sm font-semibold text-white tracking-wide">TreeForge</div>
+          <div class="text-sm font-semibold text-white tracking-wide">农作物疾病检测系统</div>
           <div class="text-[10px] text-slate-500 font-mono">AGRI-TELEMETRY v1.0</div>
         </div>
       </div>

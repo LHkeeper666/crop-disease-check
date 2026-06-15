@@ -163,6 +163,32 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
+    @Override
+    public void sendEmail(String to, String subject, String text) {
+        try {
+            MimeMessage message = new MimeMessage(session);
+            message.setFrom(username);
+            message.setRecipients(MimeMessage.RecipientType.TO, to);
+            message.setSubject(subject);
+            message.setText(text);
+
+            long start = System.currentTimeMillis();
+            Transport t = getConnectedTransport();
+            t.sendMessage(message, message.getAllRecipients());
+            log.info("邮件已发送至: {}, 主题: {}, 耗时: {}ms", to, subject, System.currentTimeMillis() - start);
+
+        } catch (MessagingException e) {
+            log.error("发送邮件失败: {}", e.getMessage(), e);
+            synchronized (lock) {
+                if (transport != null) {
+                    try { transport.close(); } catch (MessagingException ignored) {}
+                    transport = null;
+                }
+            }
+            throw new RuntimeException("邮件发送失败，请稍后重试");
+        }
+    }
+
     @PreDestroy
     public void destroy() {
         synchronized (lock) {

@@ -72,7 +72,6 @@ function initMeteorEffect() {
         continue
       }
 
-      // Draw meteor trail
       const gradient = ctx.createLinearGradient(
         m.x, m.y,
         m.x - Math.cos(m.angle) * m.length,
@@ -92,7 +91,6 @@ function initMeteorEffect() {
       ctx.lineWidth = 1.5
       ctx.stroke()
 
-      // Draw meteor head glow
       ctx.beginPath()
       ctx.arc(m.x, m.y, 2, 0, Math.PI * 2)
       ctx.fillStyle = `rgba(255, 255, 255, ${m.opacity})`
@@ -229,49 +227,12 @@ async function handleRegister() {
     <!-- Meteor canvas -->
     <canvas ref="canvasRef" class="absolute inset-0 z-[2] pointer-events-none" />
 
-    <!-- Floating decorative elements -->
-    <div class="absolute top-20 left-[10%] w-72 h-72 bg-cyber-green/8 rounded-full blur-[80px] z-[2]" />
-    <div class="absolute bottom-20 right-[10%] w-64 h-64 bg-sunset-from/6 rounded-full blur-[80px] z-[2]" />
-
-    <!-- Leaf decoration - top right -->
-    <svg class="absolute top-8 right-12 w-20 h-20 text-cyber-green/10 z-[2]" viewBox="0 0 100 100" fill="none">
-      <path d="M50 10 C20 30, 10 60, 50 90 C90 60, 80 30, 50 10Z" stroke="currentColor" stroke-width="1.5" fill="currentColor" fill-opacity="0.05"/>
-      <path d="M50 10 L50 90" stroke="currentColor" stroke-width="0.8"/>
-      <path d="M50 30 C35 40, 25 50, 20 55" stroke="currentColor" stroke-width="0.6"/>
-      <path d="M50 50 C65 55, 75 60, 80 65" stroke="currentColor" stroke-width="0.6"/>
-    </svg>
-
-    <!-- Leaf decoration - bottom left -->
-    <svg class="absolute bottom-12 left-16 w-16 h-16 text-cyber-green/8 z-[2] rotate-[-30deg]" viewBox="0 0 100 100" fill="none">
-      <path d="M50 10 C20 30, 10 60, 50 90 C90 60, 80 30, 50 10Z" stroke="currentColor" stroke-width="1.5" fill="currentColor" fill-opacity="0.05"/>
-      <path d="M50 10 L50 90" stroke="currentColor" stroke-width="0.8"/>
-    </svg>
-
-    <!-- Wheat/grain decoration - left -->
-    <svg class="absolute top-1/3 left-8 w-12 h-32 text-cyber-green/6 z-[2]" viewBox="0 0 50 120" fill="none">
-      <path d="M25 120 L25 20" stroke="currentColor" stroke-width="1"/>
-      <ellipse cx="25" cy="20" rx="8" ry="5" stroke="currentColor" stroke-width="0.8" fill="currentColor" fill-opacity="0.05"/>
-      <ellipse cx="18" cy="35" rx="7" ry="4" stroke="currentColor" stroke-width="0.8" fill="currentColor" fill-opacity="0.05" transform="rotate(-20,18,35)"/>
-      <ellipse cx="32" cy="35" rx="7" ry="4" stroke="currentColor" stroke-width="0.8" fill="currentColor" fill-opacity="0.05" transform="rotate(20,32,35)"/>
-      <ellipse cx="16" cy="50" rx="6" ry="3.5" stroke="currentColor" stroke-width="0.8" fill="currentColor" fill-opacity="0.05" transform="rotate(-25,16,50)"/>
-      <ellipse cx="34" cy="50" rx="6" ry="3.5" stroke="currentColor" stroke-width="0.8" fill="currentColor" fill-opacity="0.05" transform="rotate(25,34,50)"/>
-    </svg>
-
     <!-- Content -->
     <div class="relative z-10 flex flex-col items-center w-full max-w-lg mx-4">
       <!-- Title area -->
       <div class="text-center mb-8">
-        <!-- Leaf icon above title -->
-        <div class="mx-auto mb-4 w-14 h-14 rounded-2xl bg-gradient-to-br from-cyber-green to-cyber-green-dark flex items-center justify-center shadow-lg shadow-cyber-green/20">
-          <svg class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.5 0 3-.3 4.3-.9"/>
-            <path d="M12 2c3 3 5 7 5 10s-2 7-5 10"/>
-            <path d="M7 8c1.5 1 3 2.5 5 3"/>
-            <path d="M7 14c2-.5 3.5-1.5 5-3"/>
-            <circle cx="19" cy="5" r="3" fill="currentColor" fill-opacity="0.3"/>
-            <path d="M17.5 5h3M19 3.5v3" stroke-width="1.5"/>
-          </svg>
-        </div>
+        <!-- Logo icon above title -->
+        <img src="/images/logo/favicon.svg" alt="农作物疾病检测系统" class="mx-auto mb-4 w-14 h-14 rounded-2xl shadow-lg shadow-cyber-green/20" />
         <h1 class="text-3xl font-bold tracking-wide mb-2">
           <span class="text-sunset">农作物疾病检测系统</span>
         </h1>
@@ -413,13 +374,13 @@ async function handleRegister() {
         <div class="mt-6 text-center text-xs text-slate-600">
           <span class="font-mono">v1.0.0</span>
           <span class="mx-2">|</span>
-          <span>智慧农业病虫害无人值守监测系统</span>
+          <span>农作物疾病检测系统</span>
         </div>
       </GlassCard>
 
       <!-- Bottom decorative text -->
       <div class="mt-6 text-center text-[10px] text-slate-600/50 font-mono tracking-wider">
-        POWERED BY TREEFORGE AGRI-TELEMETRY ENGINE
+        POWERED BY AGRI-DETECTION ENGINE
       </div>
     </div>
   </div>

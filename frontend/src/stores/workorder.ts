@@ -34,11 +34,24 @@ const severityLevel: Record<string, number> = {
 
 /** 将后端 VO 转为前端类型 */
 function fromVO(vo: WorkOrderVO): WorkOrder {
+  // 规范化状态：ESCALATED 映射为 PROCESSING，未知状态回退为 PENDING
+  const validStatuses: WorkOrder['status'][] = ['PENDING', 'PROCESSING', 'DONE', 'IGNORED']
+  const rawStatus = vo.status === 'ESCALATED' ? 'PROCESSING' : vo.status
+  const status = validStatuses.includes(rawStatus as WorkOrder['status'])
+    ? (rawStatus as WorkOrder['status'])
+    : 'PENDING'
+
+  // 规范化严重程度
+  const validSeverities: WorkOrder['severity'][] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
+  const severity = validSeverities.includes(vo.severity as WorkOrder['severity'])
+    ? (vo.severity as WorkOrder['severity'])
+    : 'MEDIUM'
+
   return {
     id: vo.id,
     title: vo.title,
-    severity: vo.severity as WorkOrder['severity'],
-    status: vo.status as WorkOrder['status'],
+    severity,
+    status,
     type: vo.type as WorkOrder['type'],
     gridLabel: vo.gridLabel,
     pestName: vo.pestName,

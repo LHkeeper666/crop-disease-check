@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
 import { useAuthStore } from '../stores/auth'
 import { fetchGrids, updateGrid, type GridVO } from '../api/grid'
@@ -89,15 +89,18 @@ function closeGridModal() {
 const users = ref<UserSimpleVO[]>([])
 const userLoading = ref(false)
 const userTotal = ref(0)
+const userError = ref('')
 
 async function loadUsers() {
   userLoading.value = true
+  userError.value = ''
   try {
     const page = await fetchUsers({ size: 200 })
     users.value = page.records
     userTotal.value = page.total
   } catch (e: any) {
     console.error('[Device] 加载用户失败:', e.message)
+    userError.value = e.message || '加载用户失败'
   } finally {
     userLoading.value = false
   }
@@ -129,13 +132,14 @@ async function fetchCameras() {
   cameraLoading.value = true
   cameraError.value = ''
   try {
-    const res = await fetch('/api/camera/list?size=100', {
+    const res = await fetch(`/api/camera/list?size=100&_t=${Date.now()}`, {
       headers: getAuthHeaders(),
     })
     if (!res.ok) throw new Error('加载摄像头列表失败')
     const data = await res.json()
     if (data.code !== 200) throw new Error(data.message || '加载失败')
     const records = data.data?.records || []
+    console.log('[Camera] 列表加载, 共', records.length, '条')
     cameras.value = records.map((c: any) => ({
       id: c.id,
       name: c.name,
@@ -181,25 +185,28 @@ async function createCamera(form: typeof cameraForm.value) {
 }
 
 async function updateCamera(id: string, form: typeof cameraForm.value) {
+  const body = {
+    name: form.name.trim(),
+    rtspUrl: form.rtspUrl.trim(),
+    rtspUrlSub: form.rtspUrlSub.trim() || undefined,
+    locationX: form.locationX ? parseFloat(form.locationX) : undefined,
+    locationY: form.locationY ? parseFloat(form.locationY) : undefined,
+    direction: form.direction ? parseFloat(form.direction) : undefined,
+    coverageGrids: form.grid
+      ? form.grid.split(',').map((s: string) => s.trim()).filter(Boolean)
+      : undefined,
+    captureResolution: form.captureResolution || undefined,
+    captureQuality: parseInt(form.captureQuality) || 85,
+    reconnectInterval: parseInt(form.reconnectInterval) || 30,
+  }
+  console.log('[Camera] 更新请求:', `/api/camera/${id}`, body)
   const res = await fetch(`/api/camera/${id}`, {
     method: 'PUT',
     headers: getAuthHeaders(),
-    body: JSON.stringify({
-      name: form.name.trim(),
-      rtspUrl: form.rtspUrl.trim(),
-      rtspUrlSub: form.rtspUrlSub.trim() || undefined,
-      locationX: form.locationX ? parseFloat(form.locationX) : undefined,
-      locationY: form.locationY ? parseFloat(form.locationY) : undefined,
-      direction: form.direction ? parseFloat(form.direction) : undefined,
-      coverageGrids: form.grid
-        ? form.grid.split(',').map((s: string) => s.trim()).filter(Boolean)
-        : undefined,
-      captureResolution: form.captureResolution || undefined,
-      captureQuality: parseInt(form.captureQuality) || 85,
-      reconnectInterval: parseInt(form.reconnectInterval) || 30,
-    }),
+    body: JSON.stringify(body),
   })
   const data = await res.json()
+  console.log('[Camera] 更新响应:', data)
   if (data.code !== 200) throw new Error(data.message || '更新失败')
 }
 
@@ -265,11 +272,18 @@ async function saveCamera() {
     if (isCreateMode.value) {
       await createCamera(cameraForm.value)
     } else {
-      await updateCamera(editingCamera.value!.id, cameraForm.value)
+      const camId = editingCamera.value?.id
+      if (!camId) throw new Error('摄像头ID无效')
+      console.log('[Camera] 开始更新, id=', camId)
+      await updateCamera(camId, cameraForm.value)
+      console.log('[Camera] 更新成功')
     }
     showCameraModal.value = false
+    editingCamera.value = null
     await fetchCameras()
+    console.log('[Camera] 列表已刷新')
   } catch (e: any) {
+    console.error('[Camera] 保存失败:', e)
     cameraSaveError.value = e.message || '操作失败'
   } finally {
     cameraSaving.value = false
@@ -320,6 +334,13 @@ onMounted(() => {
   loadUsers()
 })
 
+// 切换到用户管理 tab 时，若用户列表为空且未在加载中，自动重新加载
+watch(activeTab, (tab) => {
+  if (tab === 'users' && users.value.length === 0 && !userLoading.value) {
+    loadUsers()
+  }
+})
+
 // ==================== User management ====================
 const filteredUsers = computed(() => {
   if (!userSearch.value) return users.value
@@ -348,16 +369,19 @@ const showEditModal = ref(false)
 const editingUser = ref<UserSimpleVO | null>(null)
 const editForm = ref({ name: '', role: '', phone: '', email: '' })
 const editSaving = ref(false)
+const editError = ref('')
 
 function openEdit(user: UserSimpleVO) {
   editingUser.value = user
   editForm.value = { name: user.name || '', role: user.role, phone: user.phone || '', email: user.email || '' }
+  editError.value = ''
   showEditModal.value = true
 }
 
 async function saveEdit() {
   if (!editingUser.value) return
   editSaving.value = true
+  editError.value = ''
   try {
     await updateUser(editingUser.value.id, {
       name: editForm.value.name,
@@ -369,7 +393,7 @@ async function saveEdit() {
     editingUser.value = null
     await loadUsers()
   } catch (e: any) {
-    alert('保存失败: ' + e.message)
+    editError.value = e.message || '保存失败'
   } finally {
     editSaving.value = false
   }
@@ -388,8 +412,12 @@ const resetNewPassword = ref('')
 async function confirmResetPassword() {
   if (!resettingUser.value) return
   try {
-    const result = await resetUserPassword(resettingUser.value.id)
-    resetNewPassword.value = result.newPassword
+    // 生成随机密码（字母+数字，8位）
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+    let newPwd = ''
+    for (let i = 0; i < 8; i++) newPwd += chars.charAt(Math.floor(Math.random() * chars.length))
+    await resetUserPassword(resettingUser.value.id, newPwd)
+    resetNewPassword.value = newPwd
   } catch (e: any) {
     alert('重置失败: ' + e.message)
     closeResetConfirm()
@@ -556,9 +584,6 @@ async function toggleUserStatus(user: UserSimpleVO) {
             </div>
           </div>
         </div>
-        <div class="text-sm text-slate-500 text-center py-16">
-          网格区域功能开发中...
-        </div>
       </div>
 
       <!-- Users -->
@@ -573,7 +598,18 @@ async function toggleUserStatus(user: UserSimpleVO) {
                placeholder="搜索用户名或姓名"
                class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50"
               />
+              <button
+                class="px-3 py-1.5 rounded-lg text-xs font-mono bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10 transition-colors"
+                @click="loadUsers"
+              >
+                刷新
+              </button>
             </div>
+          </div>
+          <!-- Error state -->
+          <div v-if="userError" class="mb-4 px-3 py-2 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/20 text-[#EF4444] text-xs flex items-center gap-2">
+            {{ userError }}
+            <button class="ml-2 underline text-cyber-green" @click="loadUsers">重试</button>
           </div>
           <div v-if="userLoading" class="py-8 text-center text-slate-500 text-sm">加载中...</div>
           <table v-else class="w-full text-sm">
@@ -629,7 +665,7 @@ async function toggleUserStatus(user: UserSimpleVO) {
       <div
         v-if="showEditModal && editingUser"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-        @click.self="closeEdit"
+        @mousedown.self="closeEdit"
       >
         <div class="glass rounded-2xl p-6 w-full max-w-[420px] mx-4 shadow-2xl border border-white/10">
           <div class="flex items-center justify-between mb-6">
@@ -696,7 +732,11 @@ async function toggleUserStatus(user: UserSimpleVO) {
             </div>
           </div>
 
-          <div class="flex gap-3 mt-6">
+          <div v-if="editError" class="mt-3 px-3 py-2 rounded-lg bg-sakura/10 border border-sakura/20 text-sakura text-xs">
+            {{ editError }}
+          </div>
+
+          <div class="flex gap-3 mt-4">
             <button
               class="flex-1 px-4 py-3 rounded-xl bg-cyber-green/10 border border-cyber-green/20 text-cyber-green text-sm hover:bg-cyber-green/20 transition-colors disabled:opacity-40"
               :disabled="editSaving"
@@ -720,7 +760,7 @@ async function toggleUserStatus(user: UserSimpleVO) {
       <div
         v-if="showResetConfirm && resettingUser"
         class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-        @click.self="closeResetConfirm"
+        @mousedown.self="closeResetConfirm"
       >
         <div class="glass rounded-2xl p-6 w-full max-w-[400px] mx-4 shadow-2xl border border-amber/20">
           <div class="text-center">
@@ -770,7 +810,7 @@ async function toggleUserStatus(user: UserSimpleVO) {
       <div
         v-if="showGridModal && editingGrid"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-        @click.self="closeGridModal"
+        @mousedown.self="closeGridModal"
       >
         <div class="glass rounded-2xl p-6 w-full max-w-[420px] mx-4 shadow-2xl border border-white/10">
           <div class="flex items-center justify-between mb-6">
@@ -846,7 +886,7 @@ async function toggleUserStatus(user: UserSimpleVO) {
       <div
         v-if="showCameraModal"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-        @click.self="closeCameraModal"
+        @mousedown.self="closeCameraModal"
       >
         <div class="glass rounded-2xl p-6 w-full max-w-[560px] mx-4 shadow-2xl border border-white/10 max-h-[85vh] overflow-y-auto">
           <div class="flex items-center justify-between mb-6">
@@ -1000,7 +1040,7 @@ async function toggleUserStatus(user: UserSimpleVO) {
       <div
         v-if="showDeleteConfirm && deletingCamera"
         class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-        @click.self="closeDeleteConfirm"
+        @mousedown.self="closeDeleteConfirm"
       >
         <div class="glass rounded-2xl p-6 w-[400px] shadow-2xl border border-sakura/20">
           <div class="text-center">

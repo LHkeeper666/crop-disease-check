@@ -1,4 +1,4 @@
-package com.agriculture.modules.dailyreport.vo;
+package com.agriculture.modules.dailyReport.vo;
 
 import lombok.Data;
 

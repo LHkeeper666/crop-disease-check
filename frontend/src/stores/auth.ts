@@ -16,7 +16,7 @@ export interface UserInfo {
 
 // 企业邀请码 → 企业信息（本地 mock 回退用）
 const companyInvites: Record<string, { companyId: string; companyName: string }> = {
-  TF2026: { companyId: 'company-001', companyName: 'TreeForge 智慧农场' },
+  TF2026: { companyId: 'company-001', companyName: '农作物疾病检测系统' },
   AG2026: { companyId: 'company-002', companyName: '绿丰农业科技' },
 }
 
@@ -241,18 +241,46 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('treeforge_user_pending')
   }
 
-  // Restore session from localStorage
+  // Restore session from localStorage — try backend first, fallback to mock
   if (token.value && !userInfo.value) {
-    userInfo.value = {
-      id: 'u-001',
-      username: 'admin',
-      name: '系统管理员',
-      role: 'ADMIN',
-      phone: '13800138000',
-      email: 'admin@treeforge.cn',
-      companyId: 'company-001',
-      approved: true,
-    }
+    // Try fetching real user info from backend
+    fetch('/api/users/me', {
+      headers: { 'Authorization': `Bearer ${token.value}`, 'Content-Type': 'application/json' },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.code === 200 && data.data) {
+          const u = data.data
+          userInfo.value = {
+            id: u.id,
+            username: u.username,
+            name: u.name,
+            role: u.role || 'MANAGER',
+            phone: u.phone || '',
+            email: u.email || '',
+            avatar: u.avatar,
+            companyId: u.companyId || '',
+            approved: u.approved ?? true,
+          }
+        } else {
+          // Token invalid — clear
+          token.value = ''
+          localStorage.removeItem('treeforge_token')
+        }
+      })
+      .catch(() => {
+        // Backend unreachable — keep token for mock mode, set default admin
+        userInfo.value = {
+          id: 'u-001',
+          username: 'admin',
+          name: '系统管理员',
+          role: 'ADMIN',
+          phone: '13800138000',
+          email: 'admin@treeforge.cn',
+          companyId: 'company-001',
+          approved: true,
+        }
+      })
   }
 
   return {

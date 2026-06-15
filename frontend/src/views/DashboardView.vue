@@ -100,7 +100,7 @@ function getCellLabelColor(severity: string | null) {
 }
 
 // Detection confidence threshold (0-1), will be sent to backend
-const confidenceThreshold = ref(0.5)
+const confidenceThreshold = ref(0)
 
 // 报警列表（受检测阈值过滤）
 const alerts = computed(() => woStore.getAlerts(confidenceThreshold.value))
@@ -558,7 +558,7 @@ function renderTrendChart() {
       <div
         v-if="selectedCell"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-        @click.self="closeCellDetail"
+        @mousedown.self="closeCellDetail"
       >
         <div class="glass rounded-2xl p-6 w-80 shadow-2xl border border-white/10">
           <div class="flex items-center justify-between mb-4">

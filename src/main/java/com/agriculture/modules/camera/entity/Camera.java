@@ -30,7 +30,7 @@ public class Camera implements Serializable {
     /**
      * 摄像头UUID
      */
-    @TableId(value = "id", type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.INPUT)
     private String id;
 
     /**

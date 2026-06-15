@@ -27,7 +27,7 @@ public class AiMessage implements Serializable {
     /**
      * 消息UUID
      */
-    @TableId(value = "id", type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.INPUT)
     private String id;
 
     /**

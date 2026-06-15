@@ -1,4 +1,4 @@
-package com.agriculture.modules.dailyreport.dto;
+package com.agriculture.modules.dailyReport.dto;
 
 import lombok.Data;
 

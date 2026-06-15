@@ -22,7 +22,7 @@ public class Company implements Serializable {
     /**
      * 企业UUID
      */
-    @TableId(value = "id", type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.INPUT)
     private String id;
 
     /**

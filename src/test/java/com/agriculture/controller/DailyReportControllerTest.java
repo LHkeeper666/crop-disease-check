@@ -1,14 +1,14 @@
 package com.agriculture.controller;
 
 import com.agriculture.common.exception.GlobalExceptionHandler;
-import com.agriculture.modules.dailyreport.controller.DailyReportController;
-import com.agriculture.modules.dailyreport.service.DailyReportService;
+import com.agriculture.modules.dailyReport.controller.DailyReportController;
+import com.agriculture.modules.dailyReport.service.DailyReportService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.agriculture.modules.dailyreport.vo.DailyReportDetailVO;
-import com.agriculture.modules.dailyreport.vo.DailyReportSummaryDTO;
-import com.agriculture.modules.dailyreport.vo.DailyReportVO;
+import com.agriculture.modules.dailyReport.vo.DailyReportDetailVO;
+import com.agriculture.modules.dailyReport.vo.DailyReportSummaryDTO;
+import com.agriculture.modules.dailyReport.vo.DailyReportVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

@@ -150,18 +150,26 @@ public class StatisticServiceImpl implements StatisticService {
                     .ne(WorkOrder::getStatus, "DONE");
         vo.setHighRiskAlerts(workOrderMapper.selectCount(alertWrapper).intValue());
 
-        // 查询时间窗口内的 inference
-        LambdaQueryWrapper<Inference> inferenceWrapper = new LambdaQueryWrapper<>();
-        inferenceWrapper.ge(Inference::getCreatedAt, startTime).le(Inference::getCreatedAt, now);
-        List<Inference> inferences = inferenceMapper.selectList(inferenceWrapper);
+        // ========== 从 work_order 表查询数据（报警工单） ==========
 
-        // 展开为扁平检测列表
-        List<FlatDetection> flat = flattenDetections(inferences);
+        // 查询时间窗口内的工单（排除 IGNORED 状态）
+        LambdaQueryWrapper<WorkOrder> woWrapper = new LambdaQueryWrapper<>();
+        woWrapper.ge(WorkOrder::getCreatedAt, startTime)
+                 .le(WorkOrder::getCreatedAt, now)
+                 .ne(WorkOrder::getStatus, "IGNORED");
+        List<WorkOrder> allOrders = workOrderMapper.selectList(woWrapper);
 
-        // 类型分布 (按中文名称)
-        Map<String, Long> typeCount = flat.stream()
-                .filter(f -> f.nameCn != null)
-                .collect(Collectors.groupingBy(f -> f.nameCn, Collectors.counting()));
+        // 今日工单（用于病害/虫害分布环图）
+        LambdaQueryWrapper<WorkOrder> todayWoWrapper = new LambdaQueryWrapper<>();
+        todayWoWrapper.ge(WorkOrder::getCreatedAt, todayStart)
+                      .le(WorkOrder::getCreatedAt, now)
+                      .ne(WorkOrder::getStatus, "IGNORED");
+        List<WorkOrder> todayOrders = workOrderMapper.selectList(todayWoWrapper);
+
+        // 类型分布 (按病虫害名称)
+        Map<String, Long> typeCount = allOrders.stream()
+                .filter(w -> w.getPestName() != null)
+                .collect(Collectors.groupingBy(WorkOrder::getPestName, Collectors.counting()));
         List<StatisticsOverviewVO.TypeDistribution> typeDistribution = typeCount.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                 .limit(10)
@@ -174,31 +182,30 @@ public class StatisticServiceImpl implements StatisticService {
                 .collect(Collectors.toList());
         vo.setTypeDistribution(typeDistribution);
 
-        // 每日趋势 (按 inference 记录粒度)
-        Map<LocalDate, List<Inference>> dailyGroups = inferences.stream()
-                .filter(i -> i.getCreatedAt() != null)
+        // 每日趋势 (按工单 created_at 分组)
+        Map<LocalDate, List<WorkOrder>> dailyGroups = allOrders.stream()
+                .filter(w -> w.getCreatedAt() != null)
                 .collect(Collectors.groupingBy(
-                        i -> i.getCreatedAt().toLocalDate(),
+                        w -> w.getCreatedAt().toLocalDate(),
                         TreeMap::new,
                         Collectors.toList()));
         List<StatisticsOverviewVO.DailyTrend> dailyTrend = new ArrayList<>();
-        for (Map.Entry<LocalDate, List<Inference>> entry : dailyGroups.entrySet()) {
+        for (Map.Entry<LocalDate, List<WorkOrder>> entry : dailyGroups.entrySet()) {
             StatisticsOverviewVO.DailyTrend trend = new StatisticsOverviewVO.DailyTrend();
             trend.setDate(entry.getKey().toString());
-            List<FlatDetection> dayFlat = flattenDetections(entry.getValue());
-            int disease = (int) dayFlat.stream().filter(f -> "DISEASE".equals(f.pipeline)).count();
-            int pest = (int) dayFlat.stream().filter(f -> "PEST".equals(f.pipeline)).count();
+            int disease = (int) entry.getValue().stream().filter(w -> "disease".equals(w.getType())).count();
+            int pest = (int) entry.getValue().stream().filter(w -> "pest".equals(w.getType())).count();
             trend.setDiseaseCount(disease);
             trend.setPestCount(pest);
-            trend.setCount(dayFlat.size());
+            trend.setCount(entry.getValue().size());
             dailyTrend.add(trend);
         }
         vo.setDailyTrend(dailyTrend);
 
         // Top5 病虫害
-        Map<String, Long> nameCount = flat.stream()
-                .filter(f -> f.nameCn != null)
-                .collect(Collectors.groupingBy(f -> f.nameCn, Collectors.counting()));
+        Map<String, Long> nameCount = allOrders.stream()
+                .filter(w -> w.getPestName() != null)
+                .collect(Collectors.groupingBy(WorkOrder::getPestName, Collectors.counting()));
         List<StatisticsOverviewVO.TopPest> top5Pests = nameCount.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                 .limit(5)
@@ -211,10 +218,10 @@ public class StatisticServiceImpl implements StatisticService {
                 .collect(Collectors.toList());
         vo.setTop5Pests(top5Pests);
 
-        // 病害分布 (pipeline=DISEASE, 按中文名分组, top 10)
-        Map<String, Long> diseaseCount = flat.stream()
-                .filter(f -> "DISEASE".equals(f.pipeline) && f.nameCn != null)
-                .collect(Collectors.groupingBy(f -> f.nameCn, Collectors.counting()));
+        // 病害分布 (type=disease, 今日工单, 按名称分组, top 10)
+        Map<String, Long> diseaseCount = todayOrders.stream()
+                .filter(w -> "disease".equals(w.getType()) && w.getPestName() != null)
+                .collect(Collectors.groupingBy(WorkOrder::getPestName, Collectors.counting()));
         List<StatisticsOverviewVO.TypeDistribution> diseaseDistribution = diseaseCount.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                 .limit(10)
@@ -227,10 +234,10 @@ public class StatisticServiceImpl implements StatisticService {
                 .collect(Collectors.toList());
         vo.setDiseaseDistribution(diseaseDistribution);
 
-        // 虫害分布 (pipeline=PEST, 按中文名分组, top 10)
-        Map<String, Long> pestCount = flat.stream()
-                .filter(f -> "PEST".equals(f.pipeline) && f.nameCn != null)
-                .collect(Collectors.groupingBy(f -> f.nameCn, Collectors.counting()));
+        // 虫害分布 (type=pest, 今日工单, 按名称分组, top 10)
+        Map<String, Long> pestCount = todayOrders.stream()
+                .filter(w -> "pest".equals(w.getType()) && w.getPestName() != null)
+                .collect(Collectors.groupingBy(WorkOrder::getPestName, Collectors.counting()));
         List<StatisticsOverviewVO.TypeDistribution> pestDistribution = pestCount.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                 .limit(10)
@@ -243,7 +250,7 @@ public class StatisticServiceImpl implements StatisticService {
                 .collect(Collectors.toList());
         vo.setPestDistribution(pestDistribution);
 
-        // Top5 病害 (pipeline=DISEASE, 按中文名分组, top 5)
+        // Top5 病害 (type=disease)
         List<StatisticsOverviewVO.TopPest> top5Diseases = diseaseCount.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                 .limit(5)
@@ -256,8 +263,8 @@ public class StatisticServiceImpl implements StatisticService {
                 .collect(Collectors.toList());
         vo.setTop5Diseases(top5Diseases);
 
-        // 网格热力图
-        List<StatisticsOverviewVO.GridHeatmap> gridHeatmap = buildGridHeatmap(inferences);
+        // 网格热力图 (基于工单)
+        List<StatisticsOverviewVO.GridHeatmap> gridHeatmap = buildGridHeatmapFromOrders(allOrders);
         vo.setGridHeatmap(gridHeatmap);
 
         // 推送热力图更新到 WebSocket
@@ -494,7 +501,7 @@ public class StatisticServiceImpl implements StatisticService {
     }
 
     /**
-     * 构建网格热力图数据
+     * 构建网格热力图数据（基于 inference）
      */
     private List<StatisticsOverviewVO.GridHeatmap> buildGridHeatmap(List<Inference> inferences) {
         Set<String> reportIds = inferences.stream()
@@ -519,6 +526,33 @@ public class StatisticServiceImpl implements StatisticService {
             StatisticsOverviewVO.GridHeatmap hm = new StatisticsOverviewVO.GridHeatmap();
             hm.setGridId(entry.getKey());
             hm.setGridLabel(gridLabelMap.getOrDefault(entry.getKey(), entry.getKey()));
+            hm.setScore(BigDecimal.valueOf(entry.getValue())
+                    .divide(BigDecimal.valueOf(maxCount), 2, RoundingMode.HALF_UP)
+                    .doubleValue());
+            result.add(hm);
+        }
+        result.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
+        return result;
+    }
+
+    /**
+     * 构建网格热力图数据（基于工单）
+     */
+    private List<StatisticsOverviewVO.GridHeatmap> buildGridHeatmapFromOrders(List<WorkOrder> orders) {
+        // 按 gridLabel 统计工单数
+        Map<String, Long> gridCount = orders.stream()
+                .filter(w -> w.getGridLabel() != null)
+                .collect(Collectors.groupingBy(WorkOrder::getGridLabel, Collectors.counting()));
+
+        if (gridCount.isEmpty()) return Collections.emptyList();
+
+        long maxCount = gridCount.values().stream().max(Long::compareTo).orElse(1L);
+
+        List<StatisticsOverviewVO.GridHeatmap> result = new ArrayList<>();
+        for (Map.Entry<String, Long> entry : gridCount.entrySet()) {
+            StatisticsOverviewVO.GridHeatmap hm = new StatisticsOverviewVO.GridHeatmap();
+            hm.setGridId(entry.getKey());
+            hm.setGridLabel(entry.getKey());
             hm.setScore(BigDecimal.valueOf(entry.getValue())
                     .divide(BigDecimal.valueOf(maxCount), 2, RoundingMode.HALF_UP)
                     .doubleValue());

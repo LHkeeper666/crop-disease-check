@@ -1,4 +1,4 @@
-package com.agriculture.modules.dailyreport.entity;
+package com.agriculture.modules.dailyReport.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -29,7 +29,7 @@ public class DailyReport implements Serializable {
     /**
      * 报告UUID
      */
-    @TableId(value = "id", type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.INPUT)
     private String id;
 
     /**
