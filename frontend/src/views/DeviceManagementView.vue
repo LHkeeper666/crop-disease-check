@@ -488,8 +488,8 @@ async function toggleUserStatus(user: UserSimpleVO) {
     <!-- Header -->
     <div class="flex items-center justify-between shrink-0">
       <div>
-        <h1 class="text-lg font-bold text-white">多租户生物资产与设备管理舱</h1>
-        <p class="text-xs text-slate-500 font-mono">多租户生物资产与设备管理</p>
+        <h1 class="text-lg font-bold text-white">多用户生物资产与设备管理舱</h1>
+        <p class="text-xs text-slate-500 font-mono">多用户生物资产与设备管理</p>
       </div>
     </div>
 

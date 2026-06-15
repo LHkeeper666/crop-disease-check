@@ -32,12 +32,7 @@ public class DailyReportScheduler {
             String reportId = dailyReportService.generateReport(dto);
             log.info("[定时任务] 日报生成成功: date={}, id={}", today, reportId);
         } catch (Exception e) {
-            // 如果日报已存在（手动生成过），跳过
-            if (e.getMessage() != null && e.getMessage().contains("已存在")) {
-                log.info("[定时任务] 今日日报已存在，跳过: {}", today);
-            } else {
-                log.error("[定时任务] 日报生成失败: date={}, error={}", today, e.getMessage(), e);
-            }
+            log.error("[定时任务] 日报生成失败: date={}, error={}", today, e.getMessage(), e);
         }
     }
 }
