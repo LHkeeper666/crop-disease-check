@@ -8,6 +8,8 @@ import com.agriculture.modules.camera.mapper.CameraGridMapper;
 import com.agriculture.modules.camera.mapper.CameraMapper;
 import com.agriculture.modules.camera.service.CameraDetectService;
 import com.agriculture.modules.camera.service.CameraService;
+import com.agriculture.modules.grid.entity.Grid;
+import com.agriculture.modules.grid.mapper.GridMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -35,6 +37,7 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
     private static final Logger log = LoggerFactory.getLogger(CameraServiceImpl.class);
 
     private final CameraGridMapper cameraGridMapper;
+    private final GridMapper gridMapper;
     private final CameraDetectService cameraDetectService;
 
     /**
@@ -43,8 +46,10 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
     private final Map<String, LocalDateTime> connectionStartTimeMap = new ConcurrentHashMap<>();
 
     public CameraServiceImpl(CameraGridMapper cameraGridMapper,
+                             GridMapper gridMapper,
                              @Lazy CameraDetectService cameraDetectService) {
         this.cameraGridMapper = cameraGridMapper;
+        this.gridMapper = gridMapper;
         this.cameraDetectService = cameraDetectService;
     }
 
@@ -69,10 +74,30 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
         if (!cameraIds.isEmpty()) {
             LambdaQueryWrapper<CameraGrid> gridWrapper = new LambdaQueryWrapper<>();
             gridWrapper.in(CameraGrid::getCameraId, cameraIds);
-            Map<String, List<String>> gridMap = cameraGridMapper.selectList(gridWrapper)
-                    .stream().collect(Collectors.groupingBy(
+            List<CameraGrid> cameraGrids = cameraGridMapper.selectList(gridWrapper);
+
+            // 获取所有相关的grid_id
+            List<String> gridIds = cameraGrids.stream()
+                    .map(CameraGrid::getGridId)
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            // 查询Grid表，建立grid_id -> label的映射
+            Map<String, String> gridIdToLabelMap = new HashMap<>();
+            if (!gridIds.isEmpty()) {
+                LambdaQueryWrapper<Grid> gridQueryWrapper = new LambdaQueryWrapper<>();
+                gridQueryWrapper.in(Grid::getId, gridIds);
+                gridMapper.selectList(gridQueryWrapper).forEach(grid ->
+                        gridIdToLabelMap.put(grid.getId(), grid.getLabel()));
+            }
+
+            // 按cameraId分组，使用grid的label而不是id
+            Map<String, List<String>> gridMap = cameraGrids.stream()
+                    .collect(Collectors.groupingBy(
                             CameraGrid::getCameraId,
-                            Collectors.mapping(CameraGrid::getGridId, Collectors.toList())));
+                            Collectors.mapping(
+                                    cg -> gridIdToLabelMap.getOrDefault(cg.getGridId(), cg.getGridId()),
+                                    Collectors.toList())));
             result.getRecords().forEach(c ->
                     c.setCoverageGrids(gridMap.getOrDefault(c.getId(), Collections.emptyList())));
         }

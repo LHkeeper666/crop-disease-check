@@ -98,6 +98,11 @@ public class UserServiceImpl implements UserService {
             wrapper.eq(SysUser::getStatus, dto.getStatus());
         }
 
+        // 企业ID筛选（只显示本公司员工）
+        if (StringUtils.hasText(dto.getCompanyId())) {
+            wrapper.eq(SysUser::getCompanyId, dto.getCompanyId());
+        }
+
         wrapper.orderByDesc(SysUser::getCreatedAt);
 
         // 分页查询
