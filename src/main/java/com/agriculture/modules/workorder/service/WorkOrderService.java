@@ -5,6 +5,7 @@ import com.agriculture.modules.workorder.dto.WorkOrderCreateDTO;
 import com.agriculture.modules.workorder.dto.WorkOrderManualCreateDTO;
 import com.agriculture.modules.workorder.entity.WorkOrder;
 import com.agriculture.modules.workorder.vo.CallbackResponseVO;
+import com.agriculture.modules.workorder.vo.EmailPreviewVO;
 import com.agriculture.modules.workorder.vo.WorkOrderDetailVO;
 import com.agriculture.modules.workorder.vo.WorkOrderVO;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -35,4 +36,6 @@ public interface WorkOrderService extends IService<WorkOrder> {
     void updateSeverity(Long id, String severity);
 
     void deleteWorkOrder(Long id);
+
+    EmailPreviewVO previewEmail(Long workOrderId);
 }

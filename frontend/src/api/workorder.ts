@@ -64,6 +64,15 @@ export interface WorkOrderCreateDTO {
   assignedTo?: string
 }
 
+/** 邮件预览响应 */
+export interface EmailPreviewVO {
+  toUserId: string
+  toName: string
+  toEmail: string
+  subject: string
+  content: string
+}
+
 /** 手动创建工单请求 */
 export interface WorkOrderManualCreateDTO {
   title: string
@@ -165,5 +174,12 @@ export async function updateWorkOrderSeverity(
 export async function deleteWorkOrder(id: number): Promise<void> {
   return request<void>(`${BASE}/${id}`, {
     method: 'DELETE',
+  })
+}
+
+/** 预览工单邮件（AI 自动生成内容） */
+export async function previewWorkOrderEmail(id: number): Promise<EmailPreviewVO> {
+  return request<EmailPreviewVO>(`${BASE}/${id}/preview-email`, {
+    method: 'POST',
   })
 }

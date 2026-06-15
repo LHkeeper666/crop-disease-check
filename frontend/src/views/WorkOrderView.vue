@@ -9,8 +9,6 @@ const woStore = useWorkOrderStore()
 // 页面加载时从后端拉取工单数据
 onMounted(() => {
   woStore.fetchOrders()
-  checkApiKey()
-  loadExperts()
 })
 
 const filterStatus = ref<string>('ALL')
@@ -182,105 +180,79 @@ async function deleteOrder() {
 
 function sendEmailToExpert() {
   if (!selectedOrder.value) return
-  emailTargetUserId.value = ''
+  emailPreviewLoading.value = true
+  emailPreviewData.value = null
   emailContent.value = ''
   emailSending.value = false
   emailResult.value = ''
+  emailError.value = ''
   showEmailModal.value = true
-  // 自动开始 Agent 编写邮件内容
-  composeEmailByAgent()
+  loadEmailPreview()
 }
 
 // ==================== 发送邮件 ====================
 const showEmailModal = ref(false)
-const experts = ref<{ id: string; name: string; email: string }[]>([])
-const emailTargetUserId = ref('')
+const emailPreviewLoading = ref(false)
+const emailPreviewData = ref<{ toUserId: string; toName: string; toEmail: string; subject: string } | null>(null)
 const emailContent = ref('')
 const emailSending = ref(false)
 const emailResult = ref('')
-const agentAvailable = ref(false)
-const emailComposing = ref(false)
+const emailError = ref('')
 
-async function checkApiKey() {
+async function loadEmailPreview() {
+  if (!selectedOrder.value) return
+  emailPreviewLoading.value = true
+  emailError.value = ''
   try {
-    const token = localStorage.getItem('treeforge_token') || ''
-    const res = await fetch('/api/agri-brain/config', {
-      headers: { 'Authorization': `Bearer ${token}` },
-    })
-    const data = await res.json()
-    agentAvailable.value = !!(data?.data?.hasApiKey)
-  } catch {
-    agentAvailable.value = false
-  }
-}
-
-async function loadExperts() {
-  try {
-    const token = localStorage.getItem('treeforge_token') || ''
-    const res = await fetch('/api/users?role=EXPERT&size=100', {
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    })
-    const data = await res.json()
-    if (data.code === 200 && data.data?.records) {
-      experts.value = data.data.records
-        .filter((u: any) => u.email)
-        .map((u: any) => ({ id: u.id, name: u.name, email: u.email }))
+    const { previewWorkOrderEmail } = await import('../api/workorder')
+    const preview = await previewWorkOrderEmail(selectedOrder.value.id)
+    emailPreviewData.value = {
+      toUserId: preview.toUserId,
+      toName: preview.toName,
+      toEmail: preview.toEmail,
+      subject: preview.subject,
     }
-  } catch {
-    experts.value = []
-  }
-}
-
-async function composeEmailByAgent() {
-  if (!agentAvailable.value || !selectedOrder.value) return
-  emailComposing.value = true
-  emailContent.value = ''
-  try {
-    const token = localStorage.getItem('treeforge_token') || ''
-    const order = selectedOrder.value
-    const prompt = `请根据以下工单信息，编写一封专业的邮件通知正文（不要包含主题，只写正文内容，不要加任何前缀说明）：
-工单标题：${order.title}
-严重程度：${order.severity}
-网格区域：${order.gridLabel}
-病虫害：${order.pestName || '无'}
-置信度：${(order.confidence * 100).toFixed(0)}%
-当前状态：${order.status}
-创建时间：${order.createdAt}
-
-要求：简洁专业，说明问题严重性，建议处理措施。`
-
-    const res = await fetch('/api/agri-brain/chat', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: prompt,
-        stream: false,
-      }),
-    })
-    const data = await res.json()
-    if (data.code === 200 && data.data?.content) {
-      emailContent.value = data.data.content
-    } else {
-      emailContent.value = '（Agent 未能生成内容，请手动编写）'
-    }
-  } catch {
-    emailContent.value = '（Agent 生成失败，请手动编写）'
+    emailContent.value = preview.content
+  } catch (e: any) {
+    emailError.value = e.message || '加载邮件预览失败'
   } finally {
-    emailComposing.value = false
+    emailPreviewLoading.value = false
   }
 }
 
 async function sendEmail() {
-  if (!selectedOrder.value || !emailTargetUserId.value) return
+  if (!selectedOrder.value || !emailPreviewData.value) return
   emailSending.value = true
   emailResult.value = ''
   try {
     const token = localStorage.getItem('treeforge_token') || ''
+    let toUserId = emailPreviewData.value.toUserId
+
+    // 兜底：如果预览接口没返回 toUserId（后端未更新），通过姓名+邮箱查找
+    if (!toUserId) {
+      const expertsRes = await fetch(`/api/users?role=EXPERT&size=100`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      })
+      const expertsData = await expertsRes.json()
+      if (expertsData.code === 200 && expertsData.data?.records) {
+        const match = expertsData.data.records.find((u: any) =>
+          u.name === emailPreviewData.value!.toName && u.email === emailPreviewData.value!.toEmail
+        )
+        if (match) toUserId = match.id
+      }
+    }
+
+    if (!toUserId) {
+      emailResult.value = '未找到对应的专家用户'
+      return
+    }
+
     const res = await fetch(`/api/workorder/${selectedOrder.value.id}/send-email`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        toUserId: emailTargetUserId.value,
+        toUserId,
+        subject: emailPreviewData.value.subject,
         content: emailContent.value,
       }),
     })
@@ -300,6 +272,7 @@ async function sendEmail() {
 function closeEmailModal() {
   showEmailModal.value = false
   emailResult.value = ''
+  emailError.value = ''
 }
 </script>
 
@@ -618,10 +591,9 @@ function closeEmailModal() {
             </div>
             <div class="flex gap-2">
               <button
-                class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
-                :class="agentAvailable ? 'bg-cyber-green/10 hover:bg-cyber-green/20 text-cyber-green' : 'bg-white/5 text-slate-600 cursor-not-allowed'"
-                :title="agentAvailable ? '发送邮件给专家' : '请先在智慧大脑页面配置 API Key'"
-                @click="agentAvailable && sendEmailToExpert()"
+                class="w-8 h-8 rounded-lg bg-cyber-green/10 hover:bg-cyber-green/20 flex items-center justify-center text-cyber-green transition-colors"
+                title="发送邮件给专家"
+                @click="sendEmailToExpert()"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
@@ -830,48 +802,50 @@ function closeEmailModal() {
             </button>
           </div>
 
-          <!-- API Key 未配置提示 -->
-          <div v-if="!agentAvailable" class="mb-4 px-4 py-3 rounded-xl bg-amber/10 border border-amber/20 text-amber text-xs">
-            请先在智慧大脑页面配置 Agent API Key，配置后可使用 AI 自动编写邮件内容。
+          <!-- Loading 状态 -->
+          <div v-if="emailPreviewLoading" class="flex flex-col items-center justify-center py-12">
+            <div class="w-8 h-8 border-2 border-cyber-green/30 border-t-cyber-green rounded-full animate-spin mb-4" />
+            <p class="text-slate-400 text-sm">AI 正在生成邮件内容...</p>
           </div>
 
-          <div class="space-y-4">
-            <!-- 选择专家 -->
+          <!-- 错误状态 -->
+          <div v-else-if="emailError" class="text-center py-8">
+            <div class="px-4 py-3 rounded-xl bg-sakura/10 border border-sakura/20 text-sakura text-sm mb-4">
+              {{ emailError }}
+            </div>
+            <button
+              class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
+              @click="closeEmailModal"
+            >
+              关闭
+            </button>
+          </div>
+
+          <!-- 预览编辑态 -->
+          <div v-else-if="emailPreviewData" class="space-y-4">
+            <!-- 收件人 -->
             <div>
-              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">收件专家</label>
-              <select
-                v-model="emailTargetUserId"
-                class="select-dark w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-cyber-green/50"
-              >
-                <option value="" disabled>请选择专家</option>
-                <option v-for="exp in experts" :key="exp.id" :value="exp.id">
-                  {{ exp.name }} ({{ exp.email }})
-                </option>
-              </select>
+              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">收件人</label>
+              <div class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm">
+                {{ emailPreviewData.toName }} ({{ emailPreviewData.toEmail }})
+              </div>
             </div>
 
-            <!-- 邮件内容 -->
+            <!-- 主题 -->
             <div>
-              <div class="flex items-center justify-between mb-1.5">
-                <label class="text-xs text-slate-400 uppercase tracking-wider">邮件内容（Agent 编写）</label>
-                <button
-                  v-if="agentAvailable"
-                  class="text-[10px] text-cyber-green hover:underline font-mono"
-                  :disabled="emailComposing"
-                  @click="composeEmailByAgent"
-                >
-                  {{ emailComposing ? '生成中...' : '重新生成' }}
-                </button>
+              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">邮件主题</label>
+              <div class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm">
+                {{ emailPreviewData.subject }}
               </div>
-              <div v-if="emailComposing" class="w-full px-4 py-6 rounded-xl bg-white/5 border border-white/10 text-slate-500 text-sm text-center">
-                <div class="inline-block w-4 h-4 border-2 border-cyber-green/30 border-t-cyber-green rounded-full animate-spin mr-2" />
-                Agent 正在编写邮件内容...
-              </div>
+            </div>
+
+            <!-- 邮件内容（可编辑） -->
+            <div>
+              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">邮件内容（AI 生成，可修改）</label>
               <textarea
-                v-else
                 v-model="emailContent"
-                rows="8"
-                placeholder="邮件内容将由 Agent 自动生成，也可手动编辑"
+                rows="10"
+                placeholder="邮件内容"
                 class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all resize-none"
               />
             </div>
@@ -888,17 +862,17 @@ function closeEmailModal() {
             <div class="flex gap-3 pt-2">
               <button
                 class="flex-1 px-4 py-3 rounded-xl text-sm transition-colors"
-                :class="emailTargetUserId && emailContent && !emailSending ? 'bg-cyber-green/10 border border-cyber-green/20 text-cyber-green hover:bg-cyber-green/20' : 'bg-white/5 border border-white/10 text-slate-600 cursor-not-allowed'"
-                :disabled="!emailTargetUserId || !emailContent || emailSending"
+                :class="emailContent && !emailSending && emailResult !== 'success' ? 'bg-cyber-green/10 border border-cyber-green/20 text-cyber-green hover:bg-cyber-green/20' : 'bg-white/5 border border-white/10 text-slate-600 cursor-not-allowed'"
+                :disabled="!emailContent || emailSending || emailResult === 'success'"
                 @click="sendEmail"
               >
-                {{ emailSending ? '发送中...' : '发送邮件' }}
+                {{ emailSending ? '发送中...' : '确认发送' }}
               </button>
               <button
                 class="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
                 @click="closeEmailModal"
               >
-                取消
+                {{ emailResult === 'success' ? '关闭' : '取消' }}
               </button>
             </div>
           </div>

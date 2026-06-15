@@ -4,6 +4,7 @@ import com.agriculture.modules.workorder.controller.WorkOrderController;
 import com.agriculture.modules.workorder.dto.*;
 import com.agriculture.common.exception.BusinessException;
 import com.agriculture.common.exception.GlobalExceptionHandler;
+import com.agriculture.common.service.EmailService;
 import com.agriculture.modules.workorder.service.WorkOrderService;
 import com.agriculture.modules.workorder.vo.*;
 import com.agriculture.modules.user.entity.SysUser;
@@ -43,6 +44,9 @@ class WorkOrderControllerTest {
 
     @Mock
     private SysUserMapper sysUserMapper;
+
+    @Mock
+    private EmailService emailService;
 
     @InjectMocks
     private WorkOrderController workOrderController;
@@ -549,6 +553,137 @@ class WorkOrderControllerTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value(400))
                     .andExpect(jsonPath("$.message").value("操作类型不能为空"));
+        }
+    }
+
+    // ==================== 7.8 邮件预览接口 ====================
+
+    @Nested
+    @DisplayName("7.8 邮件预览接口")
+    class PreviewEmail {
+
+        @Test
+        @DisplayName("正常返回邮件预览数据")
+        void previewEmail_existingWorkOrder_returnsPreview() throws Exception {
+            EmailPreviewVO preview = new EmailPreviewVO();
+            preview.setToUserId("expert-001");
+            preview.setToName("刘专家");
+            preview.setToEmail("expert@test.com");
+            preview.setSubject("【农作物疾病检测系统】工单通知 - 番茄晚疫病工单");
+            preview.setContent("尊敬的专家：\n\n您有一条新的工单通知。");
+
+            when(workOrderService.previewEmail(1L)).thenReturn(preview);
+
+            mockMvc.perform(post("/workorder/1/preview-email"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(200))
+                    .andExpect(jsonPath("$.data.toUserId").value("expert-001"))
+                    .andExpect(jsonPath("$.data.toName").value("刘专家"))
+                    .andExpect(jsonPath("$.data.toEmail").value("expert@test.com"))
+                    .andExpect(jsonPath("$.data.subject").value("【农作物疾病检测系统】工单通知 - 番茄晚疫病工单"))
+                    .andExpect(jsonPath("$.data.content").value("尊敬的专家：\n\n您有一条新的工单通知。"));
+        }
+
+        @Test
+        @DisplayName("工单不存在返回错误")
+        void previewEmail_nonExistingWorkOrder_returnsError() throws Exception {
+            when(workOrderService.previewEmail(999L))
+                    .thenThrow(new BusinessException(404, "工单不存在"));
+
+            mockMvc.perform(post("/workorder/999/preview-email"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(400))
+                    .andExpect(jsonPath("$.message").value("工单不存在"));
+        }
+
+        @Test
+        @DisplayName("未指定负责人返回错误")
+        void previewEmail_noAssignedTo_returnsError() throws Exception {
+            when(workOrderService.previewEmail(1L))
+                    .thenThrow(new BusinessException("该工单未指定负责人，请先指定负责人后再发送邮件"));
+
+            mockMvc.perform(post("/workorder/1/preview-email"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(400))
+                    .andExpect(jsonPath("$.message").value("该工单未指定负责人，请先指定负责人后再发送邮件"));
+        }
+
+        @Test
+        @DisplayName("专家无邮箱返回错误")
+        void previewEmail_expertNoEmail_returnsError() throws Exception {
+            when(workOrderService.previewEmail(1L))
+                    .thenThrow(new BusinessException("该专家未配置邮箱地址"));
+
+            mockMvc.perform(post("/workorder/1/preview-email"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(400))
+                    .andExpect(jsonPath("$.message").value("该专家未配置邮箱地址"));
+        }
+    }
+
+    // ==================== 7.9 邮件发送接口 ====================
+
+    @Nested
+    @DisplayName("7.9 邮件发送接口")
+    class SendEmail {
+
+        @Test
+        @DisplayName("使用前端传入的 subject 和 content 发送成功")
+        void sendEmail_withSubjectAndContent_success() throws Exception {
+            mockCurrentUser();
+            SysUser expert = new SysUser();
+            expert.setId("expert-001");
+            expert.setName("刘专家");
+            expert.setEmail("expert@test.com");
+            when(sysUserMapper.selectById("expert-001")).thenReturn(expert);
+            when(workOrderService.getWorkOrderDetail(1L)).thenReturn(mockDetailVO);
+
+            mockMvc.perform(post("/workorder/1/send-email")
+                            .requestAttr("userId", "u-001")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"toUserId\":\"expert-001\",\"subject\":\"自定义主题\",\"content\":\"自定义内容\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(200))
+                    .andExpect(jsonPath("$.message").value("邮件发送成功"));
+        }
+
+        @Test
+        @DisplayName("收件人不存在返回400")
+        void sendEmail_expertNotFound_returns400() throws Exception {
+            mockCurrentUser();
+            when(workOrderService.getWorkOrderDetail(1L)).thenReturn(mockDetailVO);
+            when(sysUserMapper.selectById("not-exist")).thenReturn(null);
+
+            mockMvc.perform(post("/workorder/1/send-email")
+                            .requestAttr("userId", "u-001")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"toUserId\":\"not-exist\",\"subject\":\"主题\",\"content\":\"内容\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(400))
+                    .andExpect(jsonPath("$.message").value("收件人邮箱不存在"));
+        }
+
+        @Test
+        @DisplayName("SMTP 发送失败返回500")
+        void sendEmail_sendFailure_returns500() throws Exception {
+            mockCurrentUser();
+            SysUser expert = new SysUser();
+            expert.setId("expert-001");
+            expert.setName("刘专家");
+            expert.setEmail("expert@test.com");
+            when(sysUserMapper.selectById("expert-001")).thenReturn(expert);
+            when(workOrderService.getWorkOrderDetail(1L)).thenReturn(mockDetailVO);
+
+            org.mockito.Mockito.doThrow(new RuntimeException("Connection refused"))
+                    .when(emailService).sendEmail(anyString(), anyString(), anyString());
+
+            mockMvc.perform(post("/workorder/1/send-email")
+                            .requestAttr("userId", "u-001")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"toUserId\":\"expert-001\",\"subject\":\"主题\",\"content\":\"内容\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(500))
+                    .andExpect(jsonPath("$.message").value("邮件发送失败: Connection refused"));
         }
     }
 }

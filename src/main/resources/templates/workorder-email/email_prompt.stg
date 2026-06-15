@@ -1,0 +1,13 @@
+email_prompt(title, severity, gridLabel, pestName, confidence, status, createdAt) ::= <<
+请根据以下工单信息，编写一封专业的邮件通知正文（只写正文内容，不要包含主题，不要加任何前缀说明）：
+
+工单标题：<title>
+严重程度：<severity>
+网格区域：<gridLabel>
+病虫害：<pestName>
+置信度：<confidence>
+当前状态：<status>
+创建时间：<createdAt>
+
+要求：简洁专业，说明问题严重性，建议处理措施。使用中文。
+>>

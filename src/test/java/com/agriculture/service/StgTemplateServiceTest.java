@@ -47,4 +47,25 @@ class StgTemplateServiceTest {
             templateService.render("non_existent", null);
         });
     }
+
+    @Test
+    void testRenderEmailPrompt() {
+        Map<String, Object> attributes = new HashMap<>();
+        attributes.put("title", "番茄晚疫病工单");
+        attributes.put("severity", "HIGH");
+        attributes.put("gridLabel", "A1");
+        attributes.put("pestName", "番茄晚疫病");
+        attributes.put("confidence", "92%");
+        attributes.put("status", "PENDING");
+        attributes.put("createdAt", "2026-06-15T10:00:00");
+
+        String result = templateService.render("email_prompt", attributes);
+
+        assertNotNull(result);
+        assertTrue(result.contains("番茄晚疫病工单"));
+        assertTrue(result.contains("HIGH"));
+        assertTrue(result.contains("A1"));
+        assertTrue(result.contains("92%"));
+        assertTrue(result.contains("PENDING"));
+    }
 }
