@@ -1,8 +1,10 @@
 package com.agriculture.service;
 
 import com.agriculture.modules.agriBrain.tool.impl.CreateWorkOrderTool;
-import com.agriculture.modules.workorder.entity.WorkOrder;
-import com.agriculture.modules.workorder.mapper.WorkOrderMapper;
+import com.agriculture.modules.user.entity.SysUser;
+import com.agriculture.modules.user.mapper.SysUserMapper;
+import com.agriculture.modules.workorder.dto.WorkOrderManualCreateDTO;
+import com.agriculture.modules.workorder.service.WorkOrderService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -15,17 +17,21 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.isA;
-import static org.mockito.Mockito.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class CreateWorkOrderToolTest {
 
     @Mock
-    private WorkOrderMapper workOrderMapper;
+    private WorkOrderService workOrderService;
+
+    @Mock
+    private SysUserMapper sysUserMapper;
 
     @InjectMocks
     private CreateWorkOrderTool createWorkOrderTool;
@@ -88,7 +94,11 @@ class CreateWorkOrderToolTest {
         @Test
         @DisplayName("确认后创建工单成功")
         void create_allFieldsPresent_createsWorkOrder() {
-            doReturn(1).when(workOrderMapper).insert(isA(WorkOrder.class));
+            SysUser user = new SysUser();
+            user.setId("user-001");
+            user.setName("测试用户");
+            when(sysUserMapper.selectById("user-001")).thenReturn(user);
+            when(workOrderService.createManualWorkOrder(any(WorkOrderManualCreateDTO.class), eq("user-001"), eq("测试用户"), eq("company-001"))).thenReturn(1L);
 
             Map<String, Object> args = Map.of(
                     "action", "create",
@@ -104,7 +114,7 @@ class CreateWorkOrderToolTest {
             assertTrue(result.contains("\"success\":true"));
             assertTrue(result.contains("workOrder"));
             assertTrue(result.contains("PENDING"));
-            verify(workOrderMapper).insert(isA(WorkOrder.class));
+            verify(workOrderService).createManualWorkOrder(any(WorkOrderManualCreateDTO.class), eq("user-001"), eq("测试用户"), eq("company-001"));
         }
 
         @Test
@@ -120,13 +130,17 @@ class CreateWorkOrderToolTest {
 
             assertTrue(result.contains("error"));
             assertTrue(result.contains("缺少必填字段"));
-            verify(workOrderMapper, never()).insert(isA(WorkOrder.class));
+            verify(workOrderService, never()).createManualWorkOrder(any(), any(), any(), any());
         }
 
         @Test
-        @DisplayName("创建时自动填充 createdBy 和 companyId")
-        void create_autoFillsCreatedByAndCompanyId() {
-            doReturn(1).when(workOrderMapper).insert(isA(WorkOrder.class));
+        @DisplayName("创建时传递正确的 userId、operatorName 和 companyId")
+        void create_passesCorrectUserInfo() {
+            SysUser user = new SysUser();
+            user.setId("user-001");
+            user.setName("测试用户");
+            when(sysUserMapper.selectById("user-001")).thenReturn(user);
+            when(workOrderService.createManualWorkOrder(any(WorkOrderManualCreateDTO.class), eq("user-001"), eq("测试用户"), eq("company-001"))).thenReturn(2L);
 
             Map<String, Object> args = Map.of(
                     "action", "create",
@@ -137,12 +151,12 @@ class CreateWorkOrderToolTest {
 
             createWorkOrderTool.execute(args, "user-001", "company-001");
 
-            org.mockito.ArgumentCaptor<WorkOrder> captor = org.mockito.ArgumentCaptor.forClass(WorkOrder.class);
-            verify(workOrderMapper).insert(captor.capture());
-            WorkOrder captured = captor.getValue();
-            assertEquals("user-001", captured.getCreatedBy());
-            assertEquals("company-001", captured.getCompanyId());
-            assertEquals("PENDING", captured.getStatus());
+            org.mockito.ArgumentCaptor<WorkOrderManualCreateDTO> captor = org.mockito.ArgumentCaptor.forClass(WorkOrderManualCreateDTO.class);
+            verify(workOrderService).createManualWorkOrder(captor.capture(), eq("user-001"), eq("测试用户"), eq("company-001"));
+            WorkOrderManualCreateDTO captured = captor.getValue();
+            assertEquals("测试工单", captured.getTitle());
+            assertEquals("pest", captured.getType());
+            assertEquals("LOW", captured.getSeverity());
         }
     }
 }
