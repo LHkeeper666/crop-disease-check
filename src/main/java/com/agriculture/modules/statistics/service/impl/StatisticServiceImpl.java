@@ -9,6 +9,8 @@ import com.agriculture.modules.inference.entity.Inference;
 import com.agriculture.modules.inference.mapper.InferenceMapper;
 import com.agriculture.modules.workorder.mapper.WorkOrderMapper;
 import com.agriculture.modules.workorder.entity.WorkOrder;
+import com.agriculture.modules.greenhouse.entity.Greenhouse;
+import com.agriculture.modules.greenhouse.mapper.GreenhouseMapper;
 import com.agriculture.modules.inspection.mapper.InspectionLogMapper;
 import com.agriculture.common.exception.BusinessException;
 import com.agriculture.modules.statistics.service.StatisticService;
@@ -54,6 +56,9 @@ public class StatisticServiceImpl implements StatisticService {
 
     @Resource
     private com.agriculture.modules.grid.mapper.GridMapper gridMapper;
+
+    @Resource
+    private GreenhouseMapper greenhouseMapper;
 
     @Resource
     private InspectionLogMapper inspectionLogMapper;
@@ -115,39 +120,93 @@ public class StatisticServiceImpl implements StatisticService {
     // ==================== 业务方法 ====================
 
     @Override
-    public StatisticsOverviewVO getOverview(Integer days) {
+    public StatisticsOverviewVO getOverview(Integer days, String companyId) {
         if (days == null) days = 7;
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime startTime = now.minusDays(days);
         LocalDate today = LocalDate.now();
         LocalDateTime todayStart = today.atStartOfDay();
+        boolean hasCompany = StringUtils.hasText(companyId);
 
         StatisticsOverviewVO vo = new StatisticsOverviewVO();
+
+        // 如果有 companyId，先获取该企业下的 reportId 集合
+        Set<String> companyReportIds = null;
+        if (hasCompany) {
+            // 查询所有 report，然后过滤出属于该企业的
+            LambdaQueryWrapper<Report> allReportWrapper = new LambdaQueryWrapper<>();
+            allReportWrapper.ge(Report::getCreatedAt, startTime).le(Report::getCreatedAt, now);
+            List<Report> allReports = reportMapper.selectList(allReportWrapper);
+            Set<String> allReportIds = allReports.stream().map(Report::getId).collect(Collectors.toSet());
+            if (!allReportIds.isEmpty()) {
+                companyReportIds = getReportIdsByCompany(allReportIds, companyId);
+            } else {
+                companyReportIds = Collections.emptySet();
+            }
+        }
 
         // 总上报数
         LambdaQueryWrapper<Report> reportWrapper = new LambdaQueryWrapper<>();
         reportWrapper.ge(Report::getCreatedAt, startTime).le(Report::getCreatedAt, now);
-        vo.setTotalReports(reportMapper.selectCount(reportWrapper).intValue());
+        if (hasCompany && companyReportIds != null) {
+            if (companyReportIds.isEmpty()) {
+                vo.setTotalReports(0);
+            } else {
+                reportWrapper.in(Report::getId, companyReportIds);
+                vo.setTotalReports(reportMapper.selectCount(reportWrapper).intValue());
+            }
+        } else {
+            vo.setTotalReports(reportMapper.selectCount(reportWrapper).intValue());
+        }
 
         // 今日上报数
         LambdaQueryWrapper<Report> todayWrapper = new LambdaQueryWrapper<>();
         todayWrapper.ge(Report::getCreatedAt, todayStart).le(Report::getCreatedAt, now);
-        vo.setTodayReports(reportMapper.selectCount(todayWrapper).intValue());
+        if (hasCompany && companyReportIds != null) {
+            // 从 companyReportIds 中筛选今日的
+            if (companyReportIds.isEmpty()) {
+                vo.setTodayReports(0);
+            } else {
+                todayWrapper.in(Report::getId, companyReportIds);
+                vo.setTodayReports(reportMapper.selectCount(todayWrapper).intValue());
+            }
+        } else {
+            vo.setTodayReports(reportMapper.selectCount(todayWrapper).intValue());
+        }
 
         // 待审核数
         LambdaQueryWrapper<Report> pendingWrapper = new LambdaQueryWrapper<>();
         pendingWrapper.in(Report::getStatus, "PENDING", "PENDING_RECOGNITION");
-        vo.setPendingAudit(reportMapper.selectCount(pendingWrapper).intValue());
+        if (hasCompany && companyReportIds != null) {
+            if (companyReportIds.isEmpty()) {
+                vo.setPendingAudit(0);
+            } else {
+                pendingWrapper.in(Report::getId, companyReportIds);
+                vo.setPendingAudit(reportMapper.selectCount(pendingWrapper).intValue());
+            }
+        } else {
+            vo.setPendingAudit(reportMapper.selectCount(pendingWrapper).intValue());
+        }
 
         // 已处理数
         LambdaQueryWrapper<Report> processedWrapper = new LambdaQueryWrapper<>();
         processedWrapper.eq(Report::getStatus, "AUDITED");
-        vo.setProcessed(reportMapper.selectCount(processedWrapper).intValue());
+        if (hasCompany && companyReportIds != null) {
+            if (companyReportIds.isEmpty()) {
+                vo.setProcessed(0);
+            } else {
+                processedWrapper.in(Report::getId, companyReportIds);
+                vo.setProcessed(reportMapper.selectCount(processedWrapper).intValue());
+            }
+        } else {
+            vo.setProcessed(reportMapper.selectCount(processedWrapper).intValue());
+        }
 
         // 高风险告警
         LambdaQueryWrapper<WorkOrder> alertWrapper = new LambdaQueryWrapper<>();
         alertWrapper.eq(WorkOrder::getSeverity, "CRITICAL")
-                    .ne(WorkOrder::getStatus, "DONE");
+                    .ne(WorkOrder::getStatus, "DONE")
+                    .eq(hasCompany, WorkOrder::getCompanyId, companyId);
         vo.setHighRiskAlerts(workOrderMapper.selectCount(alertWrapper).intValue());
 
         // ========== 从 work_order 表查询数据（报警工单） ==========
@@ -156,14 +215,16 @@ public class StatisticServiceImpl implements StatisticService {
         LambdaQueryWrapper<WorkOrder> woWrapper = new LambdaQueryWrapper<>();
         woWrapper.ge(WorkOrder::getCreatedAt, startTime)
                  .le(WorkOrder::getCreatedAt, now)
-                 .ne(WorkOrder::getStatus, "IGNORED");
+                 .ne(WorkOrder::getStatus, "IGNORED")
+                 .eq(hasCompany, WorkOrder::getCompanyId, companyId);
         List<WorkOrder> allOrders = workOrderMapper.selectList(woWrapper);
 
         // 今日工单（用于病害/虫害分布环图）
         LambdaQueryWrapper<WorkOrder> todayWoWrapper = new LambdaQueryWrapper<>();
         todayWoWrapper.ge(WorkOrder::getCreatedAt, todayStart)
                       .le(WorkOrder::getCreatedAt, now)
-                      .ne(WorkOrder::getStatus, "IGNORED");
+                      .ne(WorkOrder::getStatus, "IGNORED")
+                      .eq(hasCompany, WorkOrder::getCompanyId, companyId);
         List<WorkOrder> todayOrders = workOrderMapper.selectList(todayWoWrapper);
 
         // 类型分布 (按病虫害名称)
@@ -285,7 +346,7 @@ public class StatisticServiceImpl implements StatisticService {
     }
 
     @Override
-    public List<GridStatisticsVO> getGridStatistics(Integer days) {
+    public List<GridStatisticsVO> getGridStatistics(Integer days, String companyId) {
         if (days == null) days = 7;
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime startTime = now.minusDays(days);
@@ -293,6 +354,22 @@ public class StatisticServiceImpl implements StatisticService {
         LambdaQueryWrapper<Inference> wrapper = new LambdaQueryWrapper<>();
         wrapper.ge(Inference::getCreatedAt, startTime).le(Inference::getCreatedAt, now);
         List<Inference> inferences = inferenceMapper.selectList(wrapper);
+
+        // 如果有 companyId，过滤只属于该企业的推理记录（通过 report→grid→greenhouse→company 链路）
+        if (StringUtils.hasText(companyId)) {
+            Set<String> rIds = inferences.stream()
+                    .map(Inference::getReportId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            if (!rIds.isEmpty()) {
+                Set<String> companyReportIds = getReportIdsByCompany(rIds, companyId);
+                inferences = inferences.stream()
+                        .filter(i -> i.getReportId() != null && companyReportIds.contains(i.getReportId()))
+                        .collect(Collectors.toList());
+            } else {
+                inferences = Collections.emptyList();
+            }
+        }
 
         if (inferences.isEmpty()) {
             return Collections.emptyList();
@@ -355,7 +432,7 @@ public class StatisticServiceImpl implements StatisticService {
     }
 
     @Override
-    public List<TrendStatisticsVO> getTrend(Integer days, String granularity) {
+    public List<TrendStatisticsVO> getTrend(Integer days, String granularity, String companyId) {
         if (days == null) days = 30;
         if (granularity == null) granularity = "DAY";
 
@@ -365,6 +442,22 @@ public class StatisticServiceImpl implements StatisticService {
         LambdaQueryWrapper<Inference> wrapper = new LambdaQueryWrapper<>();
         wrapper.ge(Inference::getCreatedAt, startTime).le(Inference::getCreatedAt, now);
         List<Inference> inferences = inferenceMapper.selectList(wrapper);
+
+        // 如果有 companyId，过滤只属于该企业的推理记录（通过 report→grid→greenhouse→company 链路）
+        if (StringUtils.hasText(companyId)) {
+            Set<String> rIds = inferences.stream()
+                    .map(Inference::getReportId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            if (!rIds.isEmpty()) {
+                Set<String> companyReportIds = getReportIdsByCompany(rIds, companyId);
+                inferences = inferences.stream()
+                        .filter(i -> i.getReportId() != null && companyReportIds.contains(i.getReportId()))
+                        .collect(Collectors.toList());
+            } else {
+                inferences = Collections.emptyList();
+            }
+        }
 
         Map<String, List<Inference>> grouped;
         switch (granularity) {
@@ -577,5 +670,52 @@ public class StatisticServiceImpl implements StatisticService {
         wrapper.in(Grid::getId, gridIds);
         return gridMapper.selectList(wrapper).stream()
                 .collect(Collectors.toMap(Grid::getId, Grid::getLabel, (a, b) -> a));
+    }
+
+    /**
+     * 通过 report→grid→greenhouse→company 链路过滤，返回属于指定企业的 reportId 集合
+     */
+    private Set<String> getReportIdsByCompany(Set<String> reportIds, String companyId) {
+        if (reportIds.isEmpty()) return Collections.emptySet();
+
+        // 1. report → gridId
+        LambdaQueryWrapper<Report> reportWrapper = new LambdaQueryWrapper<>();
+        reportWrapper.in(Report::getId, reportIds);
+        List<Report> reports = reportMapper.selectList(reportWrapper);
+        Set<String> gridIds = reports.stream()
+                .map(Report::getGridId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (gridIds.isEmpty()) return Collections.emptySet();
+
+        // 2. grid → greenhouseId
+        LambdaQueryWrapper<Grid> gridWrapper = new LambdaQueryWrapper<>();
+        gridWrapper.in(Grid::getId, gridIds);
+        Set<String> greenhouseIds = gridMapper.selectList(gridWrapper).stream()
+                .map(Grid::getGreenhouseId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (greenhouseIds.isEmpty()) return Collections.emptySet();
+
+        // 3. greenhouse → filter by companyId
+        LambdaQueryWrapper<Greenhouse> ghWrapper = new LambdaQueryWrapper<>();
+        ghWrapper.in(Greenhouse::getId, greenhouseIds);
+        Set<String> companyGreenhouseIds = greenhouseMapper.selectList(ghWrapper).stream()
+                .filter(gh -> companyId.equals(gh.getCompanyId()))
+                .map(Greenhouse::getId)
+                .collect(Collectors.toSet());
+
+        // 4. 反向筛选：grid.greenhouseId ∈ companyGreenhouseIds → reportId
+        LambdaQueryWrapper<Grid> gridFilter = new LambdaQueryWrapper<>();
+        gridFilter.in(Grid::getId, gridIds);
+        Set<String> companyGridIds = gridMapper.selectList(gridFilter).stream()
+                .filter(g -> g.getGreenhouseId() != null && companyGreenhouseIds.contains(g.getGreenhouseId()))
+                .map(Grid::getId)
+                .collect(Collectors.toSet());
+
+        return reports.stream()
+                .filter(r -> r.getGridId() != null && companyGridIds.contains(r.getGridId()))
+                .map(Report::getId)
+                .collect(Collectors.toSet());
     }
 }

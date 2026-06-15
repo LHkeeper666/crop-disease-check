@@ -8,6 +8,8 @@ import com.agriculture.modules.camera.mapper.CameraGridMapper;
 import com.agriculture.modules.camera.mapper.CameraMapper;
 import com.agriculture.modules.camera.service.CameraDetectService;
 import com.agriculture.modules.camera.service.CameraService;
+import com.agriculture.modules.grid.entity.Grid;
+import com.agriculture.modules.grid.mapper.GridMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -15,7 +17,6 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -36,6 +37,7 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
     private static final Logger log = LoggerFactory.getLogger(CameraServiceImpl.class);
 
     private final CameraGridMapper cameraGridMapper;
+    private final GridMapper gridMapper;
     private final CameraDetectService cameraDetectService;
 
     /**
@@ -44,8 +46,10 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
     private final Map<String, LocalDateTime> connectionStartTimeMap = new ConcurrentHashMap<>();
 
     public CameraServiceImpl(CameraGridMapper cameraGridMapper,
+                             GridMapper gridMapper,
                              @Lazy CameraDetectService cameraDetectService) {
         this.cameraGridMapper = cameraGridMapper;
+        this.gridMapper = gridMapper;
         this.cameraDetectService = cameraDetectService;
     }
 
@@ -70,10 +74,30 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
         if (!cameraIds.isEmpty()) {
             LambdaQueryWrapper<CameraGrid> gridWrapper = new LambdaQueryWrapper<>();
             gridWrapper.in(CameraGrid::getCameraId, cameraIds);
-            Map<String, List<String>> gridMap = cameraGridMapper.selectList(gridWrapper)
-                    .stream().collect(Collectors.groupingBy(
+            List<CameraGrid> cameraGrids = cameraGridMapper.selectList(gridWrapper);
+
+            // 获取所有相关的grid_id
+            List<String> gridIds = cameraGrids.stream()
+                    .map(CameraGrid::getGridId)
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            // 查询Grid表，建立grid_id -> label的映射
+            Map<String, String> gridIdToLabelMap = new HashMap<>();
+            if (!gridIds.isEmpty()) {
+                LambdaQueryWrapper<Grid> gridQueryWrapper = new LambdaQueryWrapper<>();
+                gridQueryWrapper.in(Grid::getId, gridIds);
+                gridMapper.selectList(gridQueryWrapper).forEach(grid ->
+                        gridIdToLabelMap.put(grid.getId(), grid.getLabel()));
+            }
+
+            // 按cameraId分组，使用grid的label而不是id
+            Map<String, List<String>> gridMap = cameraGrids.stream()
+                    .collect(Collectors.groupingBy(
                             CameraGrid::getCameraId,
-                            Collectors.mapping(CameraGrid::getGridId, Collectors.toList())));
+                            Collectors.mapping(
+                                    cg -> gridIdToLabelMap.getOrDefault(cg.getGridId(), cg.getGridId()),
+                                    Collectors.toList())));
             result.getRecords().forEach(c ->
                     c.setCoverageGrids(gridMap.getOrDefault(c.getId(), Collections.emptyList())));
         }
@@ -418,35 +442,4 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
         tryConnectAsync(cameraId, camera.getRtspUrl());
     }
 
-    /**
-     * 定时重连OFFLINE摄像头（每30秒）
-     * FAULT状态的摄像头不会被自动重连，需要人工排查后手动重连
-     */
-    @Scheduled(fixedDelay = 30000, initialDelay = 10000)
-    public void autoReconnectOfflineCameras() {
-        LambdaQueryWrapper<Camera> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Camera::getStatus, "OFFLINE");
-        wrapper.isNotNull(Camera::getRtspUrl);
-        wrapper.ne(Camera::getRtspUrl, "");
-        java.util.List<Camera> offlineCameras = list(wrapper);
-
-        for (Camera camera : offlineCameras) {
-            try {
-                java.net.URI uri = new java.net.URI(camera.getRtspUrl());
-                String host = uri.getHost();
-                int port = uri.getPort() > 0 ? uri.getPort() : 554;
-
-                try (java.net.Socket socket = new java.net.Socket()) {
-                    socket.connect(new java.net.InetSocketAddress(host, port), 3000);
-                    camera.setStatus("ONLINE");
-                    camera.setLastOnlineAt(LocalDateTime.now());
-                    updateById(camera);
-                    recordConnectionStart(camera.getId());
-                    log.info("自动重连成功: cameraId={}, name={}", camera.getId(), camera.getName());
-                }
-            } catch (Exception ignored) {
-                // 仍然离线/故障，不更新状态
-            }
-        }
-    }
 }

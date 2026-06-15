@@ -11,9 +11,9 @@ import java.time.LocalDate;
 
 public interface DailyReportService extends IService<DailyReport> {
 
-    IPage<DailyReportVO> listReports(LocalDate startDate, LocalDate endDate, int page, int size);
+    IPage<DailyReportVO> listReports(LocalDate startDate, LocalDate endDate, int page, int size, String companyId);
 
     DailyReportDetailVO getReportDetail(String id);
 
-    String generateReport(DailyReportGenerateDTO dto);
+    String generateReport(DailyReportGenerateDTO dto, String companyId);
 }

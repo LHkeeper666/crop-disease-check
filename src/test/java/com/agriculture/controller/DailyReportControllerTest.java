@@ -120,7 +120,7 @@ class DailyReportControllerTest {
         void listReports_noParams_returnsPage() throws Exception {
             Page<DailyReportVO> page = new Page<>(1, 20, 1);
             page.setRecords(List.of(mockReportVO));
-            when(dailyReportService.listReports(isNull(), isNull(), eq(1), eq(20)))
+            when(dailyReportService.listReports(isNull(), isNull(), eq(1), eq(20), anyString()))
                     .thenReturn(page);
 
             mockMvc.perform(get("/daily-report/list"))
@@ -136,7 +136,7 @@ class DailyReportControllerTest {
         void listReports_returnsGreenhouseIdInSummary() throws Exception {
             Page<DailyReportVO> page = new Page<>(1, 20, 1);
             page.setRecords(List.of(mockReportVO));
-            when(dailyReportService.listReports(isNull(), isNull(), eq(1), eq(20)))
+            when(dailyReportService.listReports(isNull(), isNull(), eq(1), eq(20), anyString()))
                     .thenReturn(page);
 
             mockMvc.perform(get("/daily-report/list"))
@@ -155,7 +155,7 @@ class DailyReportControllerTest {
         void listReports_returnsTopGridsAndTopPests() throws Exception {
             Page<DailyReportVO> page = new Page<>(1, 20, 1);
             page.setRecords(List.of(mockReportVO));
-            when(dailyReportService.listReports(isNull(), isNull(), eq(1), eq(20)))
+            when(dailyReportService.listReports(isNull(), isNull(), eq(1), eq(20), anyString()))
                     .thenReturn(page);
 
             mockMvc.perform(get("/daily-report/list"))
@@ -174,7 +174,7 @@ class DailyReportControllerTest {
             when(dailyReportService.listReports(
                     eq(LocalDate.of(2026, 6, 1)),
                     eq(LocalDate.of(2026, 6, 9)),
-                    eq(1), eq(20)))
+                    eq(1), eq(20), anyString()))
                     .thenReturn(page);
 
             mockMvc.perform(get("/daily-report/list")
@@ -190,7 +190,7 @@ class DailyReportControllerTest {
         void listReports_withPagination() throws Exception {
             Page<DailyReportVO> page = new Page<>(2, 10, 25);
             page.setRecords(List.of(mockReportVO));
-            when(dailyReportService.listReports(isNull(), isNull(), eq(2), eq(10)))
+            when(dailyReportService.listReports(isNull(), isNull(), eq(2), eq(10), anyString()))
                     .thenReturn(page);
 
             mockMvc.perform(get("/daily-report/list")

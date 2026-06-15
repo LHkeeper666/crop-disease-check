@@ -103,4 +103,29 @@ public class JwtUtil {
     public boolean isRefreshToken(String token) {
         return "refresh".equals(getTypeFromToken(token));
     }
+
+    /**
+     * 获取Token剩余有效期（秒）
+     */
+    public long getExpirationFromToken(String token) {
+        try {
+            JWT jwt = JWTUtil.parseToken(token).setKey(secret.getBytes());
+            Object expObj = jwt.getPayload(RegisteredPayload.EXPIRES_AT);
+            if (expObj == null) {
+                return 0;
+            }
+            long expireTime;
+            if (expObj instanceof Date) {
+                expireTime = ((Date) expObj).getTime();
+            } else if (expObj instanceof Long) {
+                expireTime = (Long) expObj * 1000; // JWT的exp是秒级时间戳
+            } else {
+                expireTime = Long.parseLong(expObj.toString()) * 1000;
+            }
+            long diff = expireTime - System.currentTimeMillis();
+            return diff > 0 ? diff / 1000 : 0;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
 }

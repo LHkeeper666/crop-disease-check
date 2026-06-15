@@ -465,8 +465,8 @@ function renderTrendChart() {
       <div class="flex flex-col gap-3 min-w-0 overflow-y-auto">
         <!-- Growth Metrics — double-click value to edit -->
         <GlassCard class="border-glow-animated">
-          <div class="text-xs text-slate-400 tracking-wider mb-3">生长指标</div>
-          <div class="space-y-2.5">
+          <div class="text-xs text-slate-400 tracking-wider mb-2">生长指标</div>
+          <div class="space-y-1.5">
             <div v-for="(m, idx) in dashSettings.growth" :key="m.label" class="flex items-center gap-3">
               <span class="text-[10px] text-white w-14 shrink-0">{{ m.label }}</span>
               <div class="flex-1 h-2 rounded-full bg-white/5 overflow-hidden">
@@ -489,7 +489,7 @@ function renderTrendChart() {
         <!-- Trend Chart -->
         <GlassCard class="shrink-0">
           <div class="text-xs text-slate-400 tracking-wider mb-3">7日趋势</div>
-          <div ref="trendChartRef" class="h-48" />
+          <div ref="trendChartRef" class="h-32" />
         </GlassCard>
 
         <!-- Camera Monitoring -->

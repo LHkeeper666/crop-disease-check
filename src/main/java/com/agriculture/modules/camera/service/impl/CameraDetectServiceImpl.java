@@ -68,15 +68,113 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         }
     }
 
-    /**
-     * 实时监测任务调度器
-     */
-    private final ScheduledExecutorService monitorScheduler = Executors.newScheduledThreadPool(4);
+    // ======================== 监测会话管理 ========================
 
     /**
-     * 活跃的监测任务 Map<cameraId, ScheduledFuture>
+     * 活跃的监测会话 Map<cameraId, MonitorSession>
+     * 每个摄像头最多一个会话，会话独占该摄像头的监测生命周期
      */
-    private final Map<String, ScheduledFuture<?>> activeMonitors = new ConcurrentHashMap<>();
+    private final Map<String, MonitorSession> sessions = new ConcurrentHashMap<>();
+
+    /**
+     * 单摄像头监测会话。
+     *
+     * 设计原则：
+     * - 一个线程驱动完整生命周期（连接→抽帧→推理→等待→循环）
+     * - 依赖 ffmpeg 自身超时(stimeout/rw_timeout)防止 native 阻塞，不做跨线程 close
+     * - 失败后指数退避重连（5s → 10s → 20s，上限30s），成功后重置
+     * - 停止仅需设置 volatile flag + interrupt，线程在下一个检查点安全退出
+     */
+    private class MonitorSession extends Thread {
+        final String cameraId;
+        final int intervalSec;
+        final float confidence;
+        final boolean useSubStream;
+        volatile boolean stopped;
+        /** 当前活跃的 grabber，仅用于监控/诊断，不做跨线程 close */
+        volatile FFmpegFrameGrabber activeGrabber;
+        int consecutiveFailures;
+
+        MonitorSession(String cameraId, int intervalSec, float confidence, boolean useSubStream) {
+            super("camera-monitor-" + cameraId);
+            this.cameraId = cameraId;
+            this.intervalSec = intervalSec;
+            this.confidence = confidence;
+            this.useSubStream = useSubStream;
+        }
+
+        @Override
+        public void run() {
+            log.info("监测会话启动: cameraId={}, interval={}s", cameraId, intervalSec);
+            while (!stopped) {
+                try {
+                    // --- 退避等待 ---
+                    if (consecutiveFailures > 0) {
+                        long backoffMs = backoffMs();
+                        log.info("退避等待 {}ms 后重连 (第{}次失败): cameraId={}",
+                                backoffMs, consecutiveFailures, cameraId);
+                        if (!sleepUntilStopped(backoffMs)) break; // 被停止则退出
+                    }
+
+                    // --- 执行一次检测 ---
+                    CameraDetectRequest req = new CameraDetectRequest();
+                    req.setConfidence(confidence);
+                    req.setUseSubStream(useSubStream);
+                    req.setSaveCapture(false);
+                    detect(cameraId, req);
+
+                    // 成功 → 重置退避
+                    consecutiveFailures = 0;
+                    log.info("监测检测完成: cameraId={}", cameraId);
+
+                    // --- 等待到下一个间隔 ---
+                    if (!sleepUntilStopped(intervalSec * 1000L)) break;
+
+                } catch (Exception e) {
+                    if (stopped) break;
+                    consecutiveFailures++;
+                    log.warn("监测失败 (第{}次): cameraId={}, error={}",
+                            consecutiveFailures, cameraId, e.getMessage());
+                }
+            }
+            // 确保资源释放
+            releaseGrabber();
+            sessions.remove(cameraId, this); // 仅当自己是当前会话时才移除
+            log.info("监测会话结束: cameraId={}", cameraId);
+        }
+
+        /** 指数退避：5s → 10s → 20s，上限30s */
+        private long backoffMs() {
+            int n = Math.min(consecutiveFailures, 4);
+            return Math.min(5000L * (1L << (n - 1)), 30000L);
+        }
+
+        /** 带停止检测的 sleep，返回 false 表示被停止 */
+        private boolean sleepUntilStopped(long totalMs) {
+            long remaining = totalMs;
+            while (remaining > 0 && !stopped) {
+                try {
+                    Thread.sleep(Math.min(remaining, 200));
+                    remaining -= 200;
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return !stopped;
+                }
+            }
+            return !stopped;
+        }
+
+        void releaseGrabber() {
+            FFmpegFrameGrabber g = activeGrabber;
+            activeGrabber = null;
+            if (g != null) {
+                try { g.stop(); } catch (Exception ignored) {}
+                try { g.release(); } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    // ======================== 构造函数 ========================
 
     public CameraDetectServiceImpl(CameraMapper cameraMapper,
                                    InferenceClient inferenceClient,
@@ -92,9 +190,9 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         if (camera == null) {
             throw new BusinessException(40087, "摄像头不存在");
         }
-        if (!"ONLINE".equals(camera.getStatus())) {
-            throw new BusinessException(40082, "摄像头离线，无法抓拍");
-        }
+//        if (!"ONLINE".equals(camera.getStatus())) {
+//            throw new BusinessException(40082, "摄像头离线，无法抓拍");
+//        }
 
         String rtspUrl = Boolean.TRUE.equals(request.getUseSubStream()) && camera.getRtspUrlSub() != null
                 ? camera.getRtspUrlSub()
@@ -107,7 +205,7 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         // 1. 从RTSP流抽帧（使用源流分辨率，不强制缩放）
         CapturedFrame captured;
         try {
-            captured = captureFrameFromRtsp(rtspUrl);
+            captured = captureFrameFromRtsp(cameraId, rtspUrl);
         } catch (Exception e) {
             log.error("RTSP抽帧失败: cameraId={}, rtspUrl={}", cameraId, rtspUrl, e);
             camera.setStatus("FAULT");
@@ -165,71 +263,72 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         }
 
         if (Boolean.TRUE.equals(request.getEnabled())) {
-            if (activeMonitors.containsKey(cameraId)) {
+            // 检查已有会话
+            MonitorSession existing = sessions.get(cameraId);
+            if (existing != null && existing.isAlive()) {
                 log.warn("摄像头已在监测中: cameraId={}", cameraId);
                 return;
+            }
+            // 清理已死亡的旧会话
+            if (existing != null) {
+                sessions.remove(cameraId, existing);
             }
 
             int interval = request.getIntervalSeconds() != null ? request.getIntervalSeconds() : 5;
             if (interval < 5) interval = 5;
 
-            ScheduledFuture<?> future = monitorScheduler.scheduleAtFixedRate(() -> {
-                if (Thread.currentThread().isInterrupted()) return;
-                try {
-                    log.info("定时监测开始: cameraId={}", cameraId);
-                    CameraDetectRequest detectRequest = new CameraDetectRequest();
-                    detectRequest.setConfidence(request.getConfidence());
-                    detectRequest.setUseSubStream(request.getUseSubStream());
-                    detectRequest.setSaveCapture(false); // 定时监测不保存图片，减少IO
-
-                    detect(cameraId, detectRequest);
-                    log.info("定时监测完成: cameraId={}", cameraId);
-                } catch (Exception e) {
-                    if (Thread.currentThread().isInterrupted()) {
-                        log.info("定时监测被中断: cameraId={}", cameraId);
-                        return;
-                    }
-                    log.warn("定时监测失败: cameraId={}, error={}", cameraId, e.getMessage(), e);
-                }
-            }, 0, interval, TimeUnit.SECONDS);
-
-            activeMonitors.put(cameraId, future);
+            MonitorSession session = new MonitorSession(
+                    cameraId, interval,
+                    request.getConfidence() != null ? request.getConfidence() : 0.5f,
+                    Boolean.TRUE.equals(request.getUseSubStream()));
+            sessions.put(cameraId, session);
+            session.start();
             log.info("启动实时监测: cameraId={}, interval={}s", cameraId, interval);
 
         } else {
-            ScheduledFuture<?> future = activeMonitors.remove(cameraId);
-            if (future != null) {
-                future.cancel(true);
+            MonitorSession session = sessions.remove(cameraId);
+            if (session != null) {
+                session.stopped = true;
+                session.interrupt();
                 log.info("停止实时监测: cameraId={}", cameraId);
             }
         }
     }
 
     /**
-     * 从RTSP流抽帧（JavaCV FFmpegFrameGrabber）
-     * 使用摄像头源流分辨率，不强制缩放
+     * 从RTSP流抽帧（JavaCV FFmpegFrameGrabber）。
+     * 依赖 ffmpeg stimeout/rw_timeout 防止 native 阻塞，不做跨线程 close。
      */
-    private CapturedFrame captureFrameFromRtsp(String rtspUrl) throws Exception {
-        log.info("从RTSP流抽帧: {}", rtspUrl);
+    private CapturedFrame captureFrameFromRtsp(String cameraId, String rtspUrl) throws Exception {
+        log.info("从RTSP流抽帧: cameraId={}, rtspUrl={}", cameraId, rtspUrl);
+
+        // 获取当前会话（用于注册grabber引用 + 检查停止标志）
+        MonitorSession session = sessions.get(cameraId);
 
         FFmpegFrameGrabber grabber = null;
         try {
             grabber = new FFmpegFrameGrabber(rtspUrl);
             grabber.setOption("rtsp_transport", captureTransport);
-            // stimeout 控制 RTSP TCP 连接超时（微秒）
-            grabber.setOption("stimeout", String.valueOf(captureTimeoutMs * 1000));
+            // stimeout: TCP socket 连接超时（微秒），默认5秒
+            grabber.setOption("stimeout", String.valueOf(captureTimeoutMs * 1000L));
+            // rw_timeout: 读写超时（微秒），覆盖 RTSP 协议交互阶段
+            grabber.setOption("rw_timeout", String.valueOf(captureTimeoutMs * 1000L));
             grabber.setOption("buffer_size", "1024000");
-            // 限制流分析阶段的探测大小和时长，避免 avformat_find_stream_info 阻塞
             grabber.setOption("probesize", "32000");
             grabber.setOption("analyzeduration", "2000000");
-            // 不设置 setImageWidth/setImageHeight，使用源流分辨率
+
+            // 注册到会话（仅用于诊断）
+            if (session != null) session.activeGrabber = grabber;
 
             log.info("正在连接RTSP流并分析流信息...");
             grabber.start();
             log.info("RTSP流连接成功: {}x{}", grabber.getImageWidth(), grabber.getImageHeight());
 
-            // grab() 会同时消耗视频帧和音频帧，多跳过几帧确保拿到稳定的视频帧
+            // 跳过前几帧确保拿到稳定视频帧
             for (int i = 0; i < 10; i++) {
+                if (session != null && session.stopped) {
+                    throw new InterruptedException("监测已停止");
+                }
                 grabber.grab();
             }
 
@@ -246,20 +345,21 @@ public class CameraDetectServiceImpl implements CameraDetectService {
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ImageIO.write(image, "jpg", baos);
-            log.info("RTSP抽帧成功: {}x{}, size={}bytes", image.getWidth(), image.getHeight(), baos.size());
+            log.info("RTSP抽帧成功: cameraId={}, {}x{}, size={}bytes",
+                    cameraId, image.getWidth(), image.getHeight(), baos.size());
             return new CapturedFrame(baos.toByteArray(), image.getWidth(), image.getHeight());
 
         } catch (Exception e) {
-            log.error("RTSP抽帧异常: {}", e.getMessage());
-            throw new RuntimeException("RTSP抽帧失败: " + e.getMessage(), e);
+            if (e instanceof InterruptedException) {
+                throw e; // 原样抛出，让 MonitorSession.run() 识别
+            }
+            log.error("RTSP抽帧异常: cameraId={}, error={}", cameraId, e.getMessage());
+            throw e; // 原样抛出，保留原始ffmpeg错误信息
         } finally {
+            if (session != null) session.activeGrabber = null;
             if (grabber != null) {
-                try {
-                    grabber.stop();
-                    grabber.release();
-                } catch (Exception e) {
-                    log.warn("关闭RTSP连接异常: {}", e.getMessage());
-                }
+                try { grabber.stop(); } catch (Exception ignored) {}
+                try { grabber.release(); } catch (Exception ignored) {}
             }
         }
     }

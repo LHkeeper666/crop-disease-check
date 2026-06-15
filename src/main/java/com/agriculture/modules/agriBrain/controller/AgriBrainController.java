@@ -132,4 +132,16 @@ public class AgriBrainController {
         // TODO: 可以尝试调用 LLM API 进行实际校验
         return Result.success("配置有效");
     }
+
+    /**
+     * 非流式聊天：用于 Agent 生成邮件内容等需要同步返回结果的场景
+     */
+    @PostMapping("/chat-sync")
+    public Result<Map<String, String>> chatSync(@RequestBody ChatRequest request, HttpServletRequest httpRequest) {
+        String userId = (String) httpRequest.getAttribute("userId");
+        String content = agriBrainService.chatSync(request.getMessage(), userId);
+        Map<String, String> data = new HashMap<>();
+        data.put("content", content);
+        return Result.success(data);
+    }
 }

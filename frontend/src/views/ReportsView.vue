@@ -60,7 +60,6 @@ onMounted(() => {
 })
 
 async function handleGenerateDailyReport() {
-  if (todayGenerated.value) return
   try {
     await generateDailyReport(today)
     todayGenerated.value = true
@@ -522,15 +521,15 @@ watch(overview, () => {
     <!-- Header -->
     <div class="flex items-center justify-between shrink-0">
       <div>
-        <h1 class="text-lg font-bold text-white">离线农情复盘与高级分析舱</h1>
-        <p class="text-xs text-slate-500 font-mono">离线农情复盘与高级分析</p>
+        <h1 class="text-lg font-bold text-white">在线农情复盘与高级分析舱</h1>
+        <p class="text-xs text-slate-500 font-mono">在线农情复盘与高级分析</p>
       </div>
       <div class="flex gap-2">
         <GlowButton label="导出 Excel" @click="exportToExcel" />
         <GlowButton
-          :label="!apiAvailable ? '请先配置 API Key' : todayGenerated ? '今日已生成' : '生成日报 (Word)'"
-          :disabled="todayGenerated || !apiAvailable"
-          :title="!apiAvailable ? '请先在智慧大脑页面配置 Agent API Key，接入后方可生成日报' : todayGenerated ? '今日日报已生成' : '生成今日日报（Agent 分析 + Word 下载）'"
+          :label="!apiAvailable ? '请先配置 API Key' : '生成日报 (Word)'"
+          :disabled="!apiAvailable"
+          :title="!apiAvailable ? '请先在智慧大脑页面配置 Agent API Key，接入后方可生成日报' : '生成今日日报（Agent 分析 + Word 下载）'"
           @click="handleGenerateDailyReport"
         />
       </div>
@@ -575,7 +574,6 @@ watch(overview, () => {
               <span class="text-xs text-slate-400 tracking-wider">7日趋势</span>
               <div class="flex gap-2">
                 <button class="px-3 py-1 rounded-lg text-[10px] font-mono bg-cyber-green/10 text-cyber-green border border-cyber-green/20">7天</button>
-                <button class="px-3 py-1 rounded-lg text-[10px] font-mono bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10">30天</button>
               </div>
             </div>
             <div ref="trendChartRef" class="flex-1 min-h-0" />

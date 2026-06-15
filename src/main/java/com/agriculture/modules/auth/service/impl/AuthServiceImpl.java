@@ -21,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
@@ -46,6 +47,10 @@ public class AuthServiceImpl implements AuthService {
      * 验证码发送间隔Key前缀
      */
     private static final String OTP_INTERVAL_KEY_PREFIX = "otp_interval:";
+    /**
+     * Token黑名单Key前缀
+     */
+    private static final String TOKEN_BLACKLIST_PREFIX = "token:blacklist:";
     /**
      * 验证码有效期（分钟）
      */
@@ -232,8 +237,28 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void logout(String userId, String token) {
-        // 将Token加入黑名单（可选，这里简单记录日志）
-        log.info("用户登出: {}", userId);
+        // 将Token加入Redis黑名单
+        if (StringUtils.hasText(token)) {
+            // 移除Bearer前缀
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7);
+            }
+            // 计算Token剩余有效期，设置为黑名单过期时间
+            long expireSeconds = jwtUtil.getExpirationFromToken(token);
+            if (expireSeconds > 0) {
+                String blacklistKey = TOKEN_BLACKLIST_PREFIX + token;
+                redisTemplate.opsForValue().set(blacklistKey, userId, expireSeconds, TimeUnit.SECONDS);
+                log.info("用户登出，Token已加入黑名单: userId={}", userId);
+            }
+        }
+    }
+
+    /**
+     * 检查Token是否在黑名单中
+     */
+    public boolean isTokenBlacklisted(String token) {
+        String blacklistKey = TOKEN_BLACKLIST_PREFIX + token;
+        return Boolean.TRUE.equals(redisTemplate.hasKey(blacklistKey));
     }
 
     @Override

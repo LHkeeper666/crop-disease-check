@@ -11,7 +11,7 @@ USE agriculture_db;
 
 -- 管理员账号 (密码: admin123)
 INSERT INTO sys_user (id, username, password, name, role, email, status, company_id, approved) VALUES
-('u001', 'admin', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '系统管理员', 'ADMIN', 'admin@agriculture.com', 'ACTIVE', 'comp001', 1);
+('u001', 'admin', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '智慧农业管理员', 'ADMIN', 'admin@agriculture.com', 'ACTIVE', 'comp001', 1);
 
 -- 企业2管理员账号 (密码: admin123)
 INSERT INTO sys_user (id, username, password, name, role, email, status, company_id, approved) VALUES
@@ -19,7 +19,7 @@ INSERT INTO sys_user (id, username, password, name, role, email, status, company
 
 -- 示例专家账号
 INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
-('u002', 'expert01', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '李专家', 'EXPERT', '13800138001', 'expert@agriculture.com', 'ACTIVE', 'comp001', 1);
+('u002', 'expert01', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '李专家', 'EXPERT', '13800138001', '1678326026@qq.com', 'ACTIVE', 'comp001', 1);
 
 -- 示例管理者账号
 INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
@@ -279,8 +279,8 @@ INSERT INTO inspection_camera (plan_id, camera_id) VALUES
 
 -- 更多专家
 INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
-('u005', 'expert02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '赵植保专家', 'EXPERT', '13800138005', 'expert02@agriculture.com', 'ACTIVE', 'comp001', 1),
-('u006', 'expert03', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '钱昆虫专家', 'EXPERT', '13800138006', 'expert03@agriculture.com', 'ACTIVE', 'comp001', 1);
+('u005', 'expert02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '赵植保专家', 'EXPERT', '13800138005', '2043412933@qq.com', 'ACTIVE', 'comp001', 1),
+('u006', 'expert03', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '钱昆虫专家', 'EXPERT', '13800138006', '2364602010@qq.com', 'ACTIVE', 'comp001', 1);
 
 -- 更多管理者
 INSERT INTO sys_user (id, username, password, name, role, phone, email, status, company_id, approved) VALUES
@@ -566,51 +566,41 @@ INSERT INTO inspection_log (id, plan_id, camera_id, capture_time, image_url, dis
 -- 17. 日度报告数据
 -- ========================================
 
-INSERT INTO daily_report (id, report_date, summary_json, html_content, email_sent, email_sent_at) VALUES
-('dr001', '2026-06-01',
- '{"total_reports":2,"new_disease":2,"new_pest":0,"active_work_orders":2,"resolved_work_orders":0,"inspection_count":9,"avg_confidence":0.7473}',
- '<html><body><h1>2026-06-01 日度报告</h1><h2>上报统计</h2><p>新增上报: 2例 (病害2, 虫害0)</p><h2>工单统计</h2><p>活跃工单: 2个, 已解决: 0个</p><h2>巡检统计</h2><p>巡检次数: 9次, 平均置信度: 74.73%</p></body></html>',
- 1, '2026-06-01 23:00:00'),
+INSERT INTO daily_report (id, report_date, detections, disease_count, pest_count, handled_rate, company_id, summary_json, html_content, email_sent, email_sent_at) VALUES
+('dr001', '2026-06-09', 5, 3, 2, 0.33, 'comp001',
+ '{"totalInspections":9,"totalDetections":5,"diseaseCount":3,"pestCount":2,"workorderHandledRate":0.33,"topPests":[{"name":"番茄晚疫病","count":2},{"name":"辣椒疫病","count":1},{"name":"蚜虫","count":1},{"name":"白粉虱","count":1}],"topGrids":[{"gridLabel":"c001","count":3},{"gridLabel":"c003","count":2}]}',
+ '<html><body><h1>2026-06-09 日度报告</h1><h2>统计概览</h2><p>检测次数: 5次 (病害3, 虫害2)</p><h2>工单概况</h2><p>处理率: 33%</p></body></html>',
+ 1, '2026-06-09 23:00:00'),
 
-('dr002', '2026-06-02',
- '{"total_reports":1,"new_disease":1,"new_pest":0,"active_work_orders":3,"resolved_work_orders":0,"inspection_count":12,"avg_confidence":0.8210}',
- '<html><body><h1>2026-06-02 日度报告</h1><h2>上报统计</h2><p>新增上报: 1例 (病害1, 虫害0)</p><h2>工单统计</h2><p>活跃工单: 3个, 已解决: 0个</p><h2>巡检统计</h2><p>巡检次数: 12次, 平均置信度: 82.10%</p></body></html>',
- 1, '2026-06-02 23:00:00'),
+('dr002', '2026-06-10', 8, 5, 3, 0.40, 'comp001',
+ '{"totalInspections":12,"totalDetections":8,"diseaseCount":5,"pestCount":3,"workorderHandledRate":0.40,"topPests":[{"name":"番茄早疫病","count":3},{"name":"辣椒疫病","count":2},{"name":"蚜虫","count":2},{"name":"红蜘蛛","count":1}],"topGrids":[{"gridLabel":"c001","count":4},{"gridLabel":"c002","count":3},{"gridLabel":"c003","count":1}]}',
+ '<html><body><h1>2026-06-10 日度报告</h1><h2>统计概览</h2><p>检测次数: 8次 (病害5, 虫害3)</p><h2>工单概况</h2><p>处理率: 40%</p></body></html>',
+ 1, '2026-06-10 23:00:00'),
 
-('dr003', '2026-06-03',
- '{"total_reports":1,"new_disease":1,"new_pest":0,"active_work_orders":3,"resolved_work_orders":1,"inspection_count":12,"avg_confidence":0.8560}',
- '<html><body><h1>2026-06-03 日度报告</h1><h2>上报统计</h2><p>新增上报: 1例 (病害1, 虫害0)</p><h2>工单统计</h2><p>活跃工单: 3个, 已解决: 1个</p><h2>巡检统计</h2><p>巡检次数: 12次, 平均置信度: 85.60%</p><h2>预警</h2><p>辣椒疫病风险区域扩大，请关注C区</p></body></html>',
- 1, '2026-06-03 23:00:00'),
+('dr003', '2026-06-11', 6, 4, 2, 0.50, 'comp001',
+ '{"totalInspections":12,"totalDetections":6,"diseaseCount":4,"pestCount":2,"workorderHandledRate":0.50,"topPests":[{"name":"番茄晚疫病","count":2},{"name":"黄瓜霜霉病","count":1},{"name":"辣椒疫病","count":1},{"name":"蚜虫","count":1},{"name":"白粉虱","count":1}],"topGrids":[{"gridLabel":"c002","count":3},{"gridLabel":"c001","count":2},{"gridLabel":"c004","count":1}]}',
+ '<html><body><h1>2026-06-11 日度报告</h1><h2>统计概览</h2><p>检测次数: 6次 (病害4, 虫害2)</p><h2>工单概况</h2><p>处理率: 50%</p></body></html>',
+ 1, '2026-06-11 23:00:00'),
 
-('dr004', '2026-06-04',
- '{"total_reports":1,"new_disease":1,"new_pest":0,"active_work_orders":5,"resolved_work_orders":2,"inspection_count":15,"avg_confidence":0.8880}',
- '<html><body><h1>2026-06-04 日度报告</h1><h2>上报统计</h2><p>新增上报: 1例 (病害1, 虫害0)</p><h2>工单统计</h2><p>活跃工单: 5个, 已解决: 2个</p><h2>巡检统计</h2><p>巡检次数: 15次, 平均置信度: 88.80%</p><h2>重点</h2><p>辣椒疫病(C1区)已紧急处置完毕</p></body></html>',
- 1, '2026-06-04 23:00:00'),
+('dr004', '2026-06-12', 10, 6, 4, 0.60, 'comp001',
+ '{"totalInspections":15,"totalDetections":10,"diseaseCount":6,"pestCount":4,"workorderHandledRate":0.60,"topPests":[{"name":"辣椒疫病","count":3},{"name":"番茄晚疫病","count":2},{"name":"黄瓜霜霉病","count":1},{"name":"蚜虫","count":2},{"name":"红蜘蛛","count":1},{"name":"白粉虱","count":1}],"topGrids":[{"gridLabel":"c001","count":5},{"gridLabel":"c003","count":3},{"gridLabel":"c002","count":2}]}',
+ '<html><body><h1>2026-06-12 日度报告</h1><h2>统计概览</h2><p>检测次数: 10次 (病害6, 虫害4)</p><h2>工单概况</h2><p>处理率: 60%</p></body></html>',
+ 1, '2026-06-12 23:00:00'),
 
-('dr005', '2026-06-05',
- '{"total_reports":1,"new_disease":0,"new_pest":1,"active_work_orders":5,"resolved_work_orders":3,"inspection_count":12,"avg_confidence":0.8065}',
- '<html><body><h1>2026-06-05 日度报告</h1><h2>上报统计</h2><p>新增上报: 1例 (病害0, 虫害1)</p><h2>工单统计</h2><p>活跃工单: 5个, 已解决: 3个</p><h2>巡检统计</h2><p>巡检次数: 12次, 平均置信度: 80.65%</p></body></html>',
- 1, '2026-06-05 23:00:00'),
+('dr005', '2026-06-13', 7, 3, 4, 0.57, 'comp001',
+ '{"totalInspections":12,"totalDetections":7,"diseaseCount":3,"pestCount":4,"workorderHandledRate":0.57,"topPests":[{"name":"蚜虫","count":2},{"name":"红蜘蛛","count":1},{"name":"白粉虱","count":1},{"name":"番茄早疫病","count":2},{"name":"辣椒疫病","count":1}],"topGrids":[{"gridLabel":"c002","count":3},{"gridLabel":"c001","count":2},{"gridLabel":"c004","count":2}]}',
+ '<html><body><h1>2026-06-13 日度报告</h1><h2>统计概览</h2><p>检测次数: 7次 (病害3, 虫害4)</p><h2>工单概况</h2><p>处理率: 57%</p></body></html>',
+ 1, '2026-06-13 23:00:00'),
 
-('dr006', '2026-06-06',
- '{"total_reports":1,"new_disease":1,"new_pest":0,"active_work_orders":5,"resolved_work_orders":3,"inspection_count":12,"avg_confidence":0.9150}',
- '<html><body><h1>2026-06-06 日度报告</h1><h2>上报统计</h2><p>新增上报: 1例 (病害1, 虫害0)</p><h2>工单统计</h2><p>活跃工单: 5个, 已解决: 3个</p><h2>巡检统计</h2><p>巡检次数: 12次, 平均置信度: 91.50%</p></body></html>',
- 1, '2026-06-06 23:00:00'),
+('dr006', '2026-06-14', 4, 2, 2, 0.75, 'comp001',
+ '{"totalInspections":9,"totalDetections":4,"diseaseCount":2,"pestCount":2,"workorderHandledRate":0.75,"topPests":[{"name":"番茄晚疫病","count":1},{"name":"黄瓜霜霉病","count":1},{"name":"蚜虫","count":1},{"name":"白粉虱","count":1}],"topGrids":[{"gridLabel":"c001","count":2},{"gridLabel":"c003","count":1},{"gridLabel":"c002","count":1}]}',
+ '<html><body><h1>2026-06-14 日度报告</h1><h2>统计概览</h2><p>检测次数: 4次 (病害2, 虫害2)</p><h2>工单概况</h2><p>处理率: 75%</p></body></html>',
+ 1, '2026-06-14 23:00:00'),
 
-('dr007', '2026-06-07',
- '{"total_reports":0,"new_disease":0,"new_pest":0,"active_work_orders":5,"resolved_work_orders":4,"inspection_count":12,"avg_confidence":0.8560}',
- '<html><body><h1>2026-06-07 日度报告</h1><h2>上报统计</h2><p>今日无新增上报</p><h2>工单统计</h2><p>活跃工单: 5个, 已解决: 4个</p><h2>巡检统计</h2><p>巡检次数: 12次, 平均置信度: 85.60%</p></body></html>',
- 1, '2026-06-07 23:00:00'),
-
-('dr008', '2026-06-08',
- '{"total_reports":1,"new_disease":0,"new_pest":1,"active_work_orders":6,"resolved_work_orders":4,"inspection_count":15,"avg_confidence":0.8750}',
- '<html><body><h1>2026-06-08 日度报告</h1><h2>上报统计</h2><p>新增上报: 1例 (病害0, 虫害1)</p><h2>工单统计</h2><p>活跃工单: 6个, 已解决: 4个</p><h2>巡检统计</h2><p>巡检次数: 15次, 平均置信度: 87.50%</p></body></html>',
- 1, '2026-06-08 23:00:00'),
-
-('dr009', '2026-06-09',
- '{"total_reports":2,"new_disease":1,"new_pest":1,"active_work_orders":6,"resolved_work_orders":5,"inspection_count":15,"avg_confidence":0.7780}',
- '<html><body><h1>2026-06-09 日度报告</h1><h2>上报统计</h2><p>新增上报: 2例 (病害1, 虫害1)</p><h2>工单统计</h2><p>活跃工单: 6个, 已解决: 5个</p><h2>巡检统计</h2><p>巡检次数: 15次, 平均置信度: 77.80%</p><h2>预警</h2><p>C区辣椒疫病有蔓延趋势，已升级为区域联防</p></body></html>',
- 1, '2026-06-09 23:00:00');
+('dr007', '2026-06-15', 3, 2, 1, 0.67, 'comp001',
+ '{"totalInspections":6,"totalDetections":3,"diseaseCount":2,"pestCount":1,"workorderHandledRate":0.67,"topPests":[{"name":"番茄晚疫病","count":1},{"name":"辣椒疫病","count":1},{"name":"蚜虫","count":1}],"topGrids":[{"gridLabel":"c001","count":2},{"gridLabel":"c002","count":1}]}',
+ '<html><body><h1>2026-06-15 日度报告</h1><h2>统计概览</h2><p>检测次数: 3次 (病害2, 虫害1)</p><h2>工单概况</h2><p>处理率: 67%</p></body></html>',
+ 0, NULL);
 
 
 -- ========================================

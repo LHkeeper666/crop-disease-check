@@ -50,10 +50,11 @@ public class DailyReportServiceImpl extends ServiceImpl<DailyReportMapper, Daily
     private ObjectMapper objectMapper;
 
     @Override
-    public IPage<DailyReportVO> listReports(LocalDate startDate, LocalDate endDate, int page, int size) {
+    public IPage<DailyReportVO> listReports(LocalDate startDate, LocalDate endDate, int page, int size, String companyId) {
         LambdaQueryWrapper<DailyReport> wrapper = new LambdaQueryWrapper<>();
         wrapper.ge(startDate != null, DailyReport::getReportDate, startDate)
                .le(endDate != null, DailyReport::getReportDate, endDate)
+               .eq(StringUtils.hasText(companyId), DailyReport::getCompanyId, companyId)
                .orderByDesc(DailyReport::getReportDate);
 
         Page<DailyReport> pageParam = new Page<>(page, size);
@@ -97,18 +98,17 @@ public class DailyReportServiceImpl extends ServiceImpl<DailyReportMapper, Daily
 
     @Override
     @Transactional
-    public String generateReport(DailyReportGenerateDTO dto) {
+    public String generateReport(DailyReportGenerateDTO dto, String companyId) {
         LocalDate date = dto.getDate();
 
-        // 检查是否已存在该日期的日报
+        // 如果已存在该日期的日报（同企业），删除旧的重新生成
         LambdaQueryWrapper<DailyReport> existWrapper = new LambdaQueryWrapper<>();
-        existWrapper.eq(DailyReport::getReportDate, date);
-        if (baseMapper.selectCount(existWrapper) > 0) {
-            throw new BusinessException(400, "该日期的日报已存在");
-        }
+        existWrapper.eq(DailyReport::getReportDate, date)
+                    .eq(StringUtils.hasText(companyId), DailyReport::getCompanyId, companyId);
+        baseMapper.delete(existWrapper);
 
         // 聚合统计数据
-        DailyReportSummaryDTO summary = aggregateStatistics(date);
+        DailyReportSummaryDTO summary = aggregateStatistics(date, companyId);
 
         // 生成HTML内容
         String htmlContent = generateHtmlContent(date, summary);
@@ -133,15 +133,19 @@ public class DailyReportServiceImpl extends ServiceImpl<DailyReportMapper, Daily
         report.setSummaryJson(summaryJson);
         report.setHtmlContent(htmlContent);
         report.setEmailSent((byte) 0);
+        if (StringUtils.hasText(companyId)) {
+            report.setCompanyId(companyId);
+        }
         report.setCreatedAt(LocalDateTime.now());
         baseMapper.insert(report);
 
         return report.getId();
     }
 
-    private DailyReportSummaryDTO aggregateStatistics(LocalDate date) {
+    private DailyReportSummaryDTO aggregateStatistics(LocalDate date, String companyId) {
         LocalDateTime dayStart = date.atStartOfDay();
         LocalDateTime dayEnd = date.atTime(LocalTime.MAX);
+        boolean hasCompany = StringUtils.hasText(companyId);
 
         DailyReportSummaryDTO summary = new DailyReportSummaryDTO();
 
@@ -195,7 +199,8 @@ public class DailyReportServiceImpl extends ServiceImpl<DailyReportMapper, Daily
         // 统计工单处理率
         LambdaQueryWrapper<WorkOrder> workOrderWrapper = new LambdaQueryWrapper<>();
         workOrderWrapper.ge(WorkOrder::getCreatedAt, dayStart)
-                        .le(WorkOrder::getCreatedAt, dayEnd);
+                        .le(WorkOrder::getCreatedAt, dayEnd)
+                        .eq(hasCompany, WorkOrder::getCompanyId, companyId);
         List<WorkOrder> workOrders = workOrderMapper.selectList(workOrderWrapper);
 
         if (workOrders.isEmpty()) {

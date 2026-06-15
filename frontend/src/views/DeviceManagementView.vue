@@ -95,7 +95,9 @@ async function loadUsers() {
   userLoading.value = true
   userError.value = ''
   try {
-    const page = await fetchUsers({ size: 200 })
+    // 传递当前用户的companyId，只显示本公司员工
+    const companyId = auth.userInfo?.companyId
+    const page = await fetchUsers({ size: 200, companyId: companyId || undefined })
     users.value = page.records
     userTotal.value = page.total
   } catch (e: any) {
@@ -148,7 +150,7 @@ async function fetchCameras() {
       locationX: c.locationX,
       locationY: c.locationY,
       direction: c.direction,
-      status: c.status || 'OFFLINE',
+      status: 'OFFLINE', // 默认离线，由探测确定真实状态
       coverageGrids: c.coverageGrids || [],
       captureResolution: c.captureResolution || '',
       captureQuality: c.captureQuality ?? 85,
@@ -158,6 +160,40 @@ async function fetchCameras() {
     cameraError.value = e.message || '加载摄像头失败'
   } finally {
     cameraLoading.value = false
+  }
+}
+
+const cameraProbing = ref(false)
+
+/**
+ * 从前端主动探测摄像头网络可达性
+ * 通过 HTTP fetch 超时判断 IP:port 是否可达
+ */
+async function probeCameraReachability(cam: CameraItem): Promise<string> {
+  if (!cam.rtspUrl) return 'OFFLINE'
+  try {
+    const url = new URL(cam.rtspUrl)
+    const probeUrl = `http://${url.hostname}:${url.port || 554}/`
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 3000)
+    await fetch(probeUrl, { mode: 'no-cors', signal: controller.signal })
+    clearTimeout(timer)
+    return 'ONLINE'
+  } catch {
+    return 'OFFLINE'
+  }
+}
+
+async function probeAllCameras() {
+  cameraProbing.value = true
+  try {
+    await Promise.allSettled(
+      cameras.value.map(async (cam) => {
+        cam.status = await probeCameraReachability(cam)
+      })
+    )
+  } finally {
+    cameraProbing.value = false
   }
 }
 
@@ -328,8 +364,9 @@ function closeDeleteConfirm() {
   deletingCamera.value = null
 }
 
-onMounted(() => {
-  fetchCameras()
+onMounted(async () => {
+  await fetchCameras()
+  probeAllCameras() // 获取列表后立即探测摄像头真实状态
   loadGrids()
   loadUsers()
 })
@@ -453,8 +490,8 @@ async function toggleUserStatus(user: UserSimpleVO) {
     <!-- Header -->
     <div class="flex items-center justify-between shrink-0">
       <div>
-        <h1 class="text-lg font-bold text-white">多租户生物资产与设备管理舱</h1>
-        <p class="text-xs text-slate-500 font-mono">多租户生物资产与设备管理</p>
+        <h1 class="text-lg font-bold text-white">多用户生物资产与设备管理舱</h1>
+        <p class="text-xs text-slate-500 font-mono">多用户生物资产与设备管理</p>
       </div>
     </div>
 
@@ -509,6 +546,13 @@ async function toggleUserStatus(user: UserSimpleVO) {
                 @click="openCreateCamera"
               >
                 + 新增摄像头
+              </button>
+              <button
+                class="px-3 py-1.5 rounded-lg text-xs font-mono bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
+                :disabled="cameraProbing"
+                @click="probeAllCameras"
+              >
+                {{ cameraProbing ? '探测中...' : '探测状态' }}
               </button>
             </div>
           </div>
