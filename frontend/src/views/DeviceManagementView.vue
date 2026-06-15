@@ -115,9 +115,7 @@ const filteredCameras = computed(() => {
   if (!cameraSearch.value) return cameras.value
   const keyword = cameraSearch.value.toLowerCase()
   return cameras.value.filter(cam =>
-    cam.name.toLowerCase().includes(keyword) ||
-    (cam.coverageGrids?.join(',').toLowerCase().includes(keyword) ?? false) ||
-    cam.rtspUrl.toLowerCase().includes(keyword)
+    cam.name.toLowerCase().includes(keyword)
   )
 })
 
