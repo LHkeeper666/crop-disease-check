@@ -10,11 +10,11 @@ import java.util.List;
 
 public interface StatisticService {
 
-    StatisticsOverviewVO getOverview(Integer days);
+    StatisticsOverviewVO getOverview(Integer days, String companyId);
 
-    List<GridStatisticsVO> getGridStatistics(Integer days);
+    List<GridStatisticsVO> getGridStatistics(Integer days, String companyId);
 
-    List<TrendStatisticsVO> getTrend(Integer days, String granularity);
+    List<TrendStatisticsVO> getTrend(Integer days, String granularity, String companyId);
 
     void exportData(LocalDate startDate, LocalDate endDate, String gridId, String pestType, HttpServletResponse response);
 }

@@ -566,38 +566,38 @@ INSERT INTO inspection_log (id, plan_id, camera_id, capture_time, image_url, dis
 -- 17. 日度报告数据
 -- ========================================
 
-INSERT INTO daily_report (id, report_date, detections, disease_count, pest_count, handled_rate, summary_json, html_content, email_sent, email_sent_at) VALUES
-('dr001', '2026-06-09', 5, 3, 2, 0.33,
+INSERT INTO daily_report (id, report_date, detections, disease_count, pest_count, handled_rate, company_id, summary_json, html_content, email_sent, email_sent_at) VALUES
+('dr001', '2026-06-09', 5, 3, 2, 0.33, 'comp001',
  '{"totalInspections":9,"totalDetections":5,"diseaseCount":3,"pestCount":2,"workorderHandledRate":0.33,"topPests":[{"name":"番茄晚疫病","count":2},{"name":"辣椒疫病","count":1},{"name":"蚜虫","count":1},{"name":"白粉虱","count":1}],"topGrids":[{"gridLabel":"c001","count":3},{"gridLabel":"c003","count":2}]}',
  '<html><body><h1>2026-06-09 日度报告</h1><h2>统计概览</h2><p>检测次数: 5次 (病害3, 虫害2)</p><h2>工单概况</h2><p>处理率: 33%</p></body></html>',
  1, '2026-06-09 23:00:00'),
 
-('dr002', '2026-06-10', 8, 5, 3, 0.40,
+('dr002', '2026-06-10', 8, 5, 3, 0.40, 'comp001',
  '{"totalInspections":12,"totalDetections":8,"diseaseCount":5,"pestCount":3,"workorderHandledRate":0.40,"topPests":[{"name":"番茄早疫病","count":3},{"name":"辣椒疫病","count":2},{"name":"蚜虫","count":2},{"name":"红蜘蛛","count":1}],"topGrids":[{"gridLabel":"c001","count":4},{"gridLabel":"c002","count":3},{"gridLabel":"c003","count":1}]}',
  '<html><body><h1>2026-06-10 日度报告</h1><h2>统计概览</h2><p>检测次数: 8次 (病害5, 虫害3)</p><h2>工单概况</h2><p>处理率: 40%</p></body></html>',
  1, '2026-06-10 23:00:00'),
 
-('dr003', '2026-06-11', 6, 4, 2, 0.50,
+('dr003', '2026-06-11', 6, 4, 2, 0.50, 'comp001',
  '{"totalInspections":12,"totalDetections":6,"diseaseCount":4,"pestCount":2,"workorderHandledRate":0.50,"topPests":[{"name":"番茄晚疫病","count":2},{"name":"黄瓜霜霉病","count":1},{"name":"辣椒疫病","count":1},{"name":"蚜虫","count":1},{"name":"白粉虱","count":1}],"topGrids":[{"gridLabel":"c002","count":3},{"gridLabel":"c001","count":2},{"gridLabel":"c004","count":1}]}',
  '<html><body><h1>2026-06-11 日度报告</h1><h2>统计概览</h2><p>检测次数: 6次 (病害4, 虫害2)</p><h2>工单概况</h2><p>处理率: 50%</p></body></html>',
  1, '2026-06-11 23:00:00'),
 
-('dr004', '2026-06-12', 10, 6, 4, 0.60,
+('dr004', '2026-06-12', 10, 6, 4, 0.60, 'comp001',
  '{"totalInspections":15,"totalDetections":10,"diseaseCount":6,"pestCount":4,"workorderHandledRate":0.60,"topPests":[{"name":"辣椒疫病","count":3},{"name":"番茄晚疫病","count":2},{"name":"黄瓜霜霉病","count":1},{"name":"蚜虫","count":2},{"name":"红蜘蛛","count":1},{"name":"白粉虱","count":1}],"topGrids":[{"gridLabel":"c001","count":5},{"gridLabel":"c003","count":3},{"gridLabel":"c002","count":2}]}',
  '<html><body><h1>2026-06-12 日度报告</h1><h2>统计概览</h2><p>检测次数: 10次 (病害6, 虫害4)</p><h2>工单概况</h2><p>处理率: 60%</p></body></html>',
  1, '2026-06-12 23:00:00'),
 
-('dr005', '2026-06-13', 7, 3, 4, 0.57,
+('dr005', '2026-06-13', 7, 3, 4, 0.57, 'comp001',
  '{"totalInspections":12,"totalDetections":7,"diseaseCount":3,"pestCount":4,"workorderHandledRate":0.57,"topPests":[{"name":"蚜虫","count":2},{"name":"红蜘蛛","count":1},{"name":"白粉虱","count":1},{"name":"番茄早疫病","count":2},{"name":"辣椒疫病","count":1}],"topGrids":[{"gridLabel":"c002","count":3},{"gridLabel":"c001","count":2},{"gridLabel":"c004","count":2}]}',
  '<html><body><h1>2026-06-13 日度报告</h1><h2>统计概览</h2><p>检测次数: 7次 (病害3, 虫害4)</p><h2>工单概况</h2><p>处理率: 57%</p></body></html>',
  1, '2026-06-13 23:00:00'),
 
-('dr006', '2026-06-14', 4, 2, 2, 0.75,
+('dr006', '2026-06-14', 4, 2, 2, 0.75, 'comp001',
  '{"totalInspections":9,"totalDetections":4,"diseaseCount":2,"pestCount":2,"workorderHandledRate":0.75,"topPests":[{"name":"番茄晚疫病","count":1},{"name":"黄瓜霜霉病","count":1},{"name":"蚜虫","count":1},{"name":"白粉虱","count":1}],"topGrids":[{"gridLabel":"c001","count":2},{"gridLabel":"c003","count":1},{"gridLabel":"c002","count":1}]}',
  '<html><body><h1>2026-06-14 日度报告</h1><h2>统计概览</h2><p>检测次数: 4次 (病害2, 虫害2)</p><h2>工单概况</h2><p>处理率: 75%</p></body></html>',
  1, '2026-06-14 23:00:00'),
 
-('dr007', '2026-06-15', 3, 2, 1, 0.67,
+('dr007', '2026-06-15', 3, 2, 1, 0.67, 'comp001',
  '{"totalInspections":6,"totalDetections":3,"diseaseCount":2,"pestCount":1,"workorderHandledRate":0.67,"topPests":[{"name":"番茄晚疫病","count":1},{"name":"辣椒疫病","count":1},{"name":"蚜虫","count":1}],"topGrids":[{"gridLabel":"c001","count":2},{"gridLabel":"c002","count":1}]}',
  '<html><body><h1>2026-06-15 日度报告</h1><h2>统计概览</h2><p>检测次数: 3次 (病害2, 虫害1)</p><h2>工单概况</h2><p>处理率: 67%</p></body></html>',
  0, NULL);
