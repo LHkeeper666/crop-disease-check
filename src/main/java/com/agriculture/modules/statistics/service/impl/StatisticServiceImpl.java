@@ -9,6 +9,7 @@ import com.agriculture.modules.inference.entity.Inference;
 import com.agriculture.modules.inference.mapper.InferenceMapper;
 import com.agriculture.modules.workorder.mapper.WorkOrderMapper;
 import com.agriculture.modules.workorder.entity.WorkOrder;
+import com.agriculture.modules.greenhouse.entity.Greenhouse;
 import com.agriculture.modules.greenhouse.mapper.GreenhouseMapper;
 import com.agriculture.modules.inspection.mapper.InspectionLogMapper;
 import com.agriculture.common.exception.BusinessException;
@@ -645,11 +646,11 @@ public class StatisticServiceImpl implements StatisticService {
         if (greenhouseIds.isEmpty()) return Collections.emptySet();
 
         // 3. greenhouse → filter by companyId
-        LambdaQueryWrapper<com.agriculture.modules.greenhouse.entity.Greenhouse> ghWrapper = new LambdaQueryWrapper<>();
-        ghWrapper.in(com.agriculture.modules.greenhouse.entity.Greenhouse::getId, greenhouseIds);
+        LambdaQueryWrapper<Greenhouse> ghWrapper = new LambdaQueryWrapper<>();
+        ghWrapper.in(Greenhouse::getId, greenhouseIds);
         Set<String> companyGreenhouseIds = greenhouseMapper.selectList(ghWrapper).stream()
                 .filter(gh -> companyId.equals(gh.getCompanyId()))
-                .map(com.agriculture.modules.greenhouse.entity.Greenhouse::getId)
+                .map(Greenhouse::getId)
                 .collect(Collectors.toSet());
 
         // 4. 反向筛选：grid.greenhouseId ∈ companyGreenhouseIds → reportId
