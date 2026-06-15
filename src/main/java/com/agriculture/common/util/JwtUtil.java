@@ -103,4 +103,21 @@ public class JwtUtil {
     public boolean isRefreshToken(String token) {
         return "refresh".equals(getTypeFromToken(token));
     }
+
+    /**
+     * 获取Token剩余有效期（秒）
+     */
+    public long getExpirationFromToken(String token) {
+        try {
+            JWT jwt = JWTUtil.parseToken(token).setKey(secret.getBytes());
+            Date expireDate = jwt.getPayload(RegisteredPayload.EXPIRES_AT, Date.class);
+            if (expireDate == null) {
+                return 0;
+            }
+            long diff = expireDate.getTime() - System.currentTimeMillis();
+            return diff > 0 ? diff / 1000 : 0;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
 }
