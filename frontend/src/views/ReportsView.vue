@@ -575,7 +575,6 @@ watch(overview, () => {
               <span class="text-xs text-slate-400 tracking-wider">7日趋势</span>
               <div class="flex gap-2">
                 <button class="px-3 py-1 rounded-lg text-[10px] font-mono bg-cyber-green/10 text-cyber-green border border-cyber-green/20">7天</button>
-                <button class="px-3 py-1 rounded-lg text-[10px] font-mono bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10">30天</button>
               </div>
             </div>
             <div ref="trendChartRef" class="flex-1 min-h-0" />

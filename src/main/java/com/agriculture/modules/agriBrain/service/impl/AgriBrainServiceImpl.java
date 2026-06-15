@@ -552,4 +552,49 @@ public class AgriBrainServiceImpl implements AgriBrainService {
     private static class ToolCallResult {
         List<Map<String, Object>> toolCalls;
     }
+
+    @Override
+    public String chatSync(String message, String userId) {
+        String apiKey = getApiKey();
+        String model = getModel();
+
+        List<Map<String, Object>> messages = new ArrayList<>();
+        messages.add(Map.of("role", "system", "content", buildSystemPrompt()));
+        messages.add(Map.of("role", "user", "content", message));
+
+        Map<String, Object> requestBody = new LinkedHashMap<>();
+        requestBody.put("model", model);
+        requestBody.put("messages", messages);
+        requestBody.put("stream", false);
+        requestBody.put("max_tokens", 2048);
+
+        try {
+            String bodyJson = objectMapper.writeValueAsString(requestBody);
+
+            RestClient client = RestClient.builder()
+                    .baseUrl(llmProperties.getBaseUrl())
+                    .defaultHeader("Authorization", "Bearer " + apiKey)
+                    .defaultHeader("Content-Type", "application/json")
+                    .build();
+
+            String responseBody = client.post()
+                    .uri("/v1/chat/completions")
+                    .body(bodyJson)
+                    .retrieve()
+                    .body(String.class);
+
+            JsonNode json = objectMapper.readTree(responseBody);
+            JsonNode choices = json.get("choices");
+            if (choices != null && choices.isArray() && !choices.isEmpty()) {
+                JsonNode contentNode = choices.get(0).get("message").get("content");
+                if (contentNode != null && !contentNode.isNull()) {
+                    return contentNode.asText();
+                }
+            }
+            return "（Agent 未能生成内容）";
+        } catch (Exception e) {
+            log.error("chatSync 调用失败", e);
+            return "（Agent 生成失败: " + e.getMessage() + "）";
+        }
+    }
 }
