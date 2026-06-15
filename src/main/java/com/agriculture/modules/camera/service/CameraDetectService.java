@@ -13,16 +13,6 @@ public interface CameraDetectService {
     CameraDetectResponse detect(String cameraId, CameraDetectRequest request);
 
     /**
-     * 手动抓拍
-     */
-    CameraCaptureVO capture(String cameraId, CameraCaptureRequest request);
-
-    /**
-     * 批量抓拍
-     */
-    CameraBatchCaptureVO batchCapture(CameraBatchCaptureRequest request);
-
-    /**
      * 启动/停止摄像头实时监测模式
      */
     void toggleMonitor(String cameraId, CameraMonitorRequest request);
