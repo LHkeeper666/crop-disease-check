@@ -6,8 +6,11 @@ import {
   updateWorkOrderStatus as apiUpdateStatus,
   updateWorkOrderSeverity as apiUpdateSeverity,
   deleteWorkOrder as apiDelete,
+  fetchExperts as apiFetchExperts,
+  updateWorkOrderAssignee as apiUpdateAssignee,
   type WorkOrderVO,
   type WorkOrderManualCreateDTO,
+  type ExpertVO,
 } from '../api/workorder'
 
 // 前端工单类型，与后端 WorkOrderVO 对齐
@@ -20,6 +23,7 @@ export interface WorkOrder {
   gridLabel: string
   pestName: string
   confidence: number
+  assignedToId: string
   assignedToName: string
   createdAt: string
   updatedAt: string
@@ -56,6 +60,7 @@ function fromVO(vo: WorkOrderVO): WorkOrder {
     gridLabel: vo.gridLabel,
     pestName: vo.pestName,
     confidence: vo.confidence,
+    assignedToId: vo.assignedTo || '',
     assignedToName: vo.assignedToName || '未分配',
     createdAt: vo.createdAt,
     updatedAt: vo.updatedAt,
@@ -66,6 +71,11 @@ export const useWorkOrderStore = defineStore('workorder', () => {
   const orders = ref<WorkOrder[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+
+  // 专家列表状态
+  const experts = ref<ExpertVO[]>([])
+  const expertsLoading = ref(false)
+  const expertsError = ref<string | null>(null)
 
   // 每个网格最高危险等级（未完成且未忽略的工单）
   const gridSeverityMap = computed(() => {
@@ -225,10 +235,45 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     }
   }
 
+  /** 获取专家列表 */
+  async function fetchExperts() {
+    expertsLoading.value = true
+    expertsError.value = null
+    try {
+      const page = await apiFetchExperts()
+      experts.value = page.records
+    } catch (e: any) {
+      expertsError.value = e.message || '加载专家列表失败'
+      console.error('[workorder] fetchExperts error:', e)
+    } finally {
+      expertsLoading.value = false
+    }
+  }
+
+  /** 更新工单指派专家 */
+  async function updateAssignee(id: number, assignedTo: string) {
+    error.value = null
+    try {
+      await apiUpdateAssignee(id, assignedTo)
+      const o = orders.value.find(o => o.id === id)
+      if (o) {
+        o.assignedToId = assignedTo
+        // assignedToName 会在下次 fetchOrders 时更新
+        o.updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+      }
+    } catch (e: any) {
+      error.value = e.message || '更新指派专家失败'
+      throw e
+    }
+  }
+
   return {
     orders,
     loading,
     error,
+    experts,
+    expertsLoading,
+    expertsError,
     gridSeverityMap,
     alerts,
     getAlerts,
@@ -239,5 +284,7 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     updateOrderStatus,
     escalateSeverity,
     deescalateSeverity,
+    fetchExperts,
+    updateAssignee,
   }
 })

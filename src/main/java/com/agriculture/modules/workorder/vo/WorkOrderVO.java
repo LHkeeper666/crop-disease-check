@@ -17,6 +17,7 @@ public class WorkOrderVO {
     private String pestName;
     private BigDecimal confidence;
     private String imageUrl;
+    private String assignedTo;
     private String assignedToName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

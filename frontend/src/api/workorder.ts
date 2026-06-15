@@ -32,6 +32,7 @@ export interface WorkOrderVO {
   pestName: string
   confidence: number
   imageUrl: string | null
+  assignedTo: string
   assignedToName: string
   createdAt: string
   updatedAt: string
@@ -181,5 +182,30 @@ export async function deleteWorkOrder(id: number): Promise<void> {
 export async function previewWorkOrderEmail(id: number): Promise<EmailPreviewVO> {
   return request<EmailPreviewVO>(`${BASE}/${id}/preview-email`, {
     method: 'POST',
+  })
+}
+
+/** 专家用户信息 */
+export interface ExpertVO {
+  id: number
+  name: string
+  email: string
+  phone: string
+  role: string
+}
+
+/** 获取专家列表 */
+export async function fetchExperts(): Promise<PageResult<ExpertVO>> {
+  return request<PageResult<ExpertVO>>('/api/users?role=EXPERT&size=100')
+}
+
+/** 更新工单指派专家 */
+export async function updateWorkOrderAssignee(
+  id: number,
+  assignedTo: string
+): Promise<void> {
+  return request<void>(`${BASE}/${id}/assignee`, {
+    method: 'PUT',
+    body: JSON.stringify({ assignedTo }),
   })
 }

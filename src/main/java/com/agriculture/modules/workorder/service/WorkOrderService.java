@@ -35,6 +35,8 @@ public interface WorkOrderService extends IService<WorkOrder> {
 
     void updateSeverity(Long id, String severity);
 
+    void updateAssignee(Long id, String assignedTo);
+
     void deleteWorkOrder(Long id);
 
     EmailPreviewVO previewEmail(Long workOrderId);

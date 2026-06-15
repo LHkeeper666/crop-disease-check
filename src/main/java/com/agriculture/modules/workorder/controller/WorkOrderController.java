@@ -1,5 +1,6 @@
 package com.agriculture.modules.workorder.controller;
 
+import com.agriculture.modules.workorder.dto.AssigneeUpdateDTO;
 import com.agriculture.modules.workorder.dto.CallbackDTO;
 import com.agriculture.modules.workorder.dto.SeverityUpdateDTO;
 import com.agriculture.modules.workorder.dto.StatusUpdateDTO;
@@ -109,6 +110,13 @@ public class WorkOrderController {
                                        @Valid @RequestBody SeverityUpdateDTO dto) {
         workOrderService.updateSeverity(id, dto.getSeverity());
         return Result.success("严重程度更新成功", null);
+    }
+
+    @PutMapping("/{id}/assignee")
+    public Result<Void> updateAssignee(@PathVariable Long id,
+                                       @Valid @RequestBody AssigneeUpdateDTO dto) {
+        workOrderService.updateAssignee(id, dto.getAssignedTo());
+        return Result.success("指派专家更新成功", null);
     }
 
     @DeleteMapping("/{id}")
