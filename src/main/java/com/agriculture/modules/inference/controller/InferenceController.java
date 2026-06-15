@@ -11,6 +11,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 /**
@@ -57,10 +58,10 @@ public class InferenceController {
      */
     @PostMapping("/{reportId}/audit")
     public Result<Void> auditReport(
+            HttpServletRequest request,
             @PathVariable String reportId,
             @Valid @RequestBody AuditDTO dto) {
-        // TODO: 从 SecurityContext 获取当前用户ID，暂时使用默认值
-        String auditorId = "system";
+        String auditorId = (String) request.getAttribute("userId");
         inferenceService.auditReport(reportId, dto, auditorId);
         return Result.success("审核成功", null);
     }
@@ -71,10 +72,10 @@ public class InferenceController {
      */
     @PostMapping("/{reportId}/prevention-plan")
     public Result<Void> createPreventionPlan(
+            HttpServletRequest request,
             @PathVariable String reportId,
             @Valid @RequestBody PreventionPlanDTO dto) {
-        // TODO: 从 SecurityContext 获取当前用户ID，暂时使用默认值
-        String authorId = "system";
+        String authorId = (String) request.getAttribute("userId");
         inferenceService.createPreventionPlan(reportId, dto, authorId);
         return Result.success("防治方案制定成功", null);
     }
@@ -85,10 +86,10 @@ public class InferenceController {
      */
     @PutMapping("/{reportId}/prevention-plan")
     public Result<Void> updatePreventionPlan(
+            HttpServletRequest request,
             @PathVariable String reportId,
             @Valid @RequestBody PreventionPlanDTO dto) {
-        // TODO: 从 SecurityContext 获取当前用户ID，暂时使用默认值
-        String authorId = "system";
+        String authorId = (String) request.getAttribute("userId");
         inferenceService.updatePreventionPlan(reportId, dto, authorId);
         return Result.success("防治方案修改成功", null);
     }
