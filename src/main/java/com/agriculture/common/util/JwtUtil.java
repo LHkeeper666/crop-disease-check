@@ -110,11 +110,19 @@ public class JwtUtil {
     public long getExpirationFromToken(String token) {
         try {
             JWT jwt = JWTUtil.parseToken(token).setKey(secret.getBytes());
-            Date expireDate = jwt.getPayload(RegisteredPayload.EXPIRES_AT, Date.class);
-            if (expireDate == null) {
+            Object expObj = jwt.getPayload(RegisteredPayload.EXPIRES_AT);
+            if (expObj == null) {
                 return 0;
             }
-            long diff = expireDate.getTime() - System.currentTimeMillis();
+            long expireTime;
+            if (expObj instanceof Date) {
+                expireTime = ((Date) expObj).getTime();
+            } else if (expObj instanceof Long) {
+                expireTime = (Long) expObj * 1000; // JWT的exp是秒级时间戳
+            } else {
+                expireTime = Long.parseLong(expObj.toString()) * 1000;
+            }
+            long diff = expireTime - System.currentTimeMillis();
             return diff > 0 ? diff / 1000 : 0;
         } catch (Exception e) {
             return 0;
