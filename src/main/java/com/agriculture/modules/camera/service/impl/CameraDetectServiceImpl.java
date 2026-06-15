@@ -206,6 +206,10 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         CapturedFrame captured;
         try {
             captured = captureFrameFromRtsp(cameraId, rtspUrl);
+        } catch (InterruptedException e) {
+            // 监测被用户停止，不是真正的故障，直接抛出
+            Thread.currentThread().interrupt();
+            throw new BusinessException(40080, "监测已停止");
         } catch (Exception e) {
             log.error("RTSP抽帧失败: cameraId={}, rtspUrl={}", cameraId, rtspUrl, e);
             camera.setStatus("FAULT");
@@ -297,7 +301,7 @@ public class CameraDetectServiceImpl implements CameraDetectService {
 
     /**
      * 从RTSP流抽帧（JavaCV FFmpegFrameGrabber）。
-     * 依赖 ffmpeg stimeout/rw_timeout 防止 native 阻塞，不做跨线程 close。
+     * ffmpeg 超时选项 + Future 硬超时双重保障，防止 native 阻塞。
      */
     private CapturedFrame captureFrameFromRtsp(String cameraId, String rtspUrl) throws Exception {
         log.info("从RTSP流抽帧: cameraId={}, rtspUrl={}", cameraId, rtspUrl);
@@ -305,14 +309,15 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         // 获取当前会话（用于注册grabber引用 + 检查停止标志）
         MonitorSession session = sessions.get(cameraId);
 
-        FFmpegFrameGrabber grabber = null;
+        FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(rtspUrl);
         try {
-            grabber = new FFmpegFrameGrabber(rtspUrl);
             grabber.setOption("rtsp_transport", captureTransport);
-            // stimeout: TCP socket 连接超时（微秒），默认5秒
+            // stimeout: TCP socket 连接超时（微秒）
             grabber.setOption("stimeout", String.valueOf(captureTimeoutMs * 1000L));
             // rw_timeout: 读写超时（微秒），覆盖 RTSP 协议交互阶段
             grabber.setOption("rw_timeout", String.valueOf(captureTimeoutMs * 1000L));
+            // timeout: 通用 socket 超时（微秒），部分 ffmpeg 版本需要
+            grabber.setOption("timeout", String.valueOf(captureTimeoutMs * 1000L));
             grabber.setOption("buffer_size", "1024000");
             grabber.setOption("probesize", "32000");
             grabber.setOption("analyzeduration", "2000000");
@@ -321,7 +326,23 @@ public class CameraDetectServiceImpl implements CameraDetectService {
             if (session != null) session.activeGrabber = grabber;
 
             log.info("正在连接RTSP流并分析流信息...");
-            grabber.start();
+            // 用 Future 强制超时，防止 native grabber.start() 无视 ffmpeg 超时选项
+            ExecutorService startExecutor = Executors.newSingleThreadExecutor();
+            try {
+                Future<?> startFuture = startExecutor.submit(() -> { grabber.start(); return null; });
+                try {
+                    startFuture.get(captureTimeoutMs + 3000L, TimeUnit.MILLISECONDS);
+                } catch (TimeoutException te) {
+                    try { grabber.release(); } catch (Exception ignored) {}
+                    throw new RuntimeException("RTSP连接超时(" + captureTimeoutMs + "ms)");
+                } catch (ExecutionException ee) {
+                    Throwable cause = ee.getCause();
+                    if (cause instanceof Exception) throw (Exception) cause;
+                    throw new RuntimeException(cause);
+                }
+            } finally {
+                startExecutor.shutdownNow();
+            }
             log.info("RTSP流连接成功: {}x{}", grabber.getImageWidth(), grabber.getImageHeight());
 
             // 跳过前几帧确保拿到稳定视频帧
