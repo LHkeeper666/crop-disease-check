@@ -3,9 +3,12 @@ package com.agriculture.modules.greenhouse.controller;
 import com.agriculture.modules.greenhouse.dto.GreenhouseDTO;
 import com.agriculture.modules.greenhouse.entity.Greenhouse;
 import com.agriculture.modules.greenhouse.service.GreenhouseService;
+import com.agriculture.modules.user.entity.SysUser;
+import com.agriculture.modules.user.mapper.SysUserMapper;
 import com.agriculture.common.vo.Result;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,6 +26,9 @@ public class GreenhouseController {
 
     @Resource
     private GreenhouseService greenhouseService;
+
+    @Resource
+    private SysUserMapper sysUserMapper;
 
     /**
      * 温室列表
@@ -48,11 +54,23 @@ public class GreenhouseController {
      * 新增温室
      */
     @PostMapping
-    public Result<String> create(@Valid @RequestBody GreenhouseDTO dto) {
-        // TODO: 从 SecurityContext 获取 companyId，暂时使用默认值
-        String companyId = "default-company";
+    public Result<String> create(HttpServletRequest request, @Valid @RequestBody GreenhouseDTO dto) {
+        String userId = (String) request.getAttribute("userId");
+        String companyId = resolveCompanyId(userId);
         String id = greenhouseService.createGreenhouse(dto, companyId);
         return Result.success("温室创建成功", id);
+    }
+
+    /**
+     * 根据用户ID解析企业ID
+     */
+    private String resolveCompanyId(String userId) {
+        if (userId == null) return "";
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user != null && user.getCompanyId() != null && !user.getCompanyId().isEmpty()) {
+            return user.getCompanyId();
+        }
+        return "";
     }
 
     /**
