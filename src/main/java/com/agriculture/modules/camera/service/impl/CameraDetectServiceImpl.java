@@ -2,12 +2,24 @@ package com.agriculture.modules.camera.service.impl;
 
 import com.agriculture.modules.camera.dto.*;
 import com.agriculture.modules.camera.entity.Camera;
+import com.agriculture.modules.camera.entity.CameraGrid;
+import com.agriculture.modules.camera.mapper.CameraGridMapper;
 import com.agriculture.modules.camera.mapper.CameraMapper;
 import com.agriculture.modules.camera.service.CameraDetectService;
 import com.agriculture.common.exception.BusinessException;
+import com.agriculture.modules.grid.entity.Grid;
+import com.agriculture.modules.grid.mapper.GridMapper;
+import com.agriculture.modules.greenhouse.entity.Greenhouse;
+import com.agriculture.modules.greenhouse.mapper.GreenhouseMapper;
+import com.agriculture.modules.inference.entity.Inference;
+import com.agriculture.modules.inference.mapper.InferenceMapper;
 import com.agriculture.modules.inference.service.InferenceClient;
+import com.agriculture.modules.workorder.entity.WorkOrder;
+import com.agriculture.modules.workorder.mapper.WorkOrderMapper;
 import com.agriculture.common.websocket.WebSocketService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.Frame;
 import org.bytedeco.javacv.Java2DFrameConverter;
@@ -20,6 +32,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -27,6 +40,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 /**
  * 摄像头检测服务实现
@@ -40,8 +54,14 @@ import java.util.concurrent.*;
 public class CameraDetectServiceImpl implements CameraDetectService {
 
     private static final Logger log = LoggerFactory.getLogger(CameraDetectServiceImpl.class);
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final CameraMapper cameraMapper;
+    private final CameraGridMapper cameraGridMapper;
+    private final GridMapper gridMapper;
+    private final GreenhouseMapper greenhouseMapper;
+    private final InferenceMapper inferenceMapper;
+    private final WorkOrderMapper workOrderMapper;
     private final InferenceClient inferenceClient;
     private final WebSocketService webSocketService;
 
@@ -53,6 +73,14 @@ public class CameraDetectServiceImpl implements CameraDetectService {
 
     @Value("${capture.transport:tcp}")
     private String captureTransport;
+
+    /** 心跳持久化间隔（分钟）：即使检测结果无变化，也至少每 N 分钟写一条 */
+    @Value("${camera.detect.heartbeat-minutes:10}")
+    private int heartbeatMinutes;
+
+    /** 自动建单的默认置信度阈值 */
+    @Value("${camera.detect.auto-workorder-confidence:0.5}")
+    private float autoWorkOrderConfidence;
 
     /**
      * 抽帧结果：图片字节 + 实际宽高
@@ -67,6 +95,54 @@ public class CameraDetectServiceImpl implements CameraDetectService {
             this.height = height;
         }
     }
+
+    // ======================== 变更检测快照 ========================
+
+    /**
+     * 置信度分档，用于判断是否"跨等级"
+     */
+    private enum SeverityLevel {
+        LOW,      // < 0.4
+        MEDIUM,   // 0.4 - 0.6
+        HIGH,     // 0.6 - 0.8
+        CRITICAL; // > 0.8
+
+        static SeverityLevel fromConfidence(double confidence) {
+            if (confidence >= 0.8) return CRITICAL;
+            if (confidence >= 0.6) return HIGH;
+            if (confidence >= 0.4) return MEDIUM;
+            return LOW;
+        }
+
+        /** 映射到工单严重程度 */
+        String toWorkOrderSeverity() {
+            switch (this) {
+                case CRITICAL: return "CRITICAL";
+                case HIGH:     return "HIGH";
+                case MEDIUM:   return "MEDIUM";
+                default:       return "LOW";
+            }
+        }
+    }
+
+    /**
+     * 每个摄像头的检测快照（内存状态）
+     */
+    private static class CameraSnapshot {
+        /** 上次持久化的物种 → 置信度等级 */
+        Map<Integer, SeverityLevel> lastDetections = new HashMap<>();
+        /** 上次持久化时间 */
+        LocalDateTime lastPersistedAt;
+        /** 关联网格标签（从 camera_grid 查出后缓存） */
+        List<String> gridLabels = Collections.emptyList();
+        /** 缓存的企业ID（通过 camera→grid→greenhouse→company 解析） */
+        String companyId;
+        /** 上次检测结果（用于空检测时保留标签） */
+        List<CameraDetectResponse.DetectionItem> lastRawDetections = Collections.emptyList();
+    }
+
+    /** 每个摄像头的检测快照 Map<cameraId, CameraSnapshot> */
+    private final Map<String, CameraSnapshot> snapshots = new ConcurrentHashMap<>();
 
     // ======================== 监测会话管理 ========================
 
@@ -177,9 +253,19 @@ public class CameraDetectServiceImpl implements CameraDetectService {
     // ======================== 构造函数 ========================
 
     public CameraDetectServiceImpl(CameraMapper cameraMapper,
+                                   CameraGridMapper cameraGridMapper,
+                                   GridMapper gridMapper,
+                                   GreenhouseMapper greenhouseMapper,
+                                   InferenceMapper inferenceMapper,
+                                   WorkOrderMapper workOrderMapper,
                                    InferenceClient inferenceClient,
                                    WebSocketService webSocketService) {
         this.cameraMapper = cameraMapper;
+        this.cameraGridMapper = cameraGridMapper;
+        this.gridMapper = gridMapper;
+        this.greenhouseMapper = greenhouseMapper;
+        this.inferenceMapper = inferenceMapper;
+        this.workOrderMapper = workOrderMapper;
         this.inferenceClient = inferenceClient;
         this.webSocketService = webSocketService;
     }
@@ -242,7 +328,34 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         // 4. 解析推理结果（只有detections，没有annotatedImage）
         CameraDetectResponse.InferenceResult parsedResult = parseInferenceResult(inferenceResult);
 
-        // 5. 构建响应（使用实际抽帧分辨率）
+        // 5. 变更检测：只在状态发生变化时持久化
+        List<CameraDetectResponse.DetectionItem> allDetections = mergeAllDetections(parsedResult);
+        CameraSnapshot snapshot = snapshots.get(cameraId);
+        List<String> gridLabels = getGridLabelsForCamera(cameraId, snapshot);
+        String companyId = resolveCompanyId(cameraId, snapshot);
+
+        if (shouldPersist(snapshot, allDetections)) {
+            // 持久化到 inference 表
+            persistInference(cameraId, parsedResult, gridLabels);
+
+            // 自动创建工单（病害）
+            if (parsedResult.getDisease() != null && !parsedResult.getDisease().getDetections().isEmpty()) {
+                autoCreateWorkOrders(cameraId, parsedResult.getDisease().getDetections(), gridLabels, "disease", companyId);
+            }
+            // 自动创建工单（虫害）
+            if (parsedResult.getPest() != null && !parsedResult.getPest().getDetections().isEmpty()) {
+                autoCreateWorkOrders(cameraId, parsedResult.getPest().getDetections(), gridLabels, "pest", companyId);
+            }
+
+            // 更新内存快照
+            updateSnapshot(cameraId, allDetections, gridLabels);
+
+            log.info("检测状态变更，已持久化: cameraId={}, detections={}", cameraId, allDetections.size());
+        } else {
+            log.debug("检测无变化，跳过持久化: cameraId={}", cameraId);
+        }
+
+        // 6. 构建响应（使用实际抽帧分辨率）
         CameraDetectResponse response = CameraDetectResponse.builder()
                 .cameraId(cameraId)
                 .cameraName(camera.getName())
@@ -253,7 +366,7 @@ public class CameraDetectServiceImpl implements CameraDetectService {
                 .inference(parsedResult)
                 .build();
 
-        // 6. 推送检测框坐标到WebSocket（前端用于Canvas绘制）
+        // 7. 推送检测框坐标到WebSocket（始终执行，不受持久化影响）
         pushDetectionsToWebSocket(camera, parsedResult, captured.width, captured.height);
 
         return response;
@@ -295,6 +408,11 @@ public class CameraDetectServiceImpl implements CameraDetectService {
                 session.stopped = true;
                 session.interrupt();
                 log.info("停止实时监测: cameraId={}", cameraId);
+            }
+            // 保留快照以便重启后去重，但释放原始检测数据
+            CameraSnapshot snapshot = snapshots.get(cameraId);
+            if (snapshot != null) {
+                snapshot.lastRawDetections = Collections.emptyList();
             }
         }
     }
@@ -402,6 +520,249 @@ public class CameraDetectServiceImpl implements CameraDetectService {
             log.error("保存抓拍图片失败: cameraId={}", cameraId, e);
             return null;
         }
+    }
+
+    // ======================== 变更检测 + 持久化 ========================
+
+    /**
+     * 合并病害和虫害检测结果为统一列表
+     */
+    private List<CameraDetectResponse.DetectionItem> mergeAllDetections(
+            CameraDetectResponse.InferenceResult result) {
+        List<CameraDetectResponse.DetectionItem> all = new ArrayList<>();
+        if (result.getDisease() != null && result.getDisease().getDetections() != null) {
+            all.addAll(result.getDisease().getDetections());
+        }
+        if (result.getPest() != null && result.getPest().getDetections() != null) {
+            all.addAll(result.getPest().getDetections());
+        }
+        return all;
+    }
+
+    /**
+     * 判断本次检测是否需要持久化
+     */
+    private boolean shouldPersist(CameraSnapshot snapshot,
+                                   List<CameraDetectResponse.DetectionItem> currentDetections) {
+        // 1. 首次检测，无快照
+        if (snapshot == null || snapshot.lastPersistedAt == null) return true;
+
+        // 2. 距上次持久化超过心跳间隔
+        if (snapshot.lastPersistedAt.isBefore(LocalDateTime.now().minusMinutes(heartbeatMinutes))) {
+            return true;
+        }
+
+        // 3. 提取当前检测的物种集合
+        Set<Integer> currentIds = currentDetections.stream()
+                .map(CameraDetectResponse.DetectionItem::getClassId)
+                .collect(Collectors.toSet());
+        Set<Integer> previousIds = snapshot.lastDetections.keySet();
+
+        // 4. 新增物种
+        if (!previousIds.containsAll(currentIds)) return true;
+
+        // 5. 物种消失
+        if (!currentIds.containsAll(previousIds)) return true;
+
+        // 6. 置信度跨等级
+        for (CameraDetectResponse.DetectionItem det : currentDetections) {
+            SeverityLevel prev = snapshot.lastDetections.get(det.getClassId());
+            SeverityLevel curr = SeverityLevel.fromConfidence(det.getConfidence());
+            if (prev != null && prev != curr) return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * 获取摄像头关联的网格标签（优先从快照缓存读取）
+     */
+    private List<String> getGridLabelsForCamera(String cameraId, CameraSnapshot snapshot) {
+        if (snapshot != null && !snapshot.gridLabels.isEmpty()) {
+            return snapshot.gridLabels;
+        }
+        // 从 camera_grid → grid 查询
+        LambdaQueryWrapper<CameraGrid> cgWrapper = new LambdaQueryWrapper<>();
+        cgWrapper.eq(CameraGrid::getCameraId, cameraId);
+        List<CameraGrid> cameraGrids = cameraGridMapper.selectList(cgWrapper);
+        if (cameraGrids.isEmpty()) return Collections.emptyList();
+
+        List<String> gridIds = cameraGrids.stream()
+                .map(CameraGrid::getGridId).distinct().collect(Collectors.toList());
+
+        LambdaQueryWrapper<Grid> gridWrapper = new LambdaQueryWrapper<>();
+        gridWrapper.in(Grid::getId, gridIds);
+        List<String> labels = gridMapper.selectList(gridWrapper).stream()
+                .map(Grid::getLabel).collect(Collectors.toList());
+
+        // 缓存到快照
+        if (snapshot != null) {
+            snapshot.gridLabels = labels;
+        }
+        return labels;
+    }
+
+    /**
+     * 解析摄像头所属企业ID（camera → grid → greenhouse → company），结果缓存到快照
+     */
+    private String resolveCompanyId(String cameraId, CameraSnapshot snapshot) {
+        if (snapshot != null && snapshot.companyId != null) {
+            return snapshot.companyId;
+        }
+        // camera_grid → gridIds
+        LambdaQueryWrapper<CameraGrid> cgWrapper = new LambdaQueryWrapper<>();
+        cgWrapper.eq(CameraGrid::getCameraId, cameraId);
+        List<String> gridIds = cameraGridMapper.selectList(cgWrapper).stream()
+                .map(CameraGrid::getGridId).distinct().collect(Collectors.toList());
+        if (gridIds.isEmpty()) return null;
+
+        // grid → greenhouseIds
+        LambdaQueryWrapper<Grid> gridWrapper = new LambdaQueryWrapper<>();
+        gridWrapper.in(Grid::getId, gridIds);
+        Set<String> greenhouseIds = gridMapper.selectList(gridWrapper).stream()
+                .map(Grid::getGreenhouseId).filter(Objects::nonNull).collect(Collectors.toSet());
+        if (greenhouseIds.isEmpty()) return null;
+
+        // greenhouse → companyId
+        LambdaQueryWrapper<Greenhouse> ghWrapper = new LambdaQueryWrapper<>();
+        ghWrapper.in(Greenhouse::getId, greenhouseIds);
+        String companyId = greenhouseMapper.selectList(ghWrapper).stream()
+                .map(Greenhouse::getCompanyId).filter(Objects::nonNull)
+                .findFirst().orElse(null);
+
+        if (snapshot != null) {
+            snapshot.companyId = companyId;
+        }
+        return companyId;
+    }
+
+    /**
+     * 持久化检测结果到 inference 表
+     */
+    private void persistInference(String cameraId, CameraDetectResponse.InferenceResult result,
+                                   List<String> gridLabels) {
+        try {
+            // 构建 detections JSON
+            List<Map<String, Object>> detectionsList = new ArrayList<>();
+            List<Integer> diseaseIds = new ArrayList<>();
+            List<Integer> pestIds = new ArrayList<>();
+
+            if (result.getDisease() != null) {
+                for (CameraDetectResponse.DetectionItem det : result.getDisease().getDetections()) {
+                    detectionsList.add(buildDetectionMap(det, "DISEASE"));
+                    diseaseIds.add(det.getClassId());
+                }
+            }
+            if (result.getPest() != null) {
+                for (CameraDetectResponse.DetectionItem det : result.getPest().getDetections()) {
+                    detectionsList.add(buildDetectionMap(det, "PEST"));
+                    pestIds.add(det.getClassId());
+                }
+            }
+
+            Inference inference = new Inference();
+            inference.setId(UUID.randomUUID().toString());
+            inference.setSourceType("CAMERA");
+            inference.setCameraId(cameraId);
+            inference.setGridLabels(gridLabels.isEmpty() ? null : String.join(",", gridLabels));
+            inference.setDiseaseIds(diseaseIds.isEmpty() ? null : JSON.writeValueAsString(diseaseIds));
+            inference.setPestIds(pestIds.isEmpty() ? null : JSON.writeValueAsString(pestIds));
+            inference.setDetections(JSON.writeValueAsString(detectionsList));
+            inference.setTotalElapsedMs(result.getTotalElapsedMs() != null
+                    ? BigDecimal.valueOf(result.getTotalElapsedMs()) : null);
+            inference.setCreatedAt(LocalDateTime.now());
+
+            inferenceMapper.insert(inference);
+            log.info("检测结果已持久化: inferenceId={}, cameraId={}", inference.getId(), cameraId);
+        } catch (Exception e) {
+            log.error("持久化检测结果失败: cameraId={}", cameraId, e);
+        }
+    }
+
+    /**
+     * 自动创建工单（含去重：同网格+同病虫害+活跃工单已存在时只更新置信度）
+     */
+    private void autoCreateWorkOrders(String cameraId,
+                                       List<CameraDetectResponse.DetectionItem> detections,
+                                       List<String> gridLabels,
+                                       String type,
+                                       String companyId) {
+        for (String gridLabel : gridLabels) {
+            for (CameraDetectResponse.DetectionItem det : detections) {
+                if (det.getConfidence() < autoWorkOrderConfidence) continue;
+
+                try {
+                    // 去重：同网格 + 同病虫害 + 存在活跃工单
+                    LambdaQueryWrapper<WorkOrder> wrapper = new LambdaQueryWrapper<>();
+                    wrapper.eq(WorkOrder::getGridLabel, gridLabel)
+                            .eq(WorkOrder::getPestName, det.getNameCn())
+                            .in(WorkOrder::getStatus, "PENDING", "PROCESSING");
+                    WorkOrder existing = workOrderMapper.selectOne(wrapper);
+
+                    if (existing != null) {
+                        // 更新置信度（取较高值）
+                        if (BigDecimal.valueOf(det.getConfidence()).compareTo(existing.getConfidence()) > 0) {
+                            existing.setConfidence(BigDecimal.valueOf(det.getConfidence()));
+                            existing.setUpdatedAt(LocalDateTime.now());
+                            workOrderMapper.updateById(existing);
+                            log.debug("工单置信度已更新: orderId={}, confidence={}", existing.getId(), det.getConfidence());
+                        }
+                    } else {
+                        // 创建新工单
+                        SeverityLevel level = SeverityLevel.fromConfidence(det.getConfidence());
+                        WorkOrder workOrder = new WorkOrder();
+                        workOrder.setTitle("【" + level.toWorkOrderSeverity() + "】Grid-" + gridLabel
+                                + " " + det.getNameCn() + " 自动检测");
+                        workOrder.setSeverity(level.toWorkOrderSeverity());
+                        workOrder.setStatus("PENDING");
+                        workOrder.setType(type);
+                        workOrder.setGridLabel(gridLabel);
+                        workOrder.setPestName(det.getNameCn());
+                        workOrder.setConfidence(BigDecimal.valueOf(det.getConfidence()));
+                        workOrder.setCompanyId(companyId);
+                        workOrder.setCallbackToken(UUID.randomUUID().toString().replace("-", ""));
+                        workOrder.setTokenExpireAt(LocalDateTime.now().plusDays(7));
+                        workOrder.setTokenUsed((byte) 0);
+                        workOrder.setCreatedAt(LocalDateTime.now());
+                        workOrder.setUpdatedAt(LocalDateTime.now());
+                        workOrderMapper.insert(workOrder);
+
+                        log.info("自动创建工单: grid={}, pest={}, severity={}, confidence={}",
+                                gridLabel, det.getNameCn(), level.toWorkOrderSeverity(), det.getConfidence());
+
+                        // 推送 WebSocket
+                        try {
+                            Map<String, Object> wsData = new HashMap<>();
+                            wsData.put("workorderId", workOrder.getId());
+                            wsData.put("oldStatus", null);
+                            wsData.put("newStatus", "PENDING");
+                            wsData.put("type", workOrder.getType());
+                            wsData.put("severity", workOrder.getSeverity());
+                            wsData.put("updatedAt", LocalDateTime.now().toString());
+                            webSocketService.sendWorkorderChange(wsData);
+                        } catch (Exception ignored) {
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("自动建单失败: grid={}, pest={}: {}", gridLabel, det.getNameCn(), e.getMessage());
+                }
+            }
+        }
+    }
+
+    /**
+     * 更新内存快照
+     */
+    private void updateSnapshot(String cameraId, List<CameraDetectResponse.DetectionItem> detections,
+                                 List<String> gridLabels) {
+        CameraSnapshot snapshot = snapshots.computeIfAbsent(cameraId, k -> new CameraSnapshot());
+        snapshot.lastDetections.clear();
+        for (CameraDetectResponse.DetectionItem det : detections) {
+            snapshot.lastDetections.put(det.getClassId(), SeverityLevel.fromConfidence(det.getConfidence()));
+        }
+        snapshot.lastPersistedAt = LocalDateTime.now();
+        snapshot.gridLabels = gridLabels;
+        snapshot.lastRawDetections = detections;
     }
 
     /**

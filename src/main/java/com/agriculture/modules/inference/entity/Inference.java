@@ -73,4 +73,22 @@ public class Inference implements Serializable {
      */
     @TableField("created_at")
     private LocalDateTime createdAt;
+
+    /**
+     * 数据来源: REPORT(用户上报) / CAMERA(摄像头自动检测)
+     */
+    @TableField("source_type")
+    private String sourceType;
+
+    /**
+     * 来源摄像头ID（仅 source_type=CAMERA 时有值）
+     */
+    @TableField("camera_id")
+    private String cameraId;
+
+    /**
+     * 关联网格标签，逗号分隔（冗余存储，避免每次 JOIN）
+     */
+    @TableField("grid_labels")
+    private String gridLabels;
 }
