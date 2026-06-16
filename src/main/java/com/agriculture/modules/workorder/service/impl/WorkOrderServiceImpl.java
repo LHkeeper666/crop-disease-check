@@ -574,6 +574,14 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
             }
         }
 
+        // 关联查询推理记录的标注图片
+        if (workOrder.getInferenceId() != null) {
+            Inference inference = inferenceMapper.selectById(workOrder.getInferenceId());
+            if (inference != null) {
+                vo.setImageUrl(inference.getAnnotatedImageUrl());
+            }
+        }
+
         return vo;
     }
 }

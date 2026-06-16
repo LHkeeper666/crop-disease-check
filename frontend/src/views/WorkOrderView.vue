@@ -50,6 +50,7 @@ const filterDateEnd = ref('')
 const showCreateModal = ref(false)
 const showDetailModal = ref(false)
 const showDeleteConfirm = ref(false)
+const showImageModal = ref(false)
 const selectedOrder = ref<any>(null)
 
 // 专家选择器状态
@@ -735,6 +736,16 @@ function closeEmailModal() {
             </div>
             <div class="flex gap-2">
               <button
+                v-if="selectedOrder.imageUrl"
+                class="w-8 h-8 rounded-lg bg-blue-400/10 hover:bg-blue-400/20 flex items-center justify-center text-blue-400 transition-colors"
+                title="查看图片"
+                @click="showImageModal = true"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21zM10.5 8.25a1.125 1.125 0 11-2.25 0 1.125 1.125 0 012.25 0z" />
+                </svg>
+              </button>
+              <button
                 v-if="!isExpert"
                 class="w-8 h-8 rounded-lg bg-cyber-green/10 hover:bg-cyber-green/20 flex items-center justify-center text-cyber-green transition-colors"
                 title="发送邮件给专家"
@@ -1076,6 +1087,35 @@ function closeEmailModal() {
                 {{ emailResult === 'success' ? '关闭' : '取消' }}
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Image Viewer Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showImageModal && selectedOrder?.imageUrl"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+        @click.self="showImageModal = false"
+      >
+        <div class="relative max-w-[90vw] max-h-[90vh]">
+          <button
+            class="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-slate-800 border border-white/10 hover:bg-sakura/20 hover:border-sakura/30 flex items-center justify-center text-slate-400 hover:text-white transition-colors z-10"
+            @click="showImageModal = false"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+          <img
+            :src="selectedOrder.imageUrl"
+            :alt="selectedOrder.title"
+            class="max-w-[90vw] max-h-[85vh] rounded-xl object-contain shadow-2xl border border-white/10"
+          />
+          <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent rounded-b-xl px-4 py-3">
+            <p class="text-sm text-white font-medium">{{ selectedOrder.title }}</p>
+            <p class="text-[10px] text-slate-300 font-mono">Grid-{{ selectedOrder.gridLabel }} · {{ selectedOrder.pestName }} · {{ (selectedOrder.confidence * 100).toFixed(0) }}%</p>
           </div>
         </div>
       </div>
