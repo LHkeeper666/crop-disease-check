@@ -36,8 +36,12 @@ import org.springframework.util.StringUtils;
 
 import jakarta.annotation.Resource;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * <p>
@@ -260,6 +264,111 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
         }).collect(java.util.stream.Collectors.toList()));
 
         return vo;
+    }
+
+    // ==================== 企业隔离查询方法 ====================
+
+    @Override
+    public List<Map<String, Object>> listDetections(String companyId, String type,
+                                                     String startDate, String endDate,
+                                                     int limit) {
+        LambdaQueryWrapper<Inference> wrapper = new LambdaQueryWrapper<>();
+
+        // 企业隔离
+        if (StringUtils.hasText(companyId)) {
+            wrapper.eq(Inference::getCompanyId, companyId);
+        }
+
+        // 类型筛选
+        if ("disease".equals(type)) {
+            wrapper.isNotNull(Inference::getDiseaseIds);
+            wrapper.ne(Inference::getDiseaseIds, "[]");
+        } else if ("pest".equals(type)) {
+            wrapper.isNotNull(Inference::getPestIds);
+            wrapper.ne(Inference::getPestIds, "[]");
+        }
+
+        // 日期筛选
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        if (StringUtils.hasText(startDate)) {
+            LocalDate start = LocalDate.parse(startDate, dateFormatter);
+            wrapper.ge(Inference::getCreatedAt, start.atStartOfDay());
+        }
+        if (StringUtils.hasText(endDate)) {
+            LocalDate end = LocalDate.parse(endDate, dateFormatter);
+            wrapper.le(Inference::getCreatedAt, end.atTime(LocalTime.MAX));
+        }
+
+        // 排序和限制
+        wrapper.orderByDesc(Inference::getCreatedAt);
+        wrapper.last("LIMIT " + limit);
+
+        List<Inference> inferences = baseMapper.selectList(wrapper);
+
+        return inferences.stream().map(inf -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", inf.getId());
+            item.put("diseaseIds", inf.getDiseaseIds());
+            item.put("pestIds", inf.getPestIds());
+            item.put("detections", inf.getDetections());
+            item.put("annotatedImageUrl", inf.getAnnotatedImageUrl());
+            item.put("totalElapsedMs", inf.getTotalElapsedMs());
+            item.put("createdAt", inf.getCreatedAt() != null ?
+                    inf.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : null);
+            return item;
+        }).collect(Collectors.toList());
+    }
+
+    @Override
+    public Map<String, Object> getDetectionTrend(String companyId, int days) {
+        LocalDate startDate = LocalDate.now().minusDays(days);
+
+        LambdaQueryWrapper<Inference> wrapper = new LambdaQueryWrapper<>();
+
+        // 企业隔离
+        if (StringUtils.hasText(companyId)) {
+            wrapper.eq(Inference::getCompanyId, companyId);
+        }
+
+        wrapper.ge(Inference::getCreatedAt, startDate.atStartOfDay());
+        wrapper.orderByAsc(Inference::getCreatedAt);
+
+        List<Inference> inferences = baseMapper.selectList(wrapper);
+
+        // 按天分组
+        Map<LocalDate, List<Inference>> byDay = inferences.stream()
+                .collect(Collectors.groupingBy(
+                        i -> i.getCreatedAt().toLocalDate(),
+                        TreeMap::new,
+                        Collectors.toList()
+                ));
+
+        List<Map<String, Object>> daily = new ArrayList<>();
+        for (Map.Entry<LocalDate, List<Inference>> entry : byDay.entrySet()) {
+            List<Inference> dayInferences = entry.getValue();
+            Map<String, Object> dayData = new LinkedHashMap<>();
+            dayData.put("date", entry.getKey().format(DateTimeFormatter.ofPattern("MM-dd")));
+            dayData.put("detections", dayInferences.size());
+
+            long diseaseCount = dayInferences.stream()
+                    .filter(i -> StringUtils.hasText(i.getDiseaseIds()) && !"[]".equals(i.getDiseaseIds()))
+                    .count();
+            long pestCount = dayInferences.stream()
+                    .filter(i -> StringUtils.hasText(i.getPestIds()) && !"[]".equals(i.getPestIds()))
+                    .count();
+
+            dayData.put("diseaseCount", diseaseCount);
+            dayData.put("pestCount", pestCount);
+            daily.add(dayData);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("period", startDate.format(DateTimeFormatter.ofPattern("MM-dd")) + " ~ " +
+                LocalDate.now().format(DateTimeFormatter.ofPattern("MM-dd")));
+        result.put("totalDetections", inferences.size());
+        result.put("daily", daily);
+
+        return result;
     }
 
     // ==================== 私有辅助方法 ====================

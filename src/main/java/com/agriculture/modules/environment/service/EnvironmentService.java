@@ -6,6 +6,9 @@ import com.agriculture.modules.environment.vo.EnvironmentCurrentVO;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
 
+import java.util.List;
+import java.util.Map;
+
 public interface EnvironmentService extends IService<EnvironmentRecord> {
 
     /**
@@ -24,4 +27,14 @@ public interface EnvironmentService extends IService<EnvironmentRecord> {
      * 传感器/手动上报环境数据
      */
     String reportData(EnvironmentReportDTO dto);
+
+    /**
+     * 获取最新环境数据（企业隔离）
+     */
+    List<Map<String, Object>> getLatestRecords(String companyId);
+
+    /**
+     * 获取环境数据趋势（企业隔离）
+     */
+    Map<String, Object> getTrendData(String companyId, int days);
 }

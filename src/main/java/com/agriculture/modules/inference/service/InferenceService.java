@@ -9,6 +9,9 @@ import com.agriculture.modules.pestDiseaseInfo.vo.PreventionPlanVO;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * <p>
  * 识别结果表 服务类
@@ -48,4 +51,16 @@ public interface InferenceService extends IService<Inference> {
      * 获取防治方案详情
      */
     PreventionPlanVO getPreventionPlan(String reportId);
+
+    /**
+     * 查询检测记录（企业隔离）
+     */
+    List<Map<String, Object>> listDetections(String companyId, String type,
+                                              String startDate, String endDate,
+                                              int limit);
+
+    /**
+     * 获取检测趋势统计（企业隔离）
+     */
+    Map<String, Object> getDetectionTrend(String companyId, int days);
 }

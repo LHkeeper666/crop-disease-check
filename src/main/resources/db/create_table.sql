@@ -196,13 +196,15 @@ DROP TABLE IF EXISTS inference;
 CREATE TABLE inference (
     id                  VARCHAR(36) PRIMARY KEY COMMENT '识别UUID',
     report_id           VARCHAR(36) NOT NULL COMMENT '关联上报ID',
+    company_id          VARCHAR(36) COMMENT '所属企业ID',
     disease_ids         JSON COMMENT '病害ID数组 [0,3,15]，对应 disease_info.id',
     pest_ids            JSON COMMENT '虫害ID数组 [22,45]，对应 pest_info.id',
     detections          JSON COMMENT '完整检测结果数组(含class_id/class_name/name_cn/confidence/bbox/pipeline)',
     annotated_image_url VARCHAR(512) COMMENT '标注图存储路径/URL',
     total_elapsed_ms    DECIMAL(10,2) COMMENT '双模型总推理耗时(ms)',
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    INDEX idx_report (report_id)
+    INDEX idx_report (report_id),
+    INDEX idx_company (company_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='识别结果表';
 
 
