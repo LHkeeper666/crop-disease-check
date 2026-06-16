@@ -355,50 +355,76 @@ public class StatisticServiceImpl implements StatisticService {
         wrapper.ge(Inference::getCreatedAt, startTime).le(Inference::getCreatedAt, now);
         List<Inference> inferences = inferenceMapper.selectList(wrapper);
 
-        // 如果有 companyId，过滤只属于该企业的推理记录（通过 report→grid→greenhouse→company 链路）
+        // 分离报告型和摄像头型推理记录
+        List<Inference> reportInferences = inferences.stream()
+                .filter(i -> "REPORT".equals(i.getSourceType()) || i.getSourceType() == null)
+                .collect(Collectors.toList());
+        List<Inference> cameraInferences = inferences.stream()
+                .filter(i -> "CAMERA".equals(i.getSourceType()))
+                .collect(Collectors.toList());
+
+        // 企业隔离：过滤报告型记录
         if (StringUtils.hasText(companyId)) {
-            Set<String> rIds = inferences.stream()
+            Set<String> rIds = reportInferences.stream()
                     .map(Inference::getReportId)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
             if (!rIds.isEmpty()) {
                 Set<String> companyReportIds = getReportIdsByCompany(rIds, companyId);
-                inferences = inferences.stream()
+                reportInferences = reportInferences.stream()
                         .filter(i -> i.getReportId() != null && companyReportIds.contains(i.getReportId()))
                         .collect(Collectors.toList());
             } else {
-                inferences = Collections.emptyList();
+                reportInferences = Collections.emptyList();
             }
+            // 摄像头型暂不做企业隔离（camera → grid → greenhouse → company 链路较复杂）
         }
 
-        if (inferences.isEmpty()) {
-            return Collections.emptyList();
-        }
+        // 按网格分组统计，使用 Map<gridLabel, List<Inference>> 合并两种来源
+        Map<String, List<Inference>> gridInferences = new HashMap<>();
 
-        Set<String> reportIds = inferences.stream()
+        // 报告型：通过 reportId → gridId → gridLabel
+        Set<String> reportIds = reportInferences.stream()
                 .map(Inference::getReportId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
+        if (!reportIds.isEmpty()) {
+            Map<String, String> reportGridMap = getReportGridMap(reportIds);
+            Set<String> gridIds = new HashSet<>(reportGridMap.values());
+            Map<String, String> gridLabelMap = getGridLabelMap(gridIds);
+            for (Inference inf : reportInferences) {
+                if (inf.getReportId() != null && reportGridMap.containsKey(inf.getReportId())) {
+                    String gridId = reportGridMap.get(inf.getReportId());
+                    String gridLabel = gridLabelMap.getOrDefault(gridId, gridId);
+                    gridInferences.computeIfAbsent(gridLabel, k -> new ArrayList<>()).add(inf);
+                }
+            }
+        }
 
-        if (reportIds.isEmpty()) return Collections.emptyList();
+        // 摄像头型：直接使用 grid_labels 字段
+        for (Inference inf : cameraInferences) {
+            if (inf.getGridLabels() != null && !inf.getGridLabels().isEmpty()) {
+                for (String label : inf.getGridLabels().split(",")) {
+                    String trimmed = label.trim();
+                    if (!trimmed.isEmpty()) {
+                        gridInferences.computeIfAbsent(trimmed, k -> new ArrayList<>()).add(inf);
+                    }
+                }
+            }
+        }
 
-        Map<String, String> reportGridMap = getReportGridMap(reportIds);
-        Set<String> gridIds = new HashSet<>(reportGridMap.values());
-        Map<String, String> gridLabelMap = getGridLabelMap(gridIds);
-
-        // 按 gridId 分组
-        Map<String, List<Inference>> gridInferences = inferences.stream()
-                .filter(i -> i.getReportId() != null && reportGridMap.containsKey(i.getReportId()))
-                .collect(Collectors.groupingBy(i -> reportGridMap.get(i.getReportId())));
+        if (gridInferences.isEmpty()) {
+            return Collections.emptyList();
+        }
 
         List<GridStatisticsVO> result = new ArrayList<>();
         for (Map.Entry<String, List<Inference>> entry : gridInferences.entrySet()) {
-            String gridId = entry.getKey();
+            String gridLabel = entry.getKey();
             List<FlatDetection> flat = flattenDetections(entry.getValue());
 
             GridStatisticsVO vo = new GridStatisticsVO();
-            vo.setGridId(gridId);
-            vo.setGridLabel(gridLabelMap.getOrDefault(gridId, gridId));
+            vo.setGridId(gridLabel);
+            vo.setGridLabel(gridLabel);
             vo.setTotalDetections(flat.size());
             vo.setDiseaseCount((int) flat.stream().filter(f -> "DISEASE".equals(f.pipeline)).count());
             vo.setPestCount((int) flat.stream().filter(f -> "PEST".equals(f.pipeline)).count());
@@ -443,21 +469,34 @@ public class StatisticServiceImpl implements StatisticService {
         wrapper.ge(Inference::getCreatedAt, startTime).le(Inference::getCreatedAt, now);
         List<Inference> inferences = inferenceMapper.selectList(wrapper);
 
-        // 如果有 companyId，过滤只属于该企业的推理记录（通过 report→grid→greenhouse→company 链路）
+        // 分离报告型和摄像头型
+        List<Inference> cameraInferences = inferences.stream()
+                .filter(i -> "CAMERA".equals(i.getSourceType()))
+                .collect(Collectors.toList());
+        List<Inference> reportInferences = inferences.stream()
+                .filter(i -> !"CAMERA".equals(i.getSourceType()))
+                .collect(Collectors.toList());
+
+        // 企业隔离：过滤报告型记录
         if (StringUtils.hasText(companyId)) {
-            Set<String> rIds = inferences.stream()
+            Set<String> rIds = reportInferences.stream()
                     .map(Inference::getReportId)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
             if (!rIds.isEmpty()) {
                 Set<String> companyReportIds = getReportIdsByCompany(rIds, companyId);
-                inferences = inferences.stream()
+                reportInferences = reportInferences.stream()
                         .filter(i -> i.getReportId() != null && companyReportIds.contains(i.getReportId()))
                         .collect(Collectors.toList());
             } else {
-                inferences = Collections.emptyList();
+                reportInferences = Collections.emptyList();
             }
         }
+
+        // 合并两种来源
+        List<Inference> merged = new ArrayList<>(reportInferences);
+        merged.addAll(cameraInferences);
+        inferences = merged;
 
         Map<String, List<Inference>> grouped;
         switch (granularity) {

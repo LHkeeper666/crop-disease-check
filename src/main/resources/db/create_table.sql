@@ -195,16 +195,21 @@ CREATE TABLE report (
 DROP TABLE IF EXISTS inference;
 CREATE TABLE inference (
     id                  VARCHAR(36) PRIMARY KEY COMMENT '识别UUID',
-    report_id           VARCHAR(36) NOT NULL COMMENT '关联上报ID',
+    report_id           VARCHAR(36) NULL COMMENT '关联上报ID（摄像头自动检测时为空）',
     company_id          VARCHAR(36) COMMENT '所属企业ID',
     disease_ids         JSON COMMENT '病害ID数组 [0,3,15]，对应 disease_info.id',
     pest_ids            JSON COMMENT '虫害ID数组 [22,45]，对应 pest_info.id',
     detections          JSON COMMENT '完整检测结果数组(含class_id/class_name/name_cn/confidence/bbox/pipeline)',
     annotated_image_url VARCHAR(512) COMMENT '标注图存储路径/URL',
     total_elapsed_ms    DECIMAL(10,2) COMMENT '双模型总推理耗时(ms)',
+    source_type         VARCHAR(20) NOT NULL DEFAULT 'REPORT' COMMENT '数据来源: REPORT(用户上报) / CAMERA(摄像头自动检测)',
+    camera_id           VARCHAR(64) NULL COMMENT '来源摄像头ID（仅 source_type=CAMERA 时有值）',
+    grid_labels         VARCHAR(255) NULL COMMENT '关联网格标签，逗号分隔',
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_report (report_id),
-    INDEX idx_company (company_id)
+    INDEX idx_company (company_id),
+    INDEX idx_source_type (source_type),
+    INDEX idx_camera_id (camera_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='识别结果表';
 
 
