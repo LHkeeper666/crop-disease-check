@@ -1,5 +1,6 @@
 package com.agriculture.modules.workorder.service.impl;
 
+import com.agriculture.common.mq.event.DetectionEvent;
 import com.agriculture.modules.workorder.mapper.WorkOrderHistoryMapper;
 import com.agriculture.modules.workorder.mapper.WorkOrderMapper;
 import com.agriculture.modules.workorder.dto.CallbackDTO;
@@ -28,6 +29,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -102,6 +104,9 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
 
     @Resource
     private RestClient llmRestClient;
+
+    @Value("${camera.detect.auto-workorder-confidence:0.5}")
+    private float autoWorkOrderConfidence;
 
     @Override
     public IPage<WorkOrderVO> listWorkOrders(String status, String severity,
@@ -544,6 +549,100 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
                 + "创建时间：" + workOrder.getCreatedAt() + "\n\n"
                 + "请登录系统查看详情并处理。\n\n"
                 + "—— 农作物疾病检测系统";
+    }
+
+    // ==================== MQ 驱动的智能工单生成 ====================
+
+    private enum SeverityLevel {
+        LOW, MEDIUM, HIGH, CRITICAL;
+
+        static SeverityLevel fromConfidence(double confidence) {
+            if (confidence >= 0.8) return CRITICAL;
+            if (confidence >= 0.6) return HIGH;
+            if (confidence >= 0.4) return MEDIUM;
+            return LOW;
+        }
+
+        String toWorkOrderSeverity() {
+            switch (this) {
+                case CRITICAL: return "CRITICAL";
+                case HIGH:     return "HIGH";
+                case MEDIUM:   return "MEDIUM";
+                default:       return "LOW";
+            }
+        }
+    }
+
+    @Override
+    @Transactional
+    public void createFromDetectionEvent(DetectionEvent event) {
+        for (String gridLabel : event.getGridLabels()) {
+            for (DetectionEvent.PestDetection det : event.getDetections()) {
+                if (det.getConfidence() < autoWorkOrderConfidence) continue;
+
+                try {
+                    // 去重：同企业 + 同网格 + 同病虫害 + 活跃工单
+                    LambdaQueryWrapper<WorkOrder> wrapper = new LambdaQueryWrapper<>();
+                    wrapper.eq(WorkOrder::getCompanyId, event.getCompanyId())
+                           .eq(WorkOrder::getGridLabel, gridLabel)
+                           .eq(WorkOrder::getPestName, det.getNameCn())
+                           .in(WorkOrder::getStatus, "PENDING", "PROCESSING");
+                    WorkOrder existing = baseMapper.selectOne(wrapper);
+
+                    if (existing != null) {
+                        // 更新置信度（取较高值）
+                        if (BigDecimal.valueOf(det.getConfidence()).compareTo(existing.getConfidence()) > 0) {
+                            existing.setConfidence(BigDecimal.valueOf(det.getConfidence()));
+                            existing.setUpdatedAt(LocalDateTime.now());
+                            baseMapper.updateById(existing);
+                        }
+                    } else {
+                        // 创建新工单
+                        SeverityLevel level = SeverityLevel.fromConfidence(det.getConfidence());
+                        WorkOrder workOrder = new WorkOrder();
+                        workOrder.setTitle("【" + level.toWorkOrderSeverity() + "】Grid-" + gridLabel
+                                + " " + det.getNameCn() + " 自动检测");
+                        workOrder.setSeverity(level.toWorkOrderSeverity());
+                        workOrder.setStatus("PENDING");
+                        workOrder.setType(det.getType());
+                        workOrder.setInferenceId(event.getInferenceId());
+                        workOrder.setGridLabel(gridLabel);
+                        workOrder.setPestName(det.getNameCn());
+                        workOrder.setConfidence(BigDecimal.valueOf(det.getConfidence()));
+                        workOrder.setCompanyId(event.getCompanyId());
+                        workOrder.setCallbackToken(UUID.randomUUID().toString().replace("-", ""));
+                        workOrder.setTokenExpireAt(LocalDateTime.now().plusDays(7));
+                        workOrder.setTokenUsed((byte) 0);
+                        workOrder.setCreatedAt(LocalDateTime.now());
+                        workOrder.setUpdatedAt(LocalDateTime.now());
+                        baseMapper.insert(workOrder);
+
+                        // 记录状态历史
+                        WorkOrderHistory history = new WorkOrderHistory();
+                        history.setWorkorderId(workOrder.getId());
+                        history.setStatus("PENDING");
+                        history.setOperatorName("系统自动");
+                        history.setCreatedAt(LocalDateTime.now());
+                        workOrderHistoryMapper.insert(history);
+
+                        // 推送 WebSocket
+                        try {
+                            Map<String, Object> wsData = new HashMap<>();
+                            wsData.put("workorderId", workOrder.getId());
+                            wsData.put("oldStatus", null);
+                            wsData.put("newStatus", "PENDING");
+                            wsData.put("type", workOrder.getType());
+                            wsData.put("severity", workOrder.getSeverity());
+                            wsData.put("updatedAt", LocalDateTime.now().toString());
+                            webSocketService.sendWorkorderChange(wsData);
+                        } catch (Exception ignored) {
+                        }
+                    }
+                } catch (Exception e) {
+                    // 单条失败不影响其他工单的创建
+                }
+            }
+        }
     }
 
     /**
