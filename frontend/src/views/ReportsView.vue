@@ -12,8 +12,10 @@ import GlassCard from '../components/GlassCard.vue'
 import GlowButton from '../components/GlowButton.vue'
 import { fetchStatisticsOverview, type StatisticsOverviewVO } from '../api/statistics'
 import { fetchDailyReports, generateDailyReport, type DailyReportVO } from '../api/dailyReport'
+import { useWorkOrderStore } from '../stores/workorder'
 
 const router = useRouter()
+const woStore = useWorkOrderStore()
 
 const loading = ref(true)
 const overview = ref<StatisticsOverviewVO | null>(null)
@@ -39,14 +41,19 @@ async function checkApiKey() {
 async function loadData() {
   loading.value = true
   try {
+    // 并行加载统计数据、日报、工单数据
     const [overviewData, reportPage] = await Promise.all([
       fetchStatisticsOverview(),
       fetchDailyReports({ size: 30 }),
+      woStore.fetchOrders(), // 复用 store 获取工单数据
     ])
-    overview.value = overviewData
     reports.value = reportPage.records
     // 检查今日是否已生成
     todayGenerated.value = reportPage.records.some(r => r.reportDate === today)
+
+    // 用工单总数覆盖总上报数
+    overviewData.totalReports = woStore.orders.length
+    overview.value = overviewData
   } catch (e: any) {
     console.error('[ReportsView] 加载数据失败:', e.message)
   } finally {
@@ -80,9 +87,9 @@ async function handleGenerateDailyReport() {
 
 // 统计卡片数据（从 overview 映射）
 const statsCards = ref([
-  { key: 'totalReports', label: '总上报数', value: 0, color: 'text-white' },
-  { key: 'todayReports', label: '今日上报', value: 0, color: 'text-cyber-green' },
-  { key: 'pendingAudit', label: '待审核', value: 0, color: 'text-amber' },
+  { key: 'totalReports', label: '总工单数', value: 0, color: 'text-white' },
+  { key: 'todayReports', label: '今日工单', value: 0, color: 'text-cyber-green' },
+  { key: 'pendingAudit', label: '未处理', value: 0, color: 'text-amber' },
   { key: 'processed', label: '已处理', value: 0, color: 'text-cyber-green-dark' },
   { key: 'highRiskAlerts', label: '高风险预警', value: 0, color: 'text-sakura' },
 ])

@@ -332,11 +332,11 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         List<CameraDetectResponse.DetectionItem> allDetections = mergeAllDetections(parsedResult);
         CameraSnapshot snapshot = snapshots.get(cameraId);
         List<String> gridLabels = getGridLabelsForCamera(cameraId, snapshot);
-        String companyId = resolveCompanyId(cameraId, snapshot);
+        String companyId = resolveCompanyId(cameraId, snapshot, camera);
 
         if (shouldPersist(snapshot, allDetections)) {
             // 持久化到 inference 表
-            persistInference(cameraId, parsedResult, gridLabels);
+            persistInference(cameraId, parsedResult, gridLabels, companyId);
 
             // 自动创建工单（病害）
             if (parsedResult.getDisease() != null && !parsedResult.getDisease().getDetections().isEmpty()) {
@@ -590,9 +590,16 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         List<String> gridIds = cameraGrids.stream()
                 .map(CameraGrid::getGridId).distinct().collect(Collectors.toList());
 
+        // 先按 id 查，查不到再按 label 查（兼容 camera_grid.grid_id 存的是 label 的情况）
         LambdaQueryWrapper<Grid> gridWrapper = new LambdaQueryWrapper<>();
         gridWrapper.in(Grid::getId, gridIds);
-        List<String> labels = gridMapper.selectList(gridWrapper).stream()
+        List<Grid> grids = gridMapper.selectList(gridWrapper);
+        if (grids.isEmpty()) {
+            gridWrapper = new LambdaQueryWrapper<>();
+            gridWrapper.in(Grid::getLabel, gridIds);
+            grids = gridMapper.selectList(gridWrapper);
+        }
+        List<String> labels = grids.stream()
                 .map(Grid::getLabel).collect(Collectors.toList());
 
         // 缓存到快照
@@ -603,27 +610,40 @@ public class CameraDetectServiceImpl implements CameraDetectService {
     }
 
     /**
-     * 解析摄像头所属企业ID（camera → grid → greenhouse → company），结果缓存到快照
+     * 解析摄像头所属企业ID，结果缓存到快照。
+     * 优先从 camera.company_id 直接读取；若为空则走 camera → grid → greenhouse → company 链路。
      */
-    private String resolveCompanyId(String cameraId, CameraSnapshot snapshot) {
+    private String resolveCompanyId(String cameraId, CameraSnapshot snapshot, Camera camera) {
         if (snapshot != null && snapshot.companyId != null) {
             return snapshot.companyId;
         }
-        // camera_grid → gridIds
+
+        // 优先：camera 表自身有 company_id
+        if (camera != null && camera.getCompanyId() != null && !camera.getCompanyId().isEmpty()) {
+            if (snapshot != null) snapshot.companyId = camera.getCompanyId();
+            return camera.getCompanyId();
+        }
+
+        // 回退：camera_grid → grid → greenhouse → company
         LambdaQueryWrapper<CameraGrid> cgWrapper = new LambdaQueryWrapper<>();
         cgWrapper.eq(CameraGrid::getCameraId, cameraId);
         List<String> gridIds = cameraGridMapper.selectList(cgWrapper).stream()
                 .map(CameraGrid::getGridId).distinct().collect(Collectors.toList());
         if (gridIds.isEmpty()) return null;
 
-        // grid → greenhouseIds
+        // 先按 id 查，查不到再按 label 查（兼容 camera_grid.grid_id 存的是 label 的情况）
         LambdaQueryWrapper<Grid> gridWrapper = new LambdaQueryWrapper<>();
         gridWrapper.in(Grid::getId, gridIds);
-        Set<String> greenhouseIds = gridMapper.selectList(gridWrapper).stream()
+        List<Grid> grids = gridMapper.selectList(gridWrapper);
+        if (grids.isEmpty()) {
+            gridWrapper = new LambdaQueryWrapper<>();
+            gridWrapper.in(Grid::getLabel, gridIds);
+            grids = gridMapper.selectList(gridWrapper);
+        }
+        Set<String> greenhouseIds = grids.stream()
                 .map(Grid::getGreenhouseId).filter(Objects::nonNull).collect(Collectors.toSet());
         if (greenhouseIds.isEmpty()) return null;
 
-        // greenhouse → companyId
         LambdaQueryWrapper<Greenhouse> ghWrapper = new LambdaQueryWrapper<>();
         ghWrapper.in(Greenhouse::getId, greenhouseIds);
         String companyId = greenhouseMapper.selectList(ghWrapper).stream()
@@ -640,7 +660,7 @@ public class CameraDetectServiceImpl implements CameraDetectService {
      * 持久化检测结果到 inference 表
      */
     private void persistInference(String cameraId, CameraDetectResponse.InferenceResult result,
-                                   List<String> gridLabels) {
+                                   List<String> gridLabels, String companyId) {
         try {
             // 构建 detections JSON
             List<Map<String, Object>> detectionsList = new ArrayList<>();
@@ -670,10 +690,11 @@ public class CameraDetectServiceImpl implements CameraDetectService {
             inference.setDetections(JSON.writeValueAsString(detectionsList));
             inference.setTotalElapsedMs(result.getTotalElapsedMs() != null
                     ? BigDecimal.valueOf(result.getTotalElapsedMs()) : null);
+            inference.setCompanyId(companyId);
             inference.setCreatedAt(LocalDateTime.now());
 
             inferenceMapper.insert(inference);
-            log.info("检测结果已持久化: inferenceId={}, cameraId={}", inference.getId(), cameraId);
+            log.info("检测结果已持久化: inferenceId={}, cameraId={}, companyId={}", inference.getId(), cameraId, companyId);
         } catch (Exception e) {
             log.error("持久化检测结果失败: cameraId={}", cameraId, e);
         }
@@ -692,9 +713,10 @@ public class CameraDetectServiceImpl implements CameraDetectService {
                 if (det.getConfidence() < autoWorkOrderConfidence) continue;
 
                 try {
-                    // 去重：同网格 + 同病虫害 + 存在活跃工单
+                    // 去重：同企业 + 同网格 + 同病虫害 + 存在活跃工单
                     LambdaQueryWrapper<WorkOrder> wrapper = new LambdaQueryWrapper<>();
-                    wrapper.eq(WorkOrder::getGridLabel, gridLabel)
+                    wrapper.eq(WorkOrder::getCompanyId, companyId)
+                            .eq(WorkOrder::getGridLabel, gridLabel)
                             .eq(WorkOrder::getPestName, det.getNameCn())
                             .in(WorkOrder::getStatus, "PENDING", "PROCESSING");
                     WorkOrder existing = workOrderMapper.selectOne(wrapper);

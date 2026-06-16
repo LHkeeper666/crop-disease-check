@@ -3,12 +3,35 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
 import GlowButton from '../components/GlowButton.vue'
 import { useWorkOrderStore } from '../stores/workorder'
+import { useAuthStore } from '../stores/auth'
+import { fetchExperts, type UserSimpleVO } from '../api/user'
 
 const woStore = useWorkOrderStore()
+const authStore = useAuthStore()
 
-// 页面加载时从后端拉取工单数据
+// 是否为专家角色
+const isExpert = computed(() => authStore.userRole === 'EXPERT')
+
+// 专家列表
+const experts = ref<UserSimpleVO[]>([])
+const expertsLoading = ref(false)
+
+// 加载专家列表
+async function loadExperts() {
+  expertsLoading.value = true
+  try {
+    experts.value = await fetchExperts()
+  } catch (e: any) {
+    console.error('[WorkOrderView] 加载专家列表失败:', e.message)
+  } finally {
+    expertsLoading.value = false
+  }
+}
+
+// 页面加载时从后端拉取工单数据和专家列表
 onMounted(() => {
   woStore.fetchOrders()
+  loadExperts()
   // 添加点击外部关闭选择器的事件监听
   document.addEventListener('click', handleClickOutside)
 })
@@ -27,6 +50,7 @@ const filterDateEnd = ref('')
 const showCreateModal = ref(false)
 const showDetailModal = ref(false)
 const showDeleteConfirm = ref(false)
+const showImageModal = ref(false)
 const selectedOrder = ref<any>(null)
 
 // 专家选择器状态
@@ -37,14 +61,16 @@ const assigneeDropdownStyle = ref({})
 
 // New order form
 const newOrder = ref({
-  title: '',
   gridLabel: '',
   pestName: '',
   type: 'disease' as 'disease' | 'pest',
   severity: 'MEDIUM',
-  assignedToName: '',
+  assignedTo: '',
   confidence: 0.8,
 })
+
+// 表单验证错误
+const formErrors = ref<Record<string, string>>({})
 
 const gridOptions = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3']
 
@@ -189,14 +215,14 @@ async function confirmUpdate() {
 
 function openCreateModal() {
   newOrder.value = {
-    title: '',
     gridLabel: '',
     pestName: '',
     type: 'disease',
     severity: 'MEDIUM',
-    assignedToName: '',
+    assignedTo: '',
     confidence: 0.8,
   }
+  formErrors.value = {}
   showCreateModal.value = true
 }
 
@@ -205,7 +231,32 @@ function closeCreateModal() {
 }
 
 async function createOrder() {
-  if (!newOrder.value.title || !newOrder.value.gridLabel) return
+  // 表单验证
+  formErrors.value = {}
+
+  if (!newOrder.value.gridLabel) {
+    formErrors.value.gridLabel = '请选择网格区域'
+  }
+  if (!newOrder.value.pestName) {
+    formErrors.value.pestName = '请输入病虫害名称'
+  }
+
+  // 如果有错误，停止提交
+  if (Object.keys(formErrors.value).length > 0) {
+    return
+  }
+
+  // 检查是否已存在同网格+同病虫害的未完成工单
+  const duplicateOrder = woStore.orders.find(o =>
+    o.gridLabel === newOrder.value.gridLabel &&
+    o.pestName === newOrder.value.pestName &&
+    (o.status === 'PENDING' || o.status === 'PROCESSING')
+  )
+
+  if (duplicateOrder) {
+    formErrors.value.pestName = `该网格已存在"${newOrder.value.pestName}"的未完成工单（#${duplicateOrder.id}）`
+    return
+  }
 
   const severityPrefix: Record<string, string> = {
     CRITICAL: '【紧急】',
@@ -222,6 +273,7 @@ async function createOrder() {
       gridLabel: newOrder.value.gridLabel,
       pestName: newOrder.value.pestName,
       confidence: newOrder.value.confidence,
+      assignedTo: newOrder.value.assignedTo || undefined,
     })
     closeCreateModal()
   } catch {
@@ -367,7 +419,20 @@ function closeEmailModal() {
         <h1 class="text-lg font-bold text-white">自动事件响应与智能工单流转舱</h1>
         <p class="text-xs text-slate-500 font-mono">EVENT-DRIVEN WORKORDER MANAGEMENT</p>
       </div>
-      <GlowButton label="+ 手动创建工单" @click="openCreateModal" />
+      <GlowButton v-if="!isExpert" label="+ 手动创建工单" @click="openCreateModal" />
+    </div>
+
+    <!-- 专家视角提示 -->
+    <div v-if="isExpert" class="shrink-0 glass rounded-xl px-4 py-2.5 flex items-center gap-3 border border-cyber-green/20">
+      <div class="w-8 h-8 rounded-lg bg-cyber-green/10 flex items-center justify-center">
+        <svg class="w-4 h-4 text-cyber-green" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+      </div>
+      <div>
+        <p class="text-xs text-cyber-green font-medium">专家视图</p>
+        <p class="text-[10px] text-slate-500">当前仅显示指派给您的工单，您可在此处理和更新工单状态</p>
+      </div>
     </div>
 
     <!-- Stats -->
@@ -553,26 +618,18 @@ function closeEmailModal() {
           </div>
 
           <form @submit.prevent="createOrder" class="space-y-4">
-            <div>
-              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">工单标题</label>
-              <input
-                v-model="newOrder.title"
-                type="text"
-                placeholder="请输入工单标题"
-                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
-              />
-            </div>
-
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">网格区域</label>
+                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">网格区域 <span class="text-sakura">*</span></label>
                 <select
                   v-model="newOrder.gridLabel"
-                  class="select-dark w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-cyber-green/50"
+                  class="select-dark w-full px-4 py-3 rounded-xl bg-slate-800 border text-white text-sm focus:outline-none focus:border-cyber-green/50"
+                  :class="formErrors.gridLabel ? 'border-sakura/50' : 'border-white/10'"
                 >
                   <option value="" disabled>请选择网格</option>
                   <option v-for="g in gridOptions" :key="g" :value="g">{{ g }}</option>
                 </select>
+                <p v-if="formErrors.gridLabel" class="text-xs text-sakura mt-1">{{ formErrors.gridLabel }}</p>
               </div>
               <div>
                 <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">类型</label>
@@ -588,13 +645,15 @@ function closeEmailModal() {
 
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">病虫害名称</label>
+                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">病虫害名称 <span class="text-sakura">*</span></label>
                 <input
                   v-model="newOrder.pestName"
                   type="text"
                   placeholder="如: 红蜘蛛"
-                  class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+                  class="w-full px-4 py-3 rounded-xl bg-white/5 border text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+                  :class="formErrors.pestName ? 'border-sakura/50' : 'border-white/10'"
                 />
+                <p v-if="formErrors.pestName" class="text-xs text-sakura mt-1">{{ formErrors.pestName }}</p>
               </div>
               <div>
                 <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">严重程度</label>
@@ -614,13 +673,16 @@ function closeEmailModal() {
               <div>
                 <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">指派专家</label>
                 <select
-                  v-model="newOrder.assignedToName"
+                  v-model="newOrder.assignedTo"
                   class="select-dark w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-cyber-green/50"
+                  :disabled="expertsLoading"
                 >
                   <option value="">未分配</option>
-                  <option value="李专家">李专家</option>
-                  <option value="王专家">王专家</option>
+                  <option v-for="expert in experts" :key="expert.id" :value="expert.id">
+                    {{ expert.name }}
+                  </option>
                 </select>
+                <p v-if="expertsLoading" class="text-xs text-slate-500 mt-1">加载专家列表中...</p>
               </div>
             </div>
 
@@ -674,6 +736,17 @@ function closeEmailModal() {
             </div>
             <div class="flex gap-2">
               <button
+                v-if="selectedOrder.imageUrl"
+                class="w-8 h-8 rounded-lg bg-blue-400/10 hover:bg-blue-400/20 flex items-center justify-center text-blue-400 transition-colors"
+                title="查看图片"
+                @click="showImageModal = true"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21zM10.5 8.25a1.125 1.125 0 11-2.25 0 1.125 1.125 0 012.25 0z" />
+                </svg>
+              </button>
+              <button
+                v-if="!isExpert"
                 class="w-8 h-8 rounded-lg bg-cyber-green/10 hover:bg-cyber-green/20 flex items-center justify-center text-cyber-green transition-colors"
                 title="发送邮件给专家"
                 @click="sendEmailToExpert()"
@@ -721,7 +794,7 @@ function closeEmailModal() {
               <div class="glass rounded-lg px-4 py-3 assignee-selector" ref="assigneeFieldRef">
                 <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">指派专家</div>
                 <div
-                  v-if="selectedOrder.status !== 'DONE' && selectedOrder.status !== 'IGNORED'"
+                  v-if="!isExpert && selectedOrder.status !== 'DONE' && selectedOrder.status !== 'IGNORED'"
                   class="text-sm font-mono text-white cursor-pointer hover:text-cyber-green transition-colors"
                   @click="toggleAssigneeSelector"
                 >
@@ -800,33 +873,34 @@ function closeEmailModal() {
                 恢复待处理
               </button>
 
-              <!-- 升级/降级等级（待处理和处理中状态可用） -->
+              <!-- 升级/降级等级（仅管理员可用） -->
               <button
-                v-if="(selectedOrder.status === 'PENDING' || selectedOrder.status === 'PROCESSING') && severityConfig[selectedOrder.severity]?.level < 4"
+                v-if="!isExpert && (selectedOrder.status === 'PENDING' || selectedOrder.status === 'PROCESSING') && severityConfig[selectedOrder.severity]?.level < 4"
                 class="flex-1 min-w-[100px] px-4 py-3 rounded-xl bg-orange-400/10 border border-orange-400/20 text-orange-400 text-sm hover:bg-orange-400/20 transition-colors"
                 @click="async () => { try { await woStore.escalateSeverity(selectedOrder.id); selectedOrder.value = woStore.orders.find(o => o.id === selectedOrder.id) } catch {} }"
               >
                 升级等级
               </button>
               <button
-                v-if="(selectedOrder.status === 'PENDING' || selectedOrder.status === 'PROCESSING') && severityConfig[selectedOrder.severity]?.level > 1"
+                v-if="!isExpert && (selectedOrder.status === 'PENDING' || selectedOrder.status === 'PROCESSING') && severityConfig[selectedOrder.severity]?.level > 1"
                 class="flex-1 min-w-[100px] px-4 py-3 rounded-xl bg-slate-400/10 border border-slate-400/20 text-slate-400 text-sm hover:bg-slate-400/20 transition-colors"
                 @click="async () => { try { await woStore.deescalateSeverity(selectedOrder.id); selectedOrder.value = woStore.orders.find(o => o.id === selectedOrder.id) } catch {} }"
               >
                 降级等级
               </button>
 
-              <!-- 确认修改 -->
+              <!-- 确认修改（仅管理员可用） -->
               <button
-                v-if="selectedOrder.status !== 'DONE' && selectedOrder.status !== 'IGNORED'"
+                v-if="!isExpert && selectedOrder.status !== 'DONE' && selectedOrder.status !== 'IGNORED'"
                 class="flex-1 min-w-[100px] px-4 py-3 rounded-xl bg-cyber-green/10 border border-cyber-green/20 text-cyber-green text-sm hover:bg-cyber-green/20 transition-colors"
                 @click="confirmUpdate"
               >
                 确认修改
               </button>
 
-              <!-- 删除工单 -->
+              <!-- 删除工单（仅管理员可用） -->
               <button
+                v-if="!isExpert"
                 class="flex-1 min-w-[100px] px-4 py-3 rounded-xl bg-sakura/10 border border-sakura/20 text-sakura text-sm hover:bg-sakura/20 transition-colors"
                 @click="openDeleteConfirm(selectedOrder)"
               >
@@ -1013,6 +1087,35 @@ function closeEmailModal() {
                 {{ emailResult === 'success' ? '关闭' : '取消' }}
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Image Viewer Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showImageModal && selectedOrder?.imageUrl"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+        @click.self="showImageModal = false"
+      >
+        <div class="relative max-w-[90vw] max-h-[90vh]">
+          <button
+            class="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-slate-800 border border-white/10 hover:bg-sakura/20 hover:border-sakura/30 flex items-center justify-center text-slate-400 hover:text-white transition-colors z-10"
+            @click="showImageModal = false"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+          <img
+            :src="selectedOrder.imageUrl"
+            :alt="selectedOrder.title"
+            class="max-w-[90vw] max-h-[85vh] rounded-xl object-contain shadow-2xl border border-white/10"
+          />
+          <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent rounded-b-xl px-4 py-3">
+            <p class="text-sm text-white font-medium">{{ selectedOrder.title }}</p>
+            <p class="text-[10px] text-slate-300 font-mono">Grid-{{ selectedOrder.gridLabel }} · {{ selectedOrder.pestName }} · {{ (selectedOrder.confidence * 100).toFixed(0) }}%</p>
           </div>
         </div>
       </div>

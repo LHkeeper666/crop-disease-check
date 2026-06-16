@@ -103,6 +103,7 @@ class WorkOrderControllerTest {
         SysUser user = new SysUser();
         user.setId("u-001");
         user.setName("系统管理员");
+        user.setRole("ADMIN");
         user.setCompanyId("company-001");
         when(sysUserMapper.selectById("u-001")).thenReturn(user);
         return user;
@@ -120,7 +121,7 @@ class WorkOrderControllerTest {
             mockCurrentUser();
             Page<WorkOrderVO> page = new Page<>(1, 20, 1);
             page.setRecords(List.of(mockWorkOrderVO));
-            when(workOrderService.listWorkOrders(isNull(), isNull(), isNull(), isNull(), eq(1), eq(20), eq("company-001")))
+            when(workOrderService.listWorkOrders(isNull(), isNull(), isNull(), isNull(), eq(1), eq(20), eq("company-001"), isNull()))
                     .thenReturn(page);
 
             mockMvc.perform(get("/workorder/list")
@@ -142,7 +143,7 @@ class WorkOrderControllerTest {
             mockCurrentUser();
             Page<WorkOrderVO> page = new Page<>(1, 20, 0);
             page.setRecords(List.of());
-            when(workOrderService.listWorkOrders(eq("PENDING"), isNull(), isNull(), isNull(), eq(1), eq(20), eq("company-001")))
+            when(workOrderService.listWorkOrders(eq("PENDING"), isNull(), isNull(), isNull(), eq(1), eq(20), eq("company-001"), isNull()))
                     .thenReturn(page);
 
             mockMvc.perform(get("/workorder/list")
@@ -159,7 +160,7 @@ class WorkOrderControllerTest {
             mockCurrentUser();
             Page<WorkOrderVO> page = new Page<>(1, 20, 1);
             page.setRecords(List.of(mockWorkOrderVO));
-            when(workOrderService.listWorkOrders(isNull(), eq("CRITICAL"), isNull(), isNull(), eq(1), eq(20), eq("company-001")))
+            when(workOrderService.listWorkOrders(isNull(), eq("CRITICAL"), isNull(), isNull(), eq(1), eq(20), eq("company-001"), isNull()))
                     .thenReturn(page);
 
             mockMvc.perform(get("/workorder/list")
@@ -175,7 +176,7 @@ class WorkOrderControllerTest {
             mockCurrentUser();
             Page<WorkOrderVO> page = new Page<>(2, 10, 25);
             page.setRecords(List.of(mockWorkOrderVO));
-            when(workOrderService.listWorkOrders(isNull(), isNull(), isNull(), isNull(), eq(2), eq(10), eq("company-001")))
+            when(workOrderService.listWorkOrders(isNull(), isNull(), isNull(), isNull(), eq(2), eq(10), eq("company-001"), isNull()))
                     .thenReturn(page);
 
             mockMvc.perform(get("/workorder/list")
@@ -187,6 +188,29 @@ class WorkOrderControllerTest {
                     .andExpect(jsonPath("$.data.current").value(2))
                     .andExpect(jsonPath("$.data.size").value(10))
                     .andExpect(jsonPath("$.data.total").value(25));
+        }
+
+        @Test
+        @DisplayName("专家角色只看自己负责的工单")
+        void listWorkOrders_expertRole_filtersByAssignedTo() throws Exception {
+            // 专家用户
+            SysUser expert = new SysUser();
+            expert.setId("u-002");
+            expert.setName("李专家");
+            expert.setRole("EXPERT");
+            expert.setCompanyId("company-001");
+            when(sysUserMapper.selectById("u-002")).thenReturn(expert);
+
+            Page<WorkOrderVO> page = new Page<>(1, 20, 1);
+            page.setRecords(List.of(mockWorkOrderVO));
+            when(workOrderService.listWorkOrders(isNull(), isNull(), isNull(), isNull(), eq(1), eq(20), eq("company-001"), eq("u-002")))
+                    .thenReturn(page);
+
+            mockMvc.perform(get("/workorder/list")
+                            .requestAttr("userId", "u-002"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(200))
+                    .andExpect(jsonPath("$.data.total").value(1));
         }
     }
 
