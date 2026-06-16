@@ -1,19 +1,29 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import DaveChatDialog from './DaveChatDialog.vue'
 
 // --- State ---
 const state = ref<'idle' | 'think' | 'success' | 'interact' | 'warn'>('idle')
 const frame = ref(0)
 const bubbleText = ref('')
 const bubbleVisible = ref(false)
-const isHovered = ref(false)
 const isDragging = ref(false)
-const petX = ref(0)  // 0 = default right position
+const petX = ref(0)
 const petY = ref(0)
+const chatDialog = ref<InstanceType<typeof DaveChatDialog>>()
+
+// --- Chat callbacks ---
+function onChatStart() {
+  setState('think', true)
+}
+
+function onChatEnd() {
+  setState('success', true)
+}
 
 // --- Frame config ---
 const FRAMES: Record<string, number> = {
-  idle: 16,
+  idle: 15,
   think: 8,
   success: 8,
   interact: 8,
@@ -24,8 +34,24 @@ const FRAME_SPEED: Record<string, number> = {
   idle: 180,
   think: 200,
   success: 150,
-  interact: 120,
+  interact: 80,
   warn: 160,
+}
+
+// How long each state lasts before returning to idle (ms)
+const STATE_DURATION: Record<string, number> = {
+  success: 4000,
+  interact: 4000,
+  warn: 4000,
+}
+
+// File name mapping: state → frame index → filename
+function getFramePath(state: string, index: number): string {
+  if (state === 'idle') {
+    return `/images/pet-dave/dave_idle/idle_${index + 1}.png`
+  }
+  // think/success/interact/warn use Chinese names: 图层 1.png ~ 图层 8.png
+  return `/images/pet-dave/dave_${state}/图层 ${index + 1}.png`
 }
 
 // --- Messages ---
@@ -80,10 +106,10 @@ const MSG_MAP: Record<string, string[]> = {
 let animTimer: ReturnType<typeof setInterval> | null = null
 let bubbleTimer: ReturnType<typeof setTimeout> | null = null
 let idleTimer: ReturnType<typeof setInterval> | null = null
+let returnTimer: ReturnType<typeof setTimeout> | null = null
 
 const currentSrc = computed(() => {
-  const num = String(frame.value + 1).padStart(2, '0')
-  return `/images/pet-dave/${state.value}/${num}.png`
+  return getFramePath(state.value, frame.value)
 })
 
 function startAnimation() {
@@ -101,14 +127,14 @@ function stopAnimation() {
   }
 }
 
-function showBubble(msg?: string) {
+function showBubble(msg?: string, duration = 4000) {
   const messages = MSG_MAP[state.value]
   bubbleText.value = msg || messages[Math.floor(Math.random() * messages.length)]
   bubbleVisible.value = true
   if (bubbleTimer) clearTimeout(bubbleTimer)
   bubbleTimer = setTimeout(() => {
     bubbleVisible.value = false
-  }, 4000)
+  }, duration)
 }
 
 function setState(s: typeof state.value, showMsg = true) {
@@ -119,40 +145,39 @@ function setState(s: typeof state.value, showMsg = true) {
   if (showMsg) showBubble()
 
   // Return to idle after non-idle states (except think, which is event-driven)
-  if (s !== 'idle' && s !== 'think') {
-    setTimeout(() => {
+  // Skip if dragging — drag end handles the return
+  if (s !== 'idle' && s !== 'think' && !isDragging.value) {
+    if (returnTimer) clearTimeout(returnTimer)
+    const duration = STATE_DURATION[s] || 3000
+    returnTimer = setTimeout(() => {
       if (state.value === s) {
         state.value = 'idle'
         frame.value = 0
         startAnimation()
       }
-    }, 4000)
+    }, duration)
   }
+}
+
+function returnToIdle() {
+  state.value = 'idle'
+  frame.value = 0
+  startAnimation()
 }
 
 // --- Idle random talk ---
 function startIdleTalk() {
   idleTimer = setInterval(() => {
-    if (state.value === 'idle' && !isHovered.value) {
+    if (state.value === 'idle') {
       showBubble()
     }
-  }, 15000) // Every 15 seconds
+  }, 10000)
 }
 
 // --- Mouse interaction ---
-function onMouseEnter() {
-  isHovered.value = true
-  if (state.value === 'idle') {
-    setState('interact')
-  }
-}
-
-function onMouseLeave() {
-  isHovered.value = false
-}
-
 function onClick() {
-  setState('interact')
+  if (hasDragged) return
+  chatDialog.value?.open()
 }
 
 // --- Drag ---
@@ -160,27 +185,52 @@ let dragStartX = 0
 let dragStartY = 0
 let startPetX = 0
 let startPetY = 0
+let hasDragged = false
 
 function onDragStart(e: MouseEvent) {
+  e.preventDefault()
+  hasDragged = false
   isDragging.value = true
   dragStartX = e.clientX
   dragStartY = e.clientY
   startPetX = petX.value
   startPetY = petY.value
+  // Cancel any pending return-to-idle, keep interact alive
+  if (returnTimer) { clearTimeout(returnTimer); returnTimer = null }
+  if (state.value !== 'think' && state.value !== 'success' && state.value !== 'warn') {
+    setState('interact', true)
+  }
   document.addEventListener('mousemove', onDragMove)
   document.addEventListener('mouseup', onDragEnd)
 }
 
 function onDragMove(e: MouseEvent) {
   if (!isDragging.value) return
-  petX.value = startPetX + (e.clientX - dragStartX)
-  petY.value = startPetY + (e.clientY - dragStartY)
+  const dx = e.clientX - dragStartX
+  const dy = e.clientY - dragStartY
+  if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+    hasDragged = true
+  }
+  if (hasDragged) {
+    petX.value = startPetX - dx
+    petY.value = startPetY + dy
+  }
 }
 
 function onDragEnd() {
   isDragging.value = false
   document.removeEventListener('mousemove', onDragMove)
   document.removeEventListener('mouseup', onDragEnd)
+  // Return to idle immediately, but keep bubble visible for 3s
+  if (state.value === 'interact') {
+    returnToIdle()
+    // Keep current bubble text visible
+    bubbleVisible.value = true
+    if (bubbleTimer) clearTimeout(bubbleTimer)
+    bubbleTimer = setTimeout(() => {
+      bubbleVisible.value = false
+    }, 3000)
+  }
 }
 
 // --- Public API (emit events from parent) ---
@@ -199,6 +249,7 @@ onMounted(() => {
 onUnmounted(() => {
   stopAnimation()
   if (bubbleTimer) clearTimeout(bubbleTimer)
+  if (returnTimer) clearTimeout(returnTimer)
   if (idleTimer) clearInterval(idleTimer)
   document.removeEventListener('mousemove', onDragMove)
   document.removeEventListener('mouseup', onDragEnd)
@@ -209,9 +260,6 @@ onUnmounted(() => {
   <div
     class="dave-pet-wrapper"
     :style="{ right: `${24 + petX}px`, bottom: `${24 - petY}px` }"
-    @mouseenter="onMouseEnter"
-    @mouseleave="onMouseLeave"
-    @click="onClick"
   >
     <!-- Bubble -->
     <Transition name="bubble">
@@ -223,8 +271,8 @@ onUnmounted(() => {
     <!-- Pet Image -->
     <div
       class="dave-pet-body"
-      :class="{ 'dave-pet-hover': isHovered }"
       @mousedown.left="onDragStart"
+      @click="onClick"
     >
       <img
         :src="currentSrc"
@@ -233,6 +281,9 @@ onUnmounted(() => {
         draggable="false"
       />
     </div>
+
+    <!-- Chat Dialog -->
+    <DaveChatDialog ref="chatDialog" :on-chat-start="onChatStart" :on-chat-end="onChatEnd" />
   </div>
 </template>
 
@@ -263,9 +314,9 @@ onUnmounted(() => {
 }
 
 .dave-pet-img {
-  width: 120px;
-  height: 120px;
-  image-rendering: pixelated;
+  width: auto;
+  height: 160px;
+  transform: scaleX(-1);
   filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
 }
 
