@@ -87,9 +87,9 @@ async function handleGenerateDailyReport() {
 
 // 统计卡片数据（从 overview 映射）
 const statsCards = ref([
-  { key: 'totalReports', label: '总上报数', value: 0, color: 'text-white' },
-  { key: 'todayReports', label: '今日上报', value: 0, color: 'text-cyber-green' },
-  { key: 'pendingAudit', label: '待审核', value: 0, color: 'text-amber' },
+  { key: 'totalReports', label: '总工单数', value: 0, color: 'text-white' },
+  { key: 'todayReports', label: '今日工单', value: 0, color: 'text-cyber-green' },
+  { key: 'pendingAudit', label: '未处理', value: 0, color: 'text-amber' },
   { key: 'processed', label: '已处理', value: 0, color: 'text-cyber-green-dark' },
   { key: 'highRiskAlerts', label: '高风险预警', value: 0, color: 'text-sakura' },
 ])

@@ -130,79 +130,37 @@ public class StatisticServiceImpl implements StatisticService {
 
         StatisticsOverviewVO vo = new StatisticsOverviewVO();
 
-        // 如果有 companyId，先获取该企业下的 reportId 集合
-        Set<String> companyReportIds = null;
-        if (hasCompany) {
-            // 查询所有 report，然后过滤出属于该企业的
-            LambdaQueryWrapper<Report> allReportWrapper = new LambdaQueryWrapper<>();
-            allReportWrapper.ge(Report::getCreatedAt, startTime).le(Report::getCreatedAt, now);
-            List<Report> allReports = reportMapper.selectList(allReportWrapper);
-            Set<String> allReportIds = allReports.stream().map(Report::getId).collect(Collectors.toSet());
-            if (!allReportIds.isEmpty()) {
-                companyReportIds = getReportIdsByCompany(allReportIds, companyId);
-            } else {
-                companyReportIds = Collections.emptySet();
-            }
-        }
+        // ========== 从 work_order 表查询统计数据 ==========
 
-        // 总上报数
-        LambdaQueryWrapper<Report> reportWrapper = new LambdaQueryWrapper<>();
-        reportWrapper.ge(Report::getCreatedAt, startTime).le(Report::getCreatedAt, now);
-        if (hasCompany && companyReportIds != null) {
-            if (companyReportIds.isEmpty()) {
-                vo.setTotalReports(0);
-            } else {
-                reportWrapper.in(Report::getId, companyReportIds);
-                vo.setTotalReports(reportMapper.selectCount(reportWrapper).intValue());
-            }
-        } else {
-            vo.setTotalReports(reportMapper.selectCount(reportWrapper).intValue());
-        }
+        // 总工单数（时间窗口内，排除 IGNORED）
+        LambdaQueryWrapper<WorkOrder> totalWoWrapper = new LambdaQueryWrapper<>();
+        totalWoWrapper.ge(WorkOrder::getCreatedAt, startTime)
+                      .le(WorkOrder::getCreatedAt, now)
+                      .ne(WorkOrder::getStatus, "IGNORED")
+                      .eq(hasCompany, WorkOrder::getCompanyId, companyId);
+        vo.setTotalReports(workOrderMapper.selectCount(totalWoWrapper).intValue());
 
-        // 今日上报数
-        LambdaQueryWrapper<Report> todayWrapper = new LambdaQueryWrapper<>();
-        todayWrapper.ge(Report::getCreatedAt, todayStart).le(Report::getCreatedAt, now);
-        if (hasCompany && companyReportIds != null) {
-            // 从 companyReportIds 中筛选今日的
-            if (companyReportIds.isEmpty()) {
-                vo.setTodayReports(0);
-            } else {
-                todayWrapper.in(Report::getId, companyReportIds);
-                vo.setTodayReports(reportMapper.selectCount(todayWrapper).intValue());
-            }
-        } else {
-            vo.setTodayReports(reportMapper.selectCount(todayWrapper).intValue());
-        }
+        // 今日工单数
+        LambdaQueryWrapper<WorkOrder> todayWoWrapper = new LambdaQueryWrapper<>();
+        todayWoWrapper.ge(WorkOrder::getCreatedAt, todayStart)
+                      .le(WorkOrder::getCreatedAt, now)
+                      .ne(WorkOrder::getStatus, "IGNORED")
+                      .eq(hasCompany, WorkOrder::getCompanyId, companyId);
+        vo.setTodayReports(workOrderMapper.selectCount(todayWoWrapper).intValue());
 
-        // 待审核数
-        LambdaQueryWrapper<Report> pendingWrapper = new LambdaQueryWrapper<>();
-        pendingWrapper.in(Report::getStatus, "PENDING", "PENDING_RECOGNITION");
-        if (hasCompany && companyReportIds != null) {
-            if (companyReportIds.isEmpty()) {
-                vo.setPendingAudit(0);
-            } else {
-                pendingWrapper.in(Report::getId, companyReportIds);
-                vo.setPendingAudit(reportMapper.selectCount(pendingWrapper).intValue());
-            }
-        } else {
-            vo.setPendingAudit(reportMapper.selectCount(pendingWrapper).intValue());
-        }
+        // 未处理数（PENDING + PROCESSING）
+        LambdaQueryWrapper<WorkOrder> pendingWoWrapper = new LambdaQueryWrapper<>();
+        pendingWoWrapper.in(WorkOrder::getStatus, "PENDING", "PROCESSING")
+                        .eq(hasCompany, WorkOrder::getCompanyId, companyId);
+        vo.setPendingAudit(workOrderMapper.selectCount(pendingWoWrapper).intValue());
 
-        // 已处理数
-        LambdaQueryWrapper<Report> processedWrapper = new LambdaQueryWrapper<>();
-        processedWrapper.eq(Report::getStatus, "AUDITED");
-        if (hasCompany && companyReportIds != null) {
-            if (companyReportIds.isEmpty()) {
-                vo.setProcessed(0);
-            } else {
-                processedWrapper.in(Report::getId, companyReportIds);
-                vo.setProcessed(reportMapper.selectCount(processedWrapper).intValue());
-            }
-        } else {
-            vo.setProcessed(reportMapper.selectCount(processedWrapper).intValue());
-        }
+        // 已处理数（DONE）
+        LambdaQueryWrapper<WorkOrder> doneWoWrapper = new LambdaQueryWrapper<>();
+        doneWoWrapper.eq(WorkOrder::getStatus, "DONE")
+                     .eq(hasCompany, WorkOrder::getCompanyId, companyId);
+        vo.setProcessed(workOrderMapper.selectCount(doneWoWrapper).intValue());
 
-        // 高风险告警
+        // 高风险预警（CRITICAL 且未完成）
         LambdaQueryWrapper<WorkOrder> alertWrapper = new LambdaQueryWrapper<>();
         alertWrapper.eq(WorkOrder::getSeverity, "CRITICAL")
                     .ne(WorkOrder::getStatus, "DONE")
@@ -220,12 +178,12 @@ public class StatisticServiceImpl implements StatisticService {
         List<WorkOrder> allOrders = workOrderMapper.selectList(woWrapper);
 
         // 今日工单（用于病害/虫害分布环图）
-        LambdaQueryWrapper<WorkOrder> todayWoWrapper = new LambdaQueryWrapper<>();
-        todayWoWrapper.ge(WorkOrder::getCreatedAt, todayStart)
+        LambdaQueryWrapper<WorkOrder> todayOrdersWrapper = new LambdaQueryWrapper<>();
+        todayOrdersWrapper.ge(WorkOrder::getCreatedAt, todayStart)
                       .le(WorkOrder::getCreatedAt, now)
                       .ne(WorkOrder::getStatus, "IGNORED")
                       .eq(hasCompany, WorkOrder::getCompanyId, companyId);
-        List<WorkOrder> todayOrders = workOrderMapper.selectList(todayWoWrapper);
+        List<WorkOrder> todayOrders = workOrderMapper.selectList(todayOrdersWrapper);
 
         // 类型分布 (按病虫害名称)
         Map<String, Long> typeCount = allOrders.stream()
