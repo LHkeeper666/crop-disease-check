@@ -3,12 +3,30 @@ import { ref, computed, onMounted } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
 import GlowButton from '../components/GlowButton.vue'
 import { useWorkOrderStore } from '../stores/workorder'
+import { fetchExperts, type UserSimpleVO } from '../api/user'
 
 const woStore = useWorkOrderStore()
 
-// 页面加载时从后端拉取工单数据
+// 专家列表
+const experts = ref<UserSimpleVO[]>([])
+const expertsLoading = ref(false)
+
+// 加载专家列表
+async function loadExperts() {
+  expertsLoading.value = true
+  try {
+    experts.value = await fetchExperts()
+  } catch (e: any) {
+    console.error('[WorkOrderView] 加载专家列表失败:', e.message)
+  } finally {
+    expertsLoading.value = false
+  }
+}
+
+// 页面加载时从后端拉取工单数据和专家列表
 onMounted(() => {
   woStore.fetchOrders()
+  loadExperts()
 })
 
 const filterStatus = ref<string>('ALL')
@@ -29,9 +47,12 @@ const newOrder = ref({
   pestName: '',
   type: 'disease' as 'disease' | 'pest',
   severity: 'MEDIUM',
-  assignedToName: '',
+  assignedTo: '',
   confidence: 0.8,
 })
+
+// 表单验证错误
+const formErrors = ref<Record<string, string>>({})
 
 const gridOptions = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3']
 
@@ -111,9 +132,10 @@ function openCreateModal() {
     pestName: '',
     type: 'disease',
     severity: 'MEDIUM',
-    assignedToName: '',
+    assignedTo: '',
     confidence: 0.8,
   }
+  formErrors.value = {}
   showCreateModal.value = true
 }
 
@@ -122,7 +144,20 @@ function closeCreateModal() {
 }
 
 async function createOrder() {
-  if (!newOrder.value.title || !newOrder.value.gridLabel) return
+  // 表单验证
+  formErrors.value = {}
+
+  if (!newOrder.value.gridLabel) {
+    formErrors.value.gridLabel = '请选择网格区域'
+  }
+  if (!newOrder.value.pestName) {
+    formErrors.value.pestName = '请输入病虫害名称'
+  }
+
+  // 如果有错误，停止提交
+  if (Object.keys(formErrors.value).length > 0) {
+    return
+  }
 
   const severityPrefix: Record<string, string> = {
     CRITICAL: '【紧急】',
@@ -139,6 +174,7 @@ async function createOrder() {
       gridLabel: newOrder.value.gridLabel,
       pestName: newOrder.value.pestName,
       confidence: newOrder.value.confidence,
+      assignedTo: newOrder.value.assignedTo || undefined,
     })
     closeCreateModal()
   } catch {
@@ -482,14 +518,16 @@ function closeEmailModal() {
 
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">网格区域</label>
+                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">网格区域 <span class="text-sakura">*</span></label>
                 <select
                   v-model="newOrder.gridLabel"
-                  class="select-dark w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-cyber-green/50"
+                  class="select-dark w-full px-4 py-3 rounded-xl bg-slate-800 border text-white text-sm focus:outline-none focus:border-cyber-green/50"
+                  :class="formErrors.gridLabel ? 'border-sakura/50' : 'border-white/10'"
                 >
                   <option value="" disabled>请选择网格</option>
                   <option v-for="g in gridOptions" :key="g" :value="g">{{ g }}</option>
                 </select>
+                <p v-if="formErrors.gridLabel" class="text-xs text-sakura mt-1">{{ formErrors.gridLabel }}</p>
               </div>
               <div>
                 <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">类型</label>
@@ -505,13 +543,15 @@ function closeEmailModal() {
 
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">病虫害名称</label>
+                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">病虫害名称 <span class="text-sakura">*</span></label>
                 <input
                   v-model="newOrder.pestName"
                   type="text"
                   placeholder="如: 红蜘蛛"
-                  class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+                  class="w-full px-4 py-3 rounded-xl bg-white/5 border text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
+                  :class="formErrors.pestName ? 'border-sakura/50' : 'border-white/10'"
                 />
+                <p v-if="formErrors.pestName" class="text-xs text-sakura mt-1">{{ formErrors.pestName }}</p>
               </div>
               <div>
                 <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">严重程度</label>
@@ -531,13 +571,16 @@ function closeEmailModal() {
               <div>
                 <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">指派专家</label>
                 <select
-                  v-model="newOrder.assignedToName"
+                  v-model="newOrder.assignedTo"
                   class="select-dark w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-cyber-green/50"
+                  :disabled="expertsLoading"
                 >
                   <option value="">未分配</option>
-                  <option value="李专家">李专家</option>
-                  <option value="王专家">王专家</option>
+                  <option v-for="expert in experts" :key="expert.id" :value="expert.id">
+                    {{ expert.name }}
+                  </option>
                 </select>
+                <p v-if="expertsLoading" class="text-xs text-slate-500 mt-1">加载专家列表中...</p>
               </div>
             </div>
 

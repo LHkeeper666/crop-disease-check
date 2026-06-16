@@ -235,4 +235,29 @@ public class UserServiceImpl implements UserService {
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
     }
+
+    @Override
+    public List<UserSimpleVO> getExperts(String keyword) {
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUser::getDeleted, 0)
+               .eq(SysUser::getRole, "EXPERT")
+               .eq(SysUser::getStatus, "ACTIVE");
+
+        // 如果有关键词，按名字模糊搜索
+        if (StringUtils.hasText(keyword)) {
+            wrapper.like(SysUser::getName, keyword);
+        }
+
+        wrapper.orderByDesc(SysUser::getCreatedAt);
+
+        List<SysUser> experts = userMapper.selectList(wrapper);
+
+        return experts.stream()
+                .map(user -> {
+                    UserSimpleVO vo = new UserSimpleVO();
+                    BeanUtil.copyProperties(user, vo);
+                    return vo;
+                })
+                .collect(Collectors.toList());
+    }
 }

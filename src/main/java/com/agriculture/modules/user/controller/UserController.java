@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import java.util.List;
 
 /**
  * 用户管理控制器
@@ -36,6 +37,15 @@ public class UserController {
         String userId = (String) request.getAttribute("userId");
         UserVO user = userService.getCurrentUser(userId);
         return Result.success(user);
+    }
+
+    /**
+     * 获取专家列表（登录用户可访问，用于工单指派）
+     */
+    @GetMapping("/experts")
+    public Result<List<UserSimpleVO>> getExperts(@RequestParam(required = false) String keyword) {
+        List<UserSimpleVO> experts = userService.getExperts(keyword);
+        return Result.success(experts);
     }
 
     /**

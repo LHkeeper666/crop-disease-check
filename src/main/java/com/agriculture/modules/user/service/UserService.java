@@ -9,6 +9,8 @@ import com.agriculture.common.vo.PageResult;
 import com.agriculture.modules.user.vo.UserSimpleVO;
 import com.agriculture.modules.user.vo.UserVO;
 
+import java.util.List;
+
 /**
  * 用户服务接口
  */
@@ -58,4 +60,11 @@ public interface UserService {
      * 重置密码（管理员）
      */
     void resetPassword(String id, String newPassword);
+
+    /**
+     * 获取专家列表（用于工单指派）
+     * @param keyword 模糊搜索关键词（可选）
+     * @return 专家列表
+     */
+    List<UserSimpleVO> getExperts(String keyword);
 }
