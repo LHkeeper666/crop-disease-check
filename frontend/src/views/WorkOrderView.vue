@@ -55,7 +55,6 @@ const assigneeDropdownStyle = ref({})
 
 // New order form
 const newOrder = ref({
-  title: '',
   gridLabel: '',
   pestName: '',
   type: 'disease' as 'disease' | 'pest',
@@ -210,7 +209,6 @@ async function confirmUpdate() {
 
 function openCreateModal() {
   newOrder.value = {
-    title: '',
     gridLabel: '',
     pestName: '',
     type: 'disease',
@@ -239,6 +237,18 @@ async function createOrder() {
 
   // 如果有错误，停止提交
   if (Object.keys(formErrors.value).length > 0) {
+    return
+  }
+
+  // 检查是否已存在同网格+同病虫害的未完成工单
+  const duplicateOrder = woStore.orders.find(o =>
+    o.gridLabel === newOrder.value.gridLabel &&
+    o.pestName === newOrder.value.pestName &&
+    (o.status === 'PENDING' || o.status === 'PROCESSING')
+  )
+
+  if (duplicateOrder) {
+    formErrors.value.pestName = `该网格已存在"${newOrder.value.pestName}"的未完成工单（#${duplicateOrder.id}）`
     return
   }
 
@@ -589,16 +599,6 @@ function closeEmailModal() {
           </div>
 
           <form @submit.prevent="createOrder" class="space-y-4">
-            <div>
-              <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">工单标题</label>
-              <input
-                v-model="newOrder.title"
-                type="text"
-                placeholder="请输入工单标题"
-                class="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all"
-              />
-            </div>
-
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">网格区域 <span class="text-sakura">*</span></label>
