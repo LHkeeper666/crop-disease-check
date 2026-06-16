@@ -13,6 +13,7 @@ import com.agriculture.modules.greenhouse.entity.Greenhouse;
 import com.agriculture.modules.greenhouse.mapper.GreenhouseMapper;
 import com.agriculture.modules.inspection.mapper.InspectionLogMapper;
 import com.agriculture.common.exception.BusinessException;
+import com.agriculture.modules.statistics.service.HeatmapService;
 import com.agriculture.modules.statistics.service.StatisticService;
 import com.agriculture.modules.grid.vo.GridStatisticsVO;
 import com.agriculture.modules.statistics.vo.StatisticsOverviewVO;
@@ -65,6 +66,9 @@ public class StatisticServiceImpl implements StatisticService {
 
     @Resource
     private WebSocketService webSocketService;
+
+    @Resource
+    private HeatmapService heatmapService;
 
     // ==================== JSON 解析辅助 ====================
 
@@ -282,8 +286,8 @@ public class StatisticServiceImpl implements StatisticService {
                 .collect(Collectors.toList());
         vo.setTop5Diseases(top5Diseases);
 
-        // 网格热力图 (基于工单)
-        List<StatisticsOverviewVO.GridHeatmap> gridHeatmap = buildGridHeatmapFromOrders(allOrders);
+        // 网格热力图 (基于工单，使用 HeatmapService 统一构建)
+        List<StatisticsOverviewVO.GridHeatmap> gridHeatmap = heatmapService.buildFullHeatmap(hasCompany ? companyId : null);
         vo.setGridHeatmap(gridHeatmap);
 
         // 推送热力图更新到 WebSocket
@@ -595,68 +599,6 @@ public class StatisticServiceImpl implements StatisticService {
         } catch (IOException e) {
             throw new BusinessException(500, "导出失败: " + e.getMessage());
         }
-    }
-
-    /**
-     * 构建网格热力图数据（基于 inference）
-     */
-    private List<StatisticsOverviewVO.GridHeatmap> buildGridHeatmap(List<Inference> inferences) {
-        Set<String> reportIds = inferences.stream()
-                .map(Inference::getReportId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        if (reportIds.isEmpty()) return Collections.emptyList();
-
-        Map<String, String> reportGridMap = getReportGridMap(reportIds);
-        Set<String> gridIds = new HashSet<>(reportGridMap.values());
-        Map<String, String> gridLabelMap = getGridLabelMap(gridIds);
-
-        // 按 gridId 统计（每条 inference 算一次记录）
-        Map<String, Long> gridCount = inferences.stream()
-                .filter(i -> i.getReportId() != null && reportGridMap.containsKey(i.getReportId()))
-                .collect(Collectors.groupingBy(i -> reportGridMap.get(i.getReportId()), Collectors.counting()));
-
-        long maxCount = gridCount.values().stream().max(Long::compareTo).orElse(1L);
-
-        List<StatisticsOverviewVO.GridHeatmap> result = new ArrayList<>();
-        for (Map.Entry<String, Long> entry : gridCount.entrySet()) {
-            StatisticsOverviewVO.GridHeatmap hm = new StatisticsOverviewVO.GridHeatmap();
-            hm.setGridId(entry.getKey());
-            hm.setGridLabel(gridLabelMap.getOrDefault(entry.getKey(), entry.getKey()));
-            hm.setScore(BigDecimal.valueOf(entry.getValue())
-                    .divide(BigDecimal.valueOf(maxCount), 2, RoundingMode.HALF_UP)
-                    .doubleValue());
-            result.add(hm);
-        }
-        result.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
-        return result;
-    }
-
-    /**
-     * 构建网格热力图数据（基于工单）
-     */
-    private List<StatisticsOverviewVO.GridHeatmap> buildGridHeatmapFromOrders(List<WorkOrder> orders) {
-        // 按 gridLabel 统计工单数
-        Map<String, Long> gridCount = orders.stream()
-                .filter(w -> w.getGridLabel() != null)
-                .collect(Collectors.groupingBy(WorkOrder::getGridLabel, Collectors.counting()));
-
-        if (gridCount.isEmpty()) return Collections.emptyList();
-
-        long maxCount = gridCount.values().stream().max(Long::compareTo).orElse(1L);
-
-        List<StatisticsOverviewVO.GridHeatmap> result = new ArrayList<>();
-        for (Map.Entry<String, Long> entry : gridCount.entrySet()) {
-            StatisticsOverviewVO.GridHeatmap hm = new StatisticsOverviewVO.GridHeatmap();
-            hm.setGridId(entry.getKey());
-            hm.setGridLabel(entry.getKey());
-            hm.setScore(BigDecimal.valueOf(entry.getValue())
-                    .divide(BigDecimal.valueOf(maxCount), 2, RoundingMode.HALF_UP)
-                    .doubleValue());
-            result.add(hm);
-        }
-        result.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
-        return result;
     }
 
     private Map<String, String> getReportGridMap(Set<String> reportIds) {
