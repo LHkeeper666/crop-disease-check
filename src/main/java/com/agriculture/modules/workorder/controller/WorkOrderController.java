@@ -6,8 +6,11 @@ import com.agriculture.modules.workorder.dto.SeverityUpdateDTO;
 import com.agriculture.modules.workorder.dto.StatusUpdateDTO;
 import com.agriculture.modules.workorder.dto.WorkOrderCreateDTO;
 import com.agriculture.modules.workorder.dto.WorkOrderManualCreateDTO;
+import com.agriculture.modules.workorder.entity.WorkOrder;
+import com.agriculture.modules.workorder.mapper.WorkOrderMapper;
 import com.agriculture.modules.workorder.service.WorkOrderService;
 import com.agriculture.modules.workorder.vo.CallbackResponseVO;
+import com.agriculture.common.exception.BusinessException;
 import com.agriculture.common.vo.Result;
 import com.agriculture.common.service.EmailService;
 import com.agriculture.modules.workorder.vo.EmailPreviewVO;
@@ -33,6 +36,9 @@ public class WorkOrderController {
     private WorkOrderService workOrderService;
 
     @Resource
+    private WorkOrderMapper workOrderMapper;
+
+    @Resource
     private SysUserMapper sysUserMapper;
 
     @Resource
@@ -53,7 +59,9 @@ public class WorkOrderController {
     }
 
     @GetMapping("/{id}")
-    public Result<WorkOrderDetailVO> getWorkOrderDetail(@PathVariable Long id) {
+    public Result<WorkOrderDetailVO> getWorkOrderDetail(@PathVariable Long id,
+                                                         HttpServletRequest request) {
+        checkCompanyOwnership(id, (String) request.getAttribute("userId"));
         return Result.success(workOrderService.getWorkOrderDetail(id));
     }
 
@@ -61,7 +69,9 @@ public class WorkOrderController {
      * 预览工单邮件（AI 自动生成内容，不实际发送）
      */
     @PostMapping("/{id}/preview-email")
-    public Result<EmailPreviewVO> previewEmail(@PathVariable Long id) {
+    public Result<EmailPreviewVO> previewEmail(@PathVariable Long id,
+                                                HttpServletRequest request) {
+        checkCompanyOwnership(id, (String) request.getAttribute("userId"));
         try {
             return Result.success(workOrderService.previewEmail(id));
         } catch (Exception e) {
@@ -98,6 +108,7 @@ public class WorkOrderController {
                                      @Valid @RequestBody StatusUpdateDTO dto,
                                      HttpServletRequest request) {
         String userId = (String) request.getAttribute("userId");
+        checkCompanyOwnership(id, userId);
         SysUser currentUser = sysUserMapper.selectById(userId);
         String operatorId = userId;
         String operatorName = currentUser != null ? currentUser.getName() : "系统";
@@ -107,20 +118,26 @@ public class WorkOrderController {
 
     @PutMapping("/{id}/severity")
     public Result<Void> updateSeverity(@PathVariable Long id,
-                                       @Valid @RequestBody SeverityUpdateDTO dto) {
+                                       @Valid @RequestBody SeverityUpdateDTO dto,
+                                       HttpServletRequest request) {
+        checkCompanyOwnership(id, (String) request.getAttribute("userId"));
         workOrderService.updateSeverity(id, dto.getSeverity());
         return Result.success("严重程度更新成功", null);
     }
 
     @PutMapping("/{id}/assignee")
     public Result<Void> updateAssignee(@PathVariable Long id,
-                                       @Valid @RequestBody AssigneeUpdateDTO dto) {
+                                       @Valid @RequestBody AssigneeUpdateDTO dto,
+                                       HttpServletRequest request) {
+        checkCompanyOwnership(id, (String) request.getAttribute("userId"));
         workOrderService.updateAssignee(id, dto.getAssignedTo());
         return Result.success("指派专家更新成功", null);
     }
 
     @DeleteMapping("/{id}")
-    public Result<Void> deleteWorkOrder(@PathVariable Long id) {
+    public Result<Void> deleteWorkOrder(@PathVariable Long id,
+                                         HttpServletRequest request) {
+        checkCompanyOwnership(id, (String) request.getAttribute("userId"));
         workOrderService.deleteWorkOrder(id);
         return Result.success("工单已删除", null);
     }
@@ -138,6 +155,8 @@ public class WorkOrderController {
         if (currentUser == null) {
             return Result.error(401, "未登录");
         }
+
+        checkCompanyOwnership(id, userId);
 
         // 获取工单详情
         WorkOrderDetailVO detail = workOrderService.getWorkOrderDetail(id);
@@ -179,6 +198,21 @@ public class WorkOrderController {
         public void setSubject(String subject) { this.subject = subject; }
         public String getContent() { return content; }
         public void setContent(String content) { this.content = content; }
+    }
+
+    /**
+     * 校验当前用户是否有权操作指定工单（同企业）
+     */
+    private void checkCompanyOwnership(Long workOrderId, String userId) {
+        String companyId = resolveCompanyId(userId);
+        if (companyId.isEmpty()) return; // 无企业归属的用户不做校验
+        WorkOrder workOrder = workOrderMapper.selectById(workOrderId);
+        if (workOrder == null) {
+            throw new BusinessException(404, "工单不存在");
+        }
+        if (workOrder.getCompanyId() != null && !companyId.equals(workOrder.getCompanyId())) {
+            throw new BusinessException(403, "无权操作其他企业的工单");
+        }
     }
 
     /**
