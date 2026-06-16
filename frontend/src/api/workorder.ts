@@ -187,16 +187,16 @@ export async function previewWorkOrderEmail(id: number): Promise<EmailPreviewVO>
 
 /** 专家用户信息 */
 export interface ExpertVO {
-  id: number
+  id: string
   name: string
-  email: string
-  phone: string
+  email: string | null
+  phone: string | null
   role: string
 }
 
-/** 获取专家列表 */
-export async function fetchExperts(): Promise<PageResult<ExpertVO>> {
-  return request<PageResult<ExpertVO>>('/api/users?role=EXPERT&size=100')
+/** 获取专家列表（所有登录用户可访问） */
+export async function fetchExperts(): Promise<ExpertVO[]> {
+  return request<ExpertVO[]>('/api/users/experts')
 }
 
 /** 更新工单指派专家 */

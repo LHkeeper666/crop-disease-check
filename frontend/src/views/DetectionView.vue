@@ -339,7 +339,7 @@ function totalDetections(item: BatchItem): number {
       </GlassCard>
 
       <!-- Right: Results -->
-      <GlassCard class="flex flex-col">
+      <GlassCard class="flex flex-col overflow-hidden">
         <div class="flex items-center justify-between mb-3 shrink-0">
           <span class="text-xs text-slate-400 tracking-wider">检测结果</span>
           <span v-if="isBatch && files.length > 1" class="text-[10px] text-slate-600 font-mono">

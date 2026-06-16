@@ -242,8 +242,8 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     expertsLoading.value = true
     expertsError.value = null
     try {
-      const page = await apiFetchExperts()
-      experts.value = page.records
+      const list = await apiFetchExperts()
+      experts.value = list
     } catch (e: any) {
       expertsError.value = e.message || '加载专家列表失败'
       console.error('[workorder] fetchExperts error:', e)
