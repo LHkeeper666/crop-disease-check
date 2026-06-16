@@ -4,10 +4,14 @@ import com.agriculture.modules.camera.dto.*;
 import com.agriculture.modules.camera.entity.Camera;
 import com.agriculture.modules.camera.service.CameraDetectService;
 import com.agriculture.modules.camera.service.CameraService;
+import com.agriculture.modules.user.entity.SysUser;
+import com.agriculture.modules.user.mapper.SysUserMapper;
 import com.agriculture.common.annotation.RequireRole;
 import com.agriculture.common.vo.Result;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 
@@ -22,11 +26,14 @@ public class CameraController {
 
     private final CameraService cameraService;
     private final CameraDetectService cameraDetectService;
+    private final SysUserMapper sysUserMapper;
 
     public CameraController(CameraService cameraService,
-                            CameraDetectService cameraDetectService) {
+                            CameraDetectService cameraDetectService,
+                            SysUserMapper sysUserMapper) {
         this.cameraService = cameraService;
         this.cameraDetectService = cameraDetectService;
+        this.sysUserMapper = sysUserMapper;
     }
 
     // ==================== CRUD ====================
@@ -39,8 +46,11 @@ public class CameraController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return Result.success(cameraService.listCameras(status, keyword, page, size));
+            @RequestParam(defaultValue = "20") int size,
+            HttpServletRequest request) {
+        String userId = (String) request.getAttribute("userId");
+        String companyId = resolveCompanyId(userId);
+        return Result.success(cameraService.listCameras(status, keyword, page, size, companyId));
     }
 
     /**
@@ -48,8 +58,11 @@ public class CameraController {
      */
     @PostMapping
     @RequireRole({"ADMIN"})
-    public Result<Map<String, String>> add(@Valid @RequestBody CameraCreateRequest request) {
-        String id = cameraService.createCamera(request);
+    public Result<Map<String, String>> add(@Valid @RequestBody CameraCreateRequest request,
+                                           HttpServletRequest httpRequest) {
+        String userId = (String) httpRequest.getAttribute("userId");
+        String companyId = resolveCompanyId(userId);
+        String id = cameraService.createCamera(request, companyId);
         return Result.success("摄像头添加成功，正在尝试建立RTSP连接", Map.of("id", id));
     }
 
@@ -139,5 +152,14 @@ public class CameraController {
                                       @RequestBody CameraMonitorRequest request) {
         cameraDetectService.toggleMonitor(id, request);
         return Result.success(request.getEnabled() ? "实时监测已启动" : "实时监测已停止", null);
+    }
+
+    private String resolveCompanyId(String userId) {
+        if (userId == null) return "";
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user != null && StringUtils.hasText(user.getCompanyId())) {
+            return user.getCompanyId();
+        }
+        return "";
     }
 }

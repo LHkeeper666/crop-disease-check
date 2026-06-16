@@ -61,7 +61,7 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
 
     @Override
     @Transactional
-    public ReportUploadVO uploadImages(MultipartFile[] files, ReportUploadDTO dto, String userId) {
+    public ReportUploadVO uploadImages(MultipartFile[] files, ReportUploadDTO dto, String userId, String companyId) {
         // 校验文件数量
         if (files == null || files.length == 0) {
             throw new BusinessException(40040, "请上传至少一张图片");
@@ -109,6 +109,7 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
         report.setFoundAt(dto.getFoundAt());
         report.setDescription(dto.getDescription());
         report.setStatus("PENDING_RECOGNITION");
+        report.setCompanyId(companyId);
         report.setCreatedAt(LocalDateTime.now());
         report.setUpdatedAt(LocalDateTime.now());
         report.setDeleted((byte) 0);
@@ -125,9 +126,12 @@ public class ReportServiceImpl extends ServiceImpl<ReportMapper, Report> impleme
     }
 
     @Override
-    public Page<ReportListVO> getMyReports(ReportQueryDTO dto, String userId) {
+    public Page<ReportListVO> getMyReports(ReportQueryDTO dto, String userId, String companyId) {
         LambdaQueryWrapper<Report> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Report::getUserId, userId);
+        if (StringUtils.hasText(companyId)) {
+            wrapper.eq(Report::getCompanyId, companyId);
+        }
 
         // 状态筛选
         if (StringUtils.hasText(dto.getStatus())) {

@@ -15,7 +15,7 @@ import java.util.List;
  */
 public interface AiMessageService extends IService<AiMessage> {
 
-    AiMessage saveMessage(String conversationId, String userId, String role, String content);
+    AiMessage saveMessage(String conversationId, String userId, String role, String content, String companyId);
 
     List<AiMessage> listByConversationId(String conversationId, int limit);
 }

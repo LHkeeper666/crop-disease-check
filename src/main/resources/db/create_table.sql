@@ -73,9 +73,11 @@ CREATE TABLE camera (
     status              VARCHAR(20) DEFAULT 'OFFLINE' COMMENT '状态: ONLINE/OFFLINE/FAULT',
     last_frame_at       DATETIME COMMENT '最后抓拍时间',
     last_online_at      DATETIME DEFAULT NULL COMMENT '最近一次在线时间',
+    company_id          VARCHAR(36) COMMENT '所属企业ID',
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    deleted             TINYINT DEFAULT 0 COMMENT '逻辑删除'
+    deleted             TINYINT DEFAULT 0 COMMENT '逻辑删除',
+    INDEX idx_company (company_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='摄像头表';
 
 
@@ -181,13 +183,15 @@ CREATE TABLE report (
     found_at      DATETIME NOT NULL COMMENT '发现时间',
     description   VARCHAR(500) COMMENT '补充描述',
     status        VARCHAR(30) DEFAULT 'PENDING_RECOGNITION' COMMENT '状态: PENDING_RECOGNITION/PENDING/AUDITED/REJECTED',
+    company_id    VARCHAR(36) COMMENT '所属企业ID',
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     deleted       TINYINT DEFAULT 0 COMMENT '逻辑删除',
     INDEX idx_user (user_id),
     INDEX idx_grid (grid_id),
     INDEX idx_status (status),
-    INDEX idx_created (created_at)
+    INDEX idx_created (created_at),
+    INDEX idx_company (company_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='图像上报记录表';
 
 
@@ -319,8 +323,10 @@ CREATE TABLE inspection_plan (
     active_hours_start  VARCHAR(10) COMMENT '生效开始时间(HH:mm)',
     active_hours_end    VARCHAR(10) COMMENT '生效结束时间(HH:mm)',
     is_active           TINYINT DEFAULT 1 COMMENT '是否启用',
+    company_id          VARCHAR(36) COMMENT '所属企业ID',
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+    updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_company (company_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='巡检计划表';
 
 
@@ -347,9 +353,11 @@ CREATE TABLE inspection_log (
     max_confidence  DECIMAL(5,4) COMMENT '最高置信度',
     duration_ms     INT COMMENT '耗时(毫秒)',
     status          VARCHAR(20) DEFAULT 'SUCCESS' COMMENT '状态: SUCCESS/FAILED',
+    company_id      VARCHAR(36) COMMENT '所属企业ID',
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_camera (camera_id),
-    INDEX idx_capture_time (capture_time)
+    INDEX idx_capture_time (capture_time),
+    INDEX idx_company (company_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='巡检日志表';
 
 
@@ -387,9 +395,11 @@ CREATE TABLE ai_conversation (
     id          VARCHAR(36) PRIMARY KEY COMMENT '对话UUID',
     user_id     VARCHAR(36) NOT NULL COMMENT '用户ID',
     title       VARCHAR(256) COMMENT '对话标题',
+    company_id  VARCHAR(36) COMMENT '所属企业ID',
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    INDEX idx_user (user_id)
+    INDEX idx_user (user_id),
+    INDEX idx_company (company_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='农业大脑对话表';
 
 
@@ -433,9 +443,11 @@ CREATE TABLE sys_log (
     duration    BIGINT COMMENT '执行时长(ms)',
     status      TINYINT DEFAULT 1 COMMENT '状态: 0=失败 1=成功',
     error_msg   TEXT COMMENT '错误信息',
+    company_id  VARCHAR(36) COMMENT '所属企业ID',
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_user (user_id),
-    INDEX idx_created (created_at)
+    INDEX idx_created (created_at),
+    INDEX idx_company (company_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
 
 

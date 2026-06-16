@@ -13,12 +13,12 @@ public interface CameraService extends IService<Camera> {
     /**
      * 摄像头列表（带筛选和分页）
      */
-    Page<Camera> listCameras(String status, String keyword, int page, int size);
+    Page<Camera> listCameras(String status, String keyword, int page, int size, String companyId);
 
     /**
      * 新增摄像头
      */
-    String createCamera(CameraCreateRequest request);
+    String createCamera(CameraCreateRequest request, String companyId);
 
     /**
      * 修改摄像头

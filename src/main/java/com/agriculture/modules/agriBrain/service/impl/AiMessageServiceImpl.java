@@ -24,7 +24,7 @@ import java.util.UUID;
 public class AiMessageServiceImpl extends ServiceImpl<AiMessageMapper, AiMessage> implements AiMessageService {
 
     @Override
-    public AiMessage saveMessage(String conversationId, String userId, String role, String content) {
+    public AiMessage saveMessage(String conversationId, String userId, String role, String content, String companyId) {
         AiMessage message = new AiMessage();
         message.setId(UUID.randomUUID().toString().replace("-", ""));
         message.setConversationId(conversationId);

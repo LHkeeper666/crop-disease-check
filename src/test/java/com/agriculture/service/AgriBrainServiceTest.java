@@ -118,14 +118,14 @@ class AgriBrainServiceTest {
             conv.setCreatedAt(LocalDateTime.now());
             conv.setUpdatedAt(LocalDateTime.now());
 
-            when(conversationService.createConversation(eq("system"), eq("测试"))).thenReturn(conv);
+            when(conversationService.createConversation(eq("system"), eq("测试"), eq(""))).thenReturn(conv);
 
-            AiConversation result = conversationService.createConversation("system", "测试");
+            AiConversation result = conversationService.createConversation("system", "测试", "");
 
             assertNotNull(result.getId());
             assertEquals("system", result.getUserId());
             assertEquals("测试", result.getTitle());
-            verify(conversationService).createConversation("system", "测试");
+            verify(conversationService).createConversation("system", "测试", "");
         }
     }
 
@@ -143,10 +143,10 @@ class AgriBrainServiceTest {
             msg.setRole("USER");
             msg.setContent("测试消息");
 
-            when(messageService.saveMessage(eq("conv-001"), eq("system"), eq("USER"), eq("测试消息")))
+            when(messageService.saveMessage(eq("conv-001"), eq("system"), eq("USER"), eq("测试消息"), eq("")))
                     .thenReturn(msg);
 
-            AiMessage result = messageService.saveMessage("conv-001", "system", "USER", "测试消息");
+            AiMessage result = messageService.saveMessage("conv-001", "system", "USER", "测试消息", "");
 
             assertNotNull(result);
             assertEquals("conv-001", result.getConversationId());

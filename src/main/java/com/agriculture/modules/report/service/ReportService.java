@@ -18,21 +18,23 @@ public interface ReportService extends IService<Report> {
     /**
      * 上传图片并上报
      *
-     * @param files  图片文件数组
-     * @param dto    上报参数
-     * @param userId 当前用户ID
+     * @param files     图片文件数组
+     * @param dto       上报参数
+     * @param userId    当前用户ID
+     * @param companyId 当前用户企业ID
      * @return 上报结果
      */
-    ReportUploadVO uploadImages(MultipartFile[] files, ReportUploadDTO dto, String userId);
+    ReportUploadVO uploadImages(MultipartFile[] files, ReportUploadDTO dto, String userId, String companyId);
 
     /**
      * 我的上报记录（分页）
      *
-     * @param dto    查询参数
-     * @param userId 当前用户ID
+     * @param dto       查询参数
+     * @param userId    当前用户ID
+     * @param companyId 当前用户企业ID
      * @return 分页结果
      */
-    Page<ReportListVO> getMyReports(ReportQueryDTO dto, String userId);
+    Page<ReportListVO> getMyReports(ReportQueryDTO dto, String userId, String companyId);
 
     /**
      * 上报详情
