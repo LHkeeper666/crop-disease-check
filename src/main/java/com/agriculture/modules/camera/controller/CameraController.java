@@ -11,6 +11,8 @@ import com.agriculture.common.vo.Result;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
@@ -152,6 +154,17 @@ public class CameraController {
                                       @RequestBody CameraMonitorRequest request) {
         cameraDetectService.toggleMonitor(id, request);
         return Result.success(request.getEnabled() ? "实时监测已启动" : "实时监测已停止", null);
+    }
+
+    /**
+     * 摄像头快照：从 RTSP 流抓取单帧 JPEG 图像
+     */
+    @GetMapping("/{id}/snapshot")
+    public ResponseEntity<byte[]> snapshot(@PathVariable String id) {
+        byte[] imageBytes = cameraDetectService.captureSnapshot(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_JPEG)
+                .body(imageBytes);
     }
 
     private String resolveCompanyId(String userId) {

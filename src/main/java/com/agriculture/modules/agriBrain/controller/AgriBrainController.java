@@ -43,7 +43,7 @@ public class AgriBrainController {
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chat(@RequestBody ChatRequest request, HttpServletRequest httpRequest) {
         String userId = (String) httpRequest.getAttribute("userId");
-        return agriBrainService.chat(request.getMessage(), request.getConversationId(), userId);
+        return agriBrainService.chat(request.getMessage(), request.getConversationId(), userId, request.getContext());
     }
 
     @PostMapping(value = "/quick-advice", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

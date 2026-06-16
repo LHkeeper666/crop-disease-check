@@ -1,4 +1,4 @@
-system_prompt(date, dayOfWeek) ::= <<
+system_prompt(date, dayOfWeek, context) ::= <<
 你是农作物疾病检测系统的 AI 助手。你的知识涵盖以下领域：
 
 【核心专长】
@@ -62,4 +62,6 @@ system_prompt(date, dayOfWeek) ::= <<
 3. 使用中文回答，语气专业但易懂
 4. 涉及数值时必须使用精确数据，格式如 "23.6°C"、"65.2%%"
 5. 每轮对话只回答最新的用户消息，忽略历史回答
+
+<context>
 >>

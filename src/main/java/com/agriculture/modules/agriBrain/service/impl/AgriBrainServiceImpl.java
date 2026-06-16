@@ -2,6 +2,7 @@ package com.agriculture.modules.agriBrain.service.impl;
 
 import com.agriculture.common.config.LlmProperties;
 import com.agriculture.common.service.TemplateService;
+import com.agriculture.modules.agriBrain.dto.PageContext;
 import com.agriculture.modules.agriBrain.entity.AiConversation;
 import com.agriculture.modules.agriBrain.entity.AiMessage;
 import com.agriculture.common.exception.BusinessException;
@@ -9,6 +10,7 @@ import com.agriculture.modules.agriBrain.service.AgriBrainService;
 import com.agriculture.modules.agriBrain.service.AiConfigService;
 import com.agriculture.modules.agriBrain.service.AiConversationService;
 import com.agriculture.modules.agriBrain.service.AiMessageService;
+import com.agriculture.modules.agriBrain.service.ContextBuilder;
 import com.agriculture.modules.agriBrain.tool.AiTool;
 import com.agriculture.modules.agriBrain.tool.AiToolRegistry;
 import com.agriculture.modules.agriBrain.vo.ChatEvent;
@@ -36,7 +38,7 @@ public class AgriBrainServiceImpl implements AgriBrainService {
 
     private static final Logger log = LoggerFactory.getLogger(AgriBrainServiceImpl.class);
 
-    private String buildSystemPrompt() {
+    private String buildSystemPrompt(String context) {
         java.time.LocalDate today = java.time.LocalDate.now();
         String dateStr = today.toString(); // 2026-06-13
         String dayOfWeek = today.getDayOfWeek().getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.CHINA); // 周五
@@ -44,6 +46,7 @@ public class AgriBrainServiceImpl implements AgriBrainService {
         Map<String, Object> attributes = new HashMap<>();
         attributes.put("date", dateStr);
         attributes.put("dayOfWeek", dayOfWeek);
+        attributes.put("context", context != null ? context : "");
 
         return templateService.render("system_prompt", attributes);
     }
@@ -76,16 +79,27 @@ public class AgriBrainServiceImpl implements AgriBrainService {
     @Resource
     private TemplateService templateService;
 
+    @Resource
+    private ContextBuilder contextBuilder;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public SseEmitter chat(String message, String conversationId, String userId) {
+        return chat(message, conversationId, userId, null);
+    }
+
+    @Override
+    public SseEmitter chat(String message, String conversationId, String userId, PageContext context) {
         SseEmitter emitter = new SseEmitter(120_000L);
 
         executor.submit(() -> {
             try {
                 // 获取用户企业ID
                 String companyId = resolveCompanyId(userId);
+
+                // 构建页面上下文
+                String contextText = contextBuilder.buildContext(context, userId, companyId);
 
                 // 获取或创建对话
                 AiConversation conversation;
@@ -106,7 +120,7 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                         conversation.getId(), llmProperties.getMaxHistoryMessages());
 
                 // 构造 LLM 请求
-                List<Map<String, Object>> messages = buildMessages(history, message, buildSystemPrompt());
+                List<Map<String, Object>> messages = buildMessages(history, message, buildSystemPrompt(contextText));
                 List<Map<String, Object>> tools = toolRegistry.buildToolDefinitions();
 
                 // 获取动态配置
@@ -159,7 +173,7 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                 String quickAdvicePrompt = templateService.render("quick_advice", null);
 
                 List<Map<String, Object>> messages = new ArrayList<>();
-                messages.add(Map.of("role", "system", "content", buildSystemPrompt()));
+                messages.add(Map.of("role", "system", "content", buildSystemPrompt(null)));
                 messages.add(Map.of("role", "user", "content", quickAdvicePrompt));
 
                 List<Map<String, Object>> tools = toolRegistry.buildToolDefinitions();
@@ -558,7 +572,7 @@ public class AgriBrainServiceImpl implements AgriBrainService {
         String model = getModel();
 
         List<Map<String, Object>> messages = new ArrayList<>();
-        messages.add(Map.of("role", "system", "content", buildSystemPrompt()));
+        messages.add(Map.of("role", "system", "content", buildSystemPrompt(null)));
         messages.add(Map.of("role", "user", "content", message));
 
         Map<String, Object> requestBody = new LinkedHashMap<>();
