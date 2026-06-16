@@ -377,7 +377,10 @@ public class StatisticServiceImpl implements StatisticService {
             } else {
                 reportInferences = Collections.emptyList();
             }
-            // 摄像头型暂不做企业隔离（camera → grid → greenhouse → company 链路较复杂）
+            // 摄像头型：直接按 inference.company_id 过滤
+            cameraInferences = cameraInferences.stream()
+                    .filter(i -> companyId.equals(i.getCompanyId()))
+                    .collect(Collectors.toList());
         }
 
         // 按网格分组统计，使用 Map<gridLabel, List<Inference>> 合并两种来源
@@ -491,6 +494,10 @@ public class StatisticServiceImpl implements StatisticService {
             } else {
                 reportInferences = Collections.emptyList();
             }
+            // 摄像头型：直接按 inference.company_id 过滤
+            cameraInferences = cameraInferences.stream()
+                    .filter(i -> companyId.equals(i.getCompanyId()))
+                    .collect(Collectors.toList());
         }
 
         // 合并两种来源
