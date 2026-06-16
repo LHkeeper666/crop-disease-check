@@ -57,7 +57,7 @@ class CameraControllerTest {
         void list_returnsPage() throws Exception {
             Page<Camera> page = new Page<>(1, 20, 0);
             page.setRecords(java.util.List.of());
-            when(cameraService.listCameras(any(), any(), eq(1), eq(20))).thenReturn(page);
+            when(cameraService.listCameras(any(), any(), eq(1), eq(20), any())).thenReturn(page);
 
             mockMvc.perform(get("/camera/list"))
                     .andExpect(status().isOk())
@@ -72,7 +72,7 @@ class CameraControllerTest {
         @Test
         @DisplayName("添加成功返回ID")
         void add_valid_returnsId() throws Exception {
-            when(cameraService.createCamera(any(CameraCreateRequest.class))).thenReturn("cam-001");
+            when(cameraService.createCamera(any(CameraCreateRequest.class), any())).thenReturn("cam-001");
 
             CameraCreateRequest req = new CameraCreateRequest();
             req.setName("测试摄像头");

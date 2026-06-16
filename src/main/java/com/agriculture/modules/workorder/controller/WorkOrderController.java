@@ -54,8 +54,18 @@ public class WorkOrderController {
             @RequestParam(defaultValue = "20") int size,
             HttpServletRequest request) {
         String userId = (String) request.getAttribute("userId");
-        String companyId = resolveCompanyId(userId);
-        return Result.success(workOrderService.listWorkOrders(status, severity, startDate, endDate, page, size, companyId));
+        SysUser currentUser = sysUserMapper.selectById(userId);
+        String companyId = (currentUser != null && currentUser.getCompanyId() != null
+                && !currentUser.getCompanyId().isEmpty()) ? currentUser.getCompanyId() : "";
+
+        // 专家角色只看自己负责的工单
+        String assignedTo = null;
+        if (currentUser != null && "EXPERT".equals(currentUser.getRole())) {
+            assignedTo = userId;
+        }
+
+        return Result.success(workOrderService.listWorkOrders(
+                status, severity, startDate, endDate, page, size, companyId, assignedTo));
     }
 
     @GetMapping("/{id}")

@@ -131,8 +131,19 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
     public IPage<WorkOrderVO> listWorkOrders(String status, String severity,
                                               LocalDateTime startDate, LocalDateTime endDate,
                                               int page, int size, String companyId) {
+        return listWorkOrders(status, severity, startDate, endDate, page, size, companyId, null);
+    }
+
+    /**
+     * 带企业隔离 + 负责人过滤的分页查询
+     */
+    @Override
+    public IPage<WorkOrderVO> listWorkOrders(String status, String severity,
+                                              LocalDateTime startDate, LocalDateTime endDate,
+                                              int page, int size, String companyId, String assignedTo) {
         LambdaQueryWrapper<WorkOrder> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(StringUtils.hasText(companyId), WorkOrder::getCompanyId, companyId)
+               .eq(StringUtils.hasText(assignedTo), WorkOrder::getAssignedTo, assignedTo)
                .eq(StringUtils.hasText(status), WorkOrder::getStatus, status)
                .eq(StringUtils.hasText(severity), WorkOrder::getSeverity, severity)
                .ge(startDate != null, WorkOrder::getCreatedAt, startDate)

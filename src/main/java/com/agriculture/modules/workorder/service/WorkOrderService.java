@@ -23,6 +23,11 @@ public interface WorkOrderService extends IService<WorkOrder> {
                                        LocalDateTime startDate, LocalDateTime endDate,
                                        int page, int size, String companyId);
 
+    /** 带企业隔离 + 负责人过滤的分页查询（专家角色专用） */
+    IPage<WorkOrderVO> listWorkOrders(String status, String severity,
+                                       LocalDateTime startDate, LocalDateTime endDate,
+                                       int page, int size, String companyId, String assignedTo);
+
     WorkOrderDetailVO getWorkOrderDetail(Long id);
 
     Long createWorkOrder(WorkOrderCreateDTO dto, String operatorId, String operatorName, String companyId);
