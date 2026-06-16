@@ -71,16 +71,16 @@ INSERT INTO grid (id, label, greenhouse_id, polygon_coords, area_m2, crop_type) 
 -- 3. 摄像头数据
 -- ========================================
 
-INSERT INTO camera (id, name, rtsp_url, location_x, location_y, direction, status) VALUES
-('c001', 'A区-1号摄像头', 'rtsp://192.168.1.101:554/stream1', 120.500000, 35.200000, 90.0, 'FAULT'),
-('c002', 'A区-2号摄像头', 'rtsp://192.168.1.102:554/stream1', 120.500100, 35.200100, 135.0, 'FAULT'),
-('c003', 'A区-3号摄像头', 'rtsp://192.168.1.103:554/stream1', 120.500200, 35.200200, 180.0, 'FAULT'),
-('c004', 'B区-1号摄像头', 'rtsp://192.168.1.104:554/stream1', 120.500300, 35.200300, 45.0, 'FAULT'),
-('c005', 'B区-2号摄像头', 'rtsp://192.168.1.105:554/stream1', 120.500400, 35.200400, 90.0, 'FAULT'),
-('c006', 'B区-3号摄像头', 'rtsp://192.168.1.106:554/stream1', 120.500500, 35.200500, 135.0, 'FAULT'),
-('c007', 'C区-1号摄像头', 'rtsp://192.168.1.107:554/stream1', 120.500600, 35.200600, 270.0, 'FAULT'),
-('c008', 'C区-2号摄像头', 'rtsp://192.168.1.108:554/stream1', 120.500700, 35.200700, 315.0, 'FAULT'),
-('c009', 'C区-3号摄像头', 'rtsp://192.168.1.109:554/stream1', 120.500800, 35.200800, 0.0, 'FAULT');
+INSERT INTO camera (id, name, rtsp_url, location_x, location_y, direction, status, company_id) VALUES
+('c001', 'A区-1号摄像头', 'rtsp://192.168.1.101:554/stream1', 120.500000, 35.200000, 90.0, 'FAULT', 'comp001'),
+('c002', 'A区-2号摄像头', 'rtsp://192.168.1.102:554/stream1', 120.500100, 35.200100, 135.0, 'FAULT', 'comp001'),
+('c003', 'A区-3号摄像头', 'rtsp://192.168.1.103:554/stream1', 120.500200, 35.200200, 180.0, 'FAULT', 'comp001'),
+('c004', 'B区-1号摄像头', 'rtsp://192.168.1.104:554/stream1', 120.500300, 35.200300, 45.0, 'FAULT', 'comp001'),
+('c005', 'B区-2号摄像头', 'rtsp://192.168.1.105:554/stream1', 120.500400, 35.200400, 90.0, 'FAULT', 'comp001'),
+('c006', 'B区-3号摄像头', 'rtsp://192.168.1.106:554/stream1', 120.500500, 35.200500, 135.0, 'FAULT', 'comp001'),
+('c007', 'C区-1号摄像头', 'rtsp://192.168.1.107:554/stream1', 120.500600, 35.200600, 270.0, 'FAULT', 'comp001'),
+('c008', 'C区-2号摄像头', 'rtsp://192.168.1.108:554/stream1', 120.500700, 35.200700, 315.0, 'FAULT', 'comp001'),
+('c009', 'C区-3号摄像头', 'rtsp://192.168.1.109:554/stream1', 120.500800, 35.200800, 0.0, 'FAULT', 'comp001');
 
 
 -- 摄像头覆盖网格关联
@@ -254,10 +254,10 @@ INSERT INTO pest_info (id, pest_name, description, conditions, prevention) VALUE
 -- 5. 巡检计划数据
 -- ========================================
 
-INSERT INTO inspection_plan (id, name, cron_expression, active_hours_start, active_hours_end, is_active) VALUES
-('ip001', '每日早间巡检', '0 0 6 * * ?', '06:00', '22:00', 1),
-('ip002', '每日午间巡检', '0 0 12 * * ?', '06:00', '22:00', 1),
-('ip003', '每日傍晚巡检', '0 0 18 * * ?', '06:00', '22:00', 1);
+INSERT INTO inspection_plan (id, name, cron_expression, active_hours_start, active_hours_end, is_active, company_id) VALUES
+('ip001', '每日早间巡检', '0 0 6 * * ?', '06:00', '22:00', 1, 'comp001'),
+('ip002', '每日午间巡检', '0 0 12 * * ?', '06:00', '22:00', 1, 'comp001'),
+('ip003', '每日傍晚巡检', '0 0 18 * * ?', '06:00', '22:00', 1, 'comp001');
 
 
 -- 巡检计划关联摄像头
@@ -326,19 +326,19 @@ INSERT INTO pest_info (id, pest_name, description, conditions, prevention) VALUE
 -- 10. 上报记录数据
 -- ========================================
 
-INSERT INTO report (id, user_id, grid_id, crop_type, image_urls, found_at, description, status) VALUES
-('r001', 'u004', 'g001', '番茄', '["/uploads/report/r001_img1.jpg","/uploads/report/r001_img2.jpg"]', '2026-06-01 08:30:00', '发现番茄叶片有水渍状病斑，部分果实也有腐烂迹象', 'AUDITED'),
-('r002', 'u008', 'g003', '黄瓜', '["/uploads/report/r002_img1.jpg"]', '2026-06-01 10:15:00', '黄瓜叶片背面出现灰白色霉层', 'AUDITED'),
-('r003', 'u004', 'g002', '番茄', '["/uploads/report/r003_img1.jpg","/uploads/report/r003_img2.jpg"]', '2026-06-02 09:00:00', '叶片卷曲发黄，疑似病毒感染', 'AUDITED'),
-('r004', 'u009', 'g004', '黄瓜', '["/uploads/report/r004_img1.jpg"]', '2026-06-03 14:20:00', '黄瓜叶片上有白色粉状物', 'AUDITED'),
-('r005', 'u008', 'g006', '辣椒', '["/uploads/report/r005_img1.jpg"]', '2026-06-04 07:45:00', '辣椒茎基部出现水渍状腐烂，部分植株已经倒伏', 'AUDITED'),
-('r006', 'u004', 'g001', '番茄', '["/uploads/report/r006_img1.jpg"]', '2026-06-05 11:00:00', '发现叶片背面有小型红色螨虫', 'AUDITED'),
-('r007', 'u009', 'g008', '草莓', '["/uploads/report/r007_img1.jpg","/uploads/report/r007_img2.jpg"]', '2026-06-06 15:30:00', '草莓叶片和果实表面有白色粉层', 'AUDITED'),
-('r008', 'u008', 'g003', '黄瓜', '["/uploads/report/r008_img1.jpg"]', '2026-06-07 08:00:00', '叶片上发现小飞虫，疑似白粉虱', 'PENDING'),
-('r009', 'u004', 'g005', '番茄', '["/uploads/report/r009_img1.jpg"]', '2026-06-08 10:30:00', '番茄果实被虫蛀食，有虫洞和虫粪', 'AUDITED'),
-('r010', 'u009', 'g009', '草莓', '["/uploads/report/r010_img1.jpg"]', '2026-06-09 09:15:00', '草莓果实有灰色霉层，部分软腐', 'PENDING_RECOGNITION'),
-('r011', 'u008', 'g007', '辣椒', '["/uploads/report/r011_img1.jpg"]', '2026-06-09 14:00:00', '辣椒嫩叶卷曲，叶面有银白色斑纹', 'PENDING'),
-('r012', 'u004', 'g010', '茄子', '["/uploads/report/r012_img1.jpg"]', '2026-06-10 07:30:00', '茄子叶片发黄，部分叶片有斑点', 'PENDING_RECOGNITION');
+INSERT INTO report (id, user_id, grid_id, crop_type, image_urls, found_at, description, status, company_id) VALUES
+('r001', 'u004', 'g001', '番茄', '["/uploads/report/r001_img1.jpg","/uploads/report/r001_img2.jpg"]', '2026-06-01 08:30:00', '发现番茄叶片有水渍状病斑，部分果实也有腐烂迹象', 'AUDITED', 'comp001'),
+('r002', 'u008', 'g003', '黄瓜', '["/uploads/report/r002_img1.jpg"]', '2026-06-01 10:15:00', '黄瓜叶片背面出现灰白色霉层', 'AUDITED', 'comp001'),
+('r003', 'u004', 'g002', '番茄', '["/uploads/report/r003_img1.jpg","/uploads/report/r003_img2.jpg"]', '2026-06-02 09:00:00', '叶片卷曲发黄，疑似病毒感染', 'AUDITED', 'comp001'),
+('r004', 'u009', 'g004', '黄瓜', '["/uploads/report/r004_img1.jpg"]', '2026-06-03 14:20:00', '黄瓜叶片上有白色粉状物', 'AUDITED', 'comp001'),
+('r005', 'u008', 'g006', '辣椒', '["/uploads/report/r005_img1.jpg"]', '2026-06-04 07:45:00', '辣椒茎基部出现水渍状腐烂，部分植株已经倒伏', 'AUDITED', 'comp001'),
+('r006', 'u004', 'g001', '番茄', '["/uploads/report/r006_img1.jpg"]', '2026-06-05 11:00:00', '发现叶片背面有小型红色螨虫', 'AUDITED', 'comp001'),
+('r007', 'u009', 'g008', '草莓', '["/uploads/report/r007_img1.jpg","/uploads/report/r007_img2.jpg"]', '2026-06-06 15:30:00', '草莓叶片和果实表面有白色粉层', 'AUDITED', 'comp001'),
+('r008', 'u008', 'g003', '黄瓜', '["/uploads/report/r008_img1.jpg"]', '2026-06-07 08:00:00', '叶片上发现小飞虫，疑似白粉虱', 'PENDING', 'comp001'),
+('r009', 'u004', 'g005', '番茄', '["/uploads/report/r009_img1.jpg"]', '2026-06-08 10:30:00', '番茄果实被虫蛀食，有虫洞和虫粪', 'AUDITED', 'comp001'),
+('r010', 'u009', 'g009', '草莓', '["/uploads/report/r010_img1.jpg"]', '2026-06-09 09:15:00', '草莓果实有灰色霉层，部分软腐', 'PENDING_RECOGNITION', 'comp001'),
+('r011', 'u008', 'g007', '辣椒', '["/uploads/report/r011_img1.jpg"]', '2026-06-09 14:00:00', '辣椒嫩叶卷曲，叶面有银白色斑纹', 'PENDING', 'comp001'),
+('r012', 'u004', 'g010', '茄子', '["/uploads/report/r012_img1.jpg"]', '2026-06-10 07:30:00', '茄子叶片发黄，部分叶片有斑点', 'PENDING_RECOGNITION', 'comp001');
 
 
 -- ========================================
@@ -521,45 +521,45 @@ INSERT INTO work_order_history (workorder_id, status, operator_id, operator_name
 -- 16. 巡检日志数据
 -- ========================================
 
-INSERT INTO inspection_log (id, plan_id, camera_id, capture_time, image_url, disease_count, pest_count, max_confidence, duration_ms, status) VALUES
-('il001', 'ip001', 'c001', '2026-06-01 06:00:15', '/uploads/inspection/il001.jpg', 1, 0, 0.8230, 3200, 'SUCCESS'),
-('il002', 'ip001', 'c002', '2026-06-01 06:01:02', '/uploads/inspection/il002.jpg', 0, 0, 0.0000, 2800, 'SUCCESS'),
-('il003', 'ip001', 'c003', '2026-06-01 06:02:30', '/uploads/inspection/il003.jpg', 0, 1, 0.6540, 3500, 'SUCCESS'),
-('il004', 'ip002', 'c001', '2026-06-01 12:00:20', '/uploads/inspection/il004.jpg', 1, 0, 0.8910, 3100, 'SUCCESS'),
-('il005', 'ip002', 'c003', '2026-06-01 12:01:45', '/uploads/inspection/il005.jpg', 1, 0, 0.7650, 3400, 'SUCCESS'),
-('il006', 'ip003', 'c001', '2026-06-01 18:00:10', '/uploads/inspection/il006.jpg', 0, 0, 0.0000, 2900, 'SUCCESS'),
-('il007', 'ip003', 'c002', '2026-06-01 18:01:33', '/uploads/inspection/il007.jpg', 0, 0, 0.0000, 2700, 'SUCCESS'),
-('il008', 'ip003', 'c003', '2026-06-01 18:03:01', '/uploads/inspection/il008.jpg', 1, 0, 0.8120, 3600, 'SUCCESS'),
-('il009', 'ip003', 'c004', '2026-06-01 18:04:20', NULL, 0, 0, NULL, NULL, 'FAILED'),
+INSERT INTO inspection_log (id, plan_id, camera_id, capture_time, image_url, disease_count, pest_count, max_confidence, duration_ms, status, company_id) VALUES
+('il001', 'ip001', 'c001', '2026-06-01 06:00:15', '/uploads/inspection/il001.jpg', 1, 0, 0.8230, 3200, 'SUCCESS', 'comp001'),
+('il002', 'ip001', 'c002', '2026-06-01 06:01:02', '/uploads/inspection/il002.jpg', 0, 0, 0.0000, 2800, 'SUCCESS', 'comp001'),
+('il003', 'ip001', 'c003', '2026-06-01 06:02:30', '/uploads/inspection/il003.jpg', 0, 1, 0.6540, 3500, 'SUCCESS', 'comp001'),
+('il004', 'ip002', 'c001', '2026-06-01 12:00:20', '/uploads/inspection/il004.jpg', 1, 0, 0.8910, 3100, 'SUCCESS', 'comp001'),
+('il005', 'ip002', 'c003', '2026-06-01 12:01:45', '/uploads/inspection/il005.jpg', 1, 0, 0.7650, 3400, 'SUCCESS', 'comp001'),
+('il006', 'ip003', 'c001', '2026-06-01 18:00:10', '/uploads/inspection/il006.jpg', 0, 0, 0.0000, 2900, 'SUCCESS', 'comp001'),
+('il007', 'ip003', 'c002', '2026-06-01 18:01:33', '/uploads/inspection/il007.jpg', 0, 0, 0.0000, 2700, 'SUCCESS', 'comp001'),
+('il008', 'ip003', 'c003', '2026-06-01 18:03:01', '/uploads/inspection/il008.jpg', 1, 0, 0.8120, 3600, 'SUCCESS', 'comp001'),
+('il009', 'ip003', 'c004', '2026-06-01 18:04:20', NULL, 0, 0, NULL, NULL, 'FAILED', 'comp001'),
 
-('il010', 'ip001', 'c001', '2026-06-02 06:00:18', '/uploads/inspection/il010.jpg', 1, 0, 0.9100, 3300, 'SUCCESS'),
-('il011', 'ip001', 'c002', '2026-06-02 06:01:05', '/uploads/inspection/il011.jpg', 1, 0, 0.7230, 2950, 'SUCCESS'),
-('il012', 'ip001', 'c003', '2026-06-02 06:02:22', '/uploads/inspection/il012.jpg', 0, 0, 0.0000, 3100, 'SUCCESS'),
+('il010', 'ip001', 'c001', '2026-06-02 06:00:18', '/uploads/inspection/il010.jpg', 1, 0, 0.9100, 3300, 'SUCCESS', 'comp001'),
+('il011', 'ip001', 'c002', '2026-06-02 06:01:05', '/uploads/inspection/il011.jpg', 1, 0, 0.7230, 2950, 'SUCCESS', 'comp001'),
+('il012', 'ip001', 'c003', '2026-06-02 06:02:22', '/uploads/inspection/il012.jpg', 0, 0, 0.0000, 3100, 'SUCCESS', 'comp001'),
 
-('il013', 'ip001', 'c001', '2026-06-03 06:00:12', '/uploads/inspection/il013.jpg', 2, 0, 0.9450, 3500, 'SUCCESS'),
-('il014', 'ip002', 'c001', '2026-06-03 12:00:30', '/uploads/inspection/il014.jpg', 1, 1, 0.8780, 3800, 'SUCCESS'),
-('il015', 'ip002', 'c003', '2026-06-03 12:01:55', '/uploads/inspection/il015.jpg', 1, 0, 0.8340, 3200, 'SUCCESS'),
+('il013', 'ip001', 'c001', '2026-06-03 06:00:12', '/uploads/inspection/il013.jpg', 2, 0, 0.9450, 3500, 'SUCCESS', 'comp001'),
+('il014', 'ip002', 'c001', '2026-06-03 12:00:30', '/uploads/inspection/il014.jpg', 1, 1, 0.8780, 3800, 'SUCCESS', 'comp001'),
+('il015', 'ip002', 'c003', '2026-06-03 12:01:55', '/uploads/inspection/il015.jpg', 1, 0, 0.8340, 3200, 'SUCCESS', 'comp001'),
 
-('il016', 'ip001', 'c005', '2026-06-04 06:00:25', '/uploads/inspection/il016.jpg', 1, 0, 0.9620, 3400, 'SUCCESS'),
-('il017', 'ip001', 'c006', '2026-06-04 06:01:40', '/uploads/inspection/il017.jpg', 1, 0, 0.8890, 3600, 'SUCCESS'),
-('il018', 'ip002', 'c001', '2026-06-04 12:00:15', '/uploads/inspection/il018.jpg', 0, 1, 0.7120, 3000, 'SUCCESS'),
+('il016', 'ip001', 'c005', '2026-06-04 06:00:25', '/uploads/inspection/il016.jpg', 1, 0, 0.9620, 3400, 'SUCCESS', 'comp001'),
+('il017', 'ip001', 'c006', '2026-06-04 06:01:40', '/uploads/inspection/il017.jpg', 1, 0, 0.8890, 3600, 'SUCCESS', 'comp001'),
+('il018', 'ip002', 'c001', '2026-06-04 12:00:15', '/uploads/inspection/il018.jpg', 0, 1, 0.7120, 3000, 'SUCCESS', 'comp001'),
 
-('il019', 'ip001', 'c001', '2026-06-05 06:00:20', '/uploads/inspection/il019.jpg', 1, 1, 0.9010, 3700, 'SUCCESS'),
-('il020', 'ip001', 'c003', '2026-06-05 06:02:10', '/uploads/inspection/il020.jpg', 0, 0, 0.0000, 2800, 'SUCCESS'),
+('il019', 'ip001', 'c001', '2026-06-05 06:00:20', '/uploads/inspection/il019.jpg', 1, 1, 0.9010, 3700, 'SUCCESS', 'comp001'),
+('il020', 'ip001', 'c003', '2026-06-05 06:02:10', '/uploads/inspection/il020.jpg', 0, 0, 0.0000, 2800, 'SUCCESS', 'comp001'),
 
-('il021', 'ip001', 'c001', '2026-06-06 06:00:08', '/uploads/inspection/il021.jpg', 0, 0, 0.0000, 2900, 'SUCCESS'),
-('il022', 'ip002', 'c006', '2026-06-06 12:00:35', '/uploads/inspection/il022.jpg', 1, 0, 0.9150, 3500, 'SUCCESS'),
+('il021', 'ip001', 'c001', '2026-06-06 06:00:08', '/uploads/inspection/il021.jpg', 0, 0, 0.0000, 2900, 'SUCCESS', 'comp001'),
+('il022', 'ip002', 'c006', '2026-06-06 12:00:35', '/uploads/inspection/il022.jpg', 1, 0, 0.9150, 3500, 'SUCCESS', 'comp001'),
 
-('il023', 'ip001', 'c001', '2026-06-07 06:00:15', '/uploads/inspection/il023.jpg', 0, 0, 0.0000, 2800, 'SUCCESS'),
-('il024', 'ip001', 'c002', '2026-06-07 06:01:08', '/uploads/inspection/il024.jpg', 1, 0, 0.8560, 3100, 'SUCCESS'),
+('il023', 'ip001', 'c001', '2026-06-07 06:00:15', '/uploads/inspection/il023.jpg', 0, 0, 0.0000, 2800, 'SUCCESS', 'comp001'),
+('il024', 'ip001', 'c002', '2026-06-07 06:01:08', '/uploads/inspection/il024.jpg', 1, 0, 0.8560, 3100, 'SUCCESS', 'comp001'),
 
-('il025', 'ip001', 'c001', '2026-06-08 06:00:22', '/uploads/inspection/il025.jpg', 1, 1, 0.8750, 3600, 'SUCCESS'),
-('il026', 'ip002', 'c005', '2026-06-08 12:00:40', '/uploads/inspection/il026.jpg', 0, 0, 0.0000, 2700, 'SUCCESS'),
-('il027', 'ip003', 'c006', '2026-06-08 18:00:18', '/uploads/inspection/il027.jpg', 1, 0, 0.9200, 3400, 'SUCCESS'),
+('il025', 'ip001', 'c001', '2026-06-08 06:00:22', '/uploads/inspection/il025.jpg', 1, 1, 0.8750, 3600, 'SUCCESS', 'comp001'),
+('il026', 'ip002', 'c005', '2026-06-08 12:00:40', '/uploads/inspection/il026.jpg', 0, 0, 0.0000, 2700, 'SUCCESS', 'comp001'),
+('il027', 'ip003', 'c006', '2026-06-08 18:00:18', '/uploads/inspection/il027.jpg', 1, 0, 0.9200, 3400, 'SUCCESS', 'comp001'),
 
-('il028', 'ip001', 'c001', '2026-06-09 06:00:10', '/uploads/inspection/il028.jpg', 0, 0, 0.0000, 2850, 'SUCCESS'),
-('il029', 'ip001', 'c006', '2026-06-09 06:01:55', '/uploads/inspection/il029.jpg', 1, 0, 0.8670, 3300, 'SUCCESS'),
-('il030', 'ip002', 'c001', '2026-06-09 12:00:28', '/uploads/inspection/il030.jpg', 0, 1, 0.6890, 3100, 'SUCCESS');
+('il028', 'ip001', 'c001', '2026-06-09 06:00:10', '/uploads/inspection/il028.jpg', 0, 0, 0.0000, 2850, 'SUCCESS', 'comp001'),
+('il029', 'ip001', 'c006', '2026-06-09 06:01:55', '/uploads/inspection/il029.jpg', 1, 0, 0.8670, 3300, 'SUCCESS', 'comp001'),
+('il030', 'ip002', 'c001', '2026-06-09 12:00:28', '/uploads/inspection/il030.jpg', 0, 1, 0.6890, 3100, 'SUCCESS', 'comp001');
 
 
 -- ========================================
@@ -607,12 +607,12 @@ INSERT INTO daily_report (id, report_date, detections, disease_count, pest_count
 -- 18. 农业大脑对话数据
 -- ========================================
 
-INSERT INTO ai_conversation (id, user_id, title, created_at) VALUES
-('conv001', 'u004', '番茄晚疫病怎么防治？', '2026-06-01 09:00:00'),
-('conv002', 'u008', '黄瓜常见病害识别', '2026-06-02 14:00:00'),
-('conv003', 'u004', '大棚湿度管理建议', '2026-06-05 10:30:00'),
-('conv004', 'u009', '草莓种植注意事项', '2026-06-07 08:15:00'),
-('conv005', 'u008', '辣椒疫病紧急求助', '2026-06-04 07:50:00');
+INSERT INTO ai_conversation (id, user_id, title, created_at, company_id) VALUES
+('conv001', 'u004', '番茄晚疫病怎么防治？', '2026-06-01 09:00:00', 'comp001'),
+('conv002', 'u008', '黄瓜常见病害识别', '2026-06-02 14:00:00', 'comp001'),
+('conv003', 'u004', '大棚湿度管理建议', '2026-06-05 10:30:00', 'comp001'),
+('conv004', 'u009', '草莓种植注意事项', '2026-06-07 08:15:00', 'comp001'),
+('conv005', 'u008', '辣椒疫病紧急求助', '2026-06-04 07:50:00', 'comp001');
 
 
 -- 农业大脑消息数据
@@ -644,37 +644,37 @@ INSERT INTO ai_message (id, conversation_id, user_id, role, content) VALUES
 -- 19. 系统操作日志数据
 -- ========================================
 
-INSERT INTO sys_log (user_id, username, operation, method, params, ip, duration, status, error_msg) VALUES
-('u001', 'admin', '用户登录', 'POST /api/auth/login', '{"username":"admin"}', '192.168.1.50', 120, 1, NULL),
-('u004', 'staff01', '用户登录', 'POST /api/auth/login', '{"username":"staff01"}', '192.168.1.51', 95, 1, NULL),
-('u002', 'expert01', '用户登录', 'POST /api/auth/login', '{"username":"expert01"}', '192.168.1.52', 110, 1, NULL),
-('u004', 'staff01', '提交上报', 'POST /api/report', '{"gridId":"g001","cropType":"番茄"}', '192.168.1.51', 350, 1, NULL),
-('u002', 'expert01', '审核上报', 'POST /api/report/r001/audit', '{"result":"APPROVED"}', '192.168.1.52', 200, 1, NULL),
-('u002', 'expert01', '创建防治方案', 'POST /api/prevention-plan', '{"reportId":"r001"}', '192.168.1.52', 450, 1, NULL),
-('u008', 'staff02', '用户登录', 'POST /api/auth/login', '{"username":"staff02"}', '192.168.1.53', 88, 1, NULL),
-('u008', 'staff02', '提交上报', 'POST /api/report', '{"gridId":"g003","cropType":"黄瓜"}', '192.168.1.53', 320, 1, NULL),
-('u002', 'expert01', '审核上报', 'POST /api/report/r002/audit', '{"result":"APPROVED"}', '192.168.1.52', 180, 1, NULL),
-('u001', 'admin', '查看摄像头列表', 'GET /api/camera', NULL, '192.168.1.50', 55, 1, NULL),
-('u003', 'manager01', '用户登录', 'POST /api/auth/login', '{"username":"manager01"}', '192.168.1.54', 102, 1, NULL),
-('u003', 'manager01', '查看工单列表', 'GET /api/work-order', NULL, '192.168.1.54', 78, 1, NULL),
-('u004', 'staff01', '处理工单', 'PUT /api/work-order/wo001/status', '{"status":"PROCESSING"}', '192.168.1.51', 150, 1, NULL),
-('u004', 'staff01', '完成工单', 'PUT /api/work-order/wo001/status', '{"status":"DONE"}', '192.168.1.51', 165, 1, NULL),
-('u005', 'expert02', '用户登录', 'POST /api/auth/login', '{"username":"expert02"}', '192.168.1.55', 93, 1, NULL),
-('u005', 'expert02', '审核上报', 'POST /api/report/r003/audit', '{"result":"APPROVED"}', '192.168.1.55', 210, 1, NULL),
-('u006', 'expert03', '用户登录', 'POST /api/auth/login', '{"username":"expert03"}', '192.168.1.56', 105, 1, NULL),
-('u006', 'expert03', '审核上报', 'POST /api/report/r005/audit', '{"result":"APPROVED"}', '192.168.1.56', 195, 1, NULL),
-('u001', 'admin', '查看日度报告', 'GET /api/daily-report?date=2026-06-04', NULL, '192.168.1.50', 130, 1, NULL),
-('u009', 'staff03', '用户登录', 'POST /api/auth/login', '{"username":"staff03"}', '192.168.1.57', 91, 1, NULL),
-('u009', 'staff03', '提交上报', 'POST /api/report', '{"gridId":"g004","cropType":"黄瓜"}', '192.168.1.57', 290, 1, NULL),
-('u001', 'admin', '查询巡检日志', 'GET /api/inspection-log', NULL, '192.168.1.50', 85, 1, NULL),
-('u007', 'manager02', '用户登录', 'POST /api/auth/login', '{"username":"manager02"}', '192.168.1.58', 98, 1, NULL),
-('u007', 'manager02', '查看工单统计', 'GET /api/work-order/stats', NULL, '192.168.1.58', 120, 1, NULL),
-('u004', 'staff01', '农业大脑对话', 'POST /api/ai/chat', '{"conversationId":"conv001"}', '192.168.1.51', 2500, 1, NULL),
-('u001', 'admin', '导出报告', 'GET /api/daily-report/dr005/export', NULL, '192.168.1.50', 3500, 1, NULL),
-('u004', 'staff01', '用户登录失败', 'POST /api/auth/login', '{"username":"staff01"}', '192.168.1.51', 50, 0, '密码错误'),
-('u008', 'staff02', '处理工单', 'PUT /api/work-order/wo005/status', '{"status":"PROCESSING"}', '192.168.1.53', 145, 1, NULL),
-('u008', 'staff02', '完成工单', 'PUT /api/work-order/wo005/status', '{"status":"DONE"}', '192.168.1.53', 160, 1, NULL),
-('u001', 'admin', '查看系统概览', 'GET /api/dashboard', NULL, '192.168.1.50', 220, 1, NULL);
+INSERT INTO sys_log (user_id, username, operation, method, params, ip, duration, status, error_msg, company_id) VALUES
+('u001', 'admin', '用户登录', 'POST /api/auth/login', '{"username":"admin"}', '192.168.1.50', 120, 1, NULL, 'comp001'),
+('u004', 'staff01', '用户登录', 'POST /api/auth/login', '{"username":"staff01"}', '192.168.1.51', 95, 1, NULL, 'comp001'),
+('u002', 'expert01', '用户登录', 'POST /api/auth/login', '{"username":"expert01"}', '192.168.1.52', 110, 1, NULL, 'comp001'),
+('u004', 'staff01', '提交上报', 'POST /api/report', '{"gridId":"g001","cropType":"番茄"}', '192.168.1.51', 350, 1, NULL, 'comp001'),
+('u002', 'expert01', '审核上报', 'POST /api/report/r001/audit', '{"result":"APPROVED"}', '192.168.1.52', 200, 1, NULL, 'comp001'),
+('u002', 'expert01', '创建防治方案', 'POST /api/prevention-plan', '{"reportId":"r001"}', '192.168.1.52', 450, 1, NULL, 'comp001'),
+('u008', 'staff02', '用户登录', 'POST /api/auth/login', '{"username":"staff02"}', '192.168.1.53', 88, 1, NULL, 'comp001'),
+('u008', 'staff02', '提交上报', 'POST /api/report', '{"gridId":"g003","cropType":"黄瓜"}', '192.168.1.53', 320, 1, NULL, 'comp001'),
+('u002', 'expert01', '审核上报', 'POST /api/report/r002/audit', '{"result":"APPROVED"}', '192.168.1.52', 180, 1, NULL, 'comp001'),
+('u001', 'admin', '查看摄像头列表', 'GET /api/camera', NULL, '192.168.1.50', 55, 1, NULL, 'comp001'),
+('u003', 'manager01', '用户登录', 'POST /api/auth/login', '{"username":"manager01"}', '192.168.1.54', 102, 1, NULL, 'comp001'),
+('u003', 'manager01', '查看工单列表', 'GET /api/work-order', NULL, '192.168.1.54', 78, 1, NULL, 'comp001'),
+('u004', 'staff01', '处理工单', 'PUT /api/work-order/wo001/status', '{"status":"PROCESSING"}', '192.168.1.51', 150, 1, NULL, 'comp001'),
+('u004', 'staff01', '完成工单', 'PUT /api/work-order/wo001/status', '{"status":"DONE"}', '192.168.1.51', 165, 1, NULL, 'comp001'),
+('u005', 'expert02', '用户登录', 'POST /api/auth/login', '{"username":"expert02"}', '192.168.1.55', 93, 1, NULL, 'comp001'),
+('u005', 'expert02', '审核上报', 'POST /api/report/r003/audit', '{"result":"APPROVED"}', '192.168.1.55', 210, 1, NULL, 'comp001'),
+('u006', 'expert03', '用户登录', 'POST /api/auth/login', '{"username":"expert03"}', '192.168.1.56', 105, 1, NULL, 'comp001'),
+('u006', 'expert03', '审核上报', 'POST /api/report/r005/audit', '{"result":"APPROVED"}', '192.168.1.56', 195, 1, NULL, 'comp001'),
+('u001', 'admin', '查看日度报告', 'GET /api/daily-report?date=2026-06-04', NULL, '192.168.1.50', 130, 1, NULL, 'comp001'),
+('u009', 'staff03', '用户登录', 'POST /api/auth/login', '{"username":"staff03"}', '192.168.1.57', 91, 1, NULL, 'comp001'),
+('u009', 'staff03', '提交上报', 'POST /api/report', '{"gridId":"g004","cropType":"黄瓜"}', '192.168.1.57', 290, 1, NULL, 'comp001'),
+('u001', 'admin', '查询巡检日志', 'GET /api/inspection-log', NULL, '192.168.1.50', 85, 1, NULL, 'comp001'),
+('u007', 'manager02', '用户登录', 'POST /api/auth/login', '{"username":"manager02"}', '192.168.1.58', 98, 1, NULL, 'comp001'),
+('u007', 'manager02', '查看工单统计', 'GET /api/work-order/stats', NULL, '192.168.1.58', 120, 1, NULL, 'comp001'),
+('u004', 'staff01', '农业大脑对话', 'POST /api/ai/chat', '{"conversationId":"conv001"}', '192.168.1.51', 2500, 1, NULL, 'comp001'),
+('u001', 'admin', '导出报告', 'GET /api/daily-report/dr005/export', NULL, '192.168.1.50', 3500, 1, NULL, 'comp001'),
+('u004', 'staff01', '用户登录失败', 'POST /api/auth/login', '{"username":"staff01"}', '192.168.1.51', 50, 0, '密码错误', 'comp001'),
+('u008', 'staff02', '处理工单', 'PUT /api/work-order/wo005/status', '{"status":"PROCESSING"}', '192.168.1.53', 145, 1, NULL, 'comp001'),
+('u008', 'staff02', '完成工单', 'PUT /api/work-order/wo005/status', '{"status":"DONE"}', '192.168.1.53', 160, 1, NULL, 'comp001'),
+('u001', 'admin', '查看系统概览', 'GET /api/dashboard', NULL, '192.168.1.50', 220, 1, NULL, 'comp001');
 
 
 -- ========================================
