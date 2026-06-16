@@ -260,4 +260,28 @@ public class UserServiceImpl implements UserService {
                 })
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public List<UserSimpleVO> getManagers(String keyword) {
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUser::getDeleted, 0)
+               .eq(SysUser::getRole, "MANAGER")
+               .eq(SysUser::getStatus, "ACTIVE");
+
+        if (StringUtils.hasText(keyword)) {
+            wrapper.like(SysUser::getName, keyword);
+        }
+
+        wrapper.orderByDesc(SysUser::getCreatedAt);
+
+        List<SysUser> managers = userMapper.selectList(wrapper);
+
+        return managers.stream()
+                .map(user -> {
+                    UserSimpleVO vo = new UserSimpleVO();
+                    BeanUtil.copyProperties(user, vo);
+                    return vo;
+                })
+                .collect(Collectors.toList());
+    }
 }

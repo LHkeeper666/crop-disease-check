@@ -199,6 +199,11 @@ export async function fetchExperts(): Promise<ExpertVO[]> {
   return request<ExpertVO[]>('/api/users/experts')
 }
 
+/** 获取管理员列表（所有登录用户可访问） */
+export async function fetchManagers(): Promise<ExpertVO[]> {
+  return request<ExpertVO[]>('/api/users/managers')
+}
+
 /** 更新工单指派专家 */
 export async function updateWorkOrderAssignee(
   id: number,

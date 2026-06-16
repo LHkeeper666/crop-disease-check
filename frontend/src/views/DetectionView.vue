@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
+import { useWorkOrderStore } from '../stores/workorder'
+import type { ExpertVO } from '../api/workorder'
 
 interface Detection {
   class_name: string
@@ -36,11 +38,35 @@ const fileInputRef = ref<HTMLInputElement>()
 const activeIndex = ref(0)
 const uploadProgress = ref({ done: 0, total: 0 })
 const showEnlarged = ref(false)
+const detectionMode = ref<'detect' | 'workorder'>('detect')
+
+// ========== 工单创建 ==========
+const workOrderStore = useWorkOrderStore()
+const showWorkOrderModal = ref(false)
+const workOrderSubmitting = ref(false)
+const workOrderSuccess = ref(false)
+const workOrderForm = ref({
+  title: '',
+  severity: 'MEDIUM' as string,
+  type: '' as string,
+  pestName: '' as string,
+  confidence: 0,
+  assignedTo: '' as string,
+})
+const workOrderDetectionIndex = ref(-1) // 当前正在创建工单的检测项索引
+const workOrderImageIndex = ref(-1) // 当前正在创建工单的图片索引
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') showEnlarged.value = false
+  if (e.key === 'Escape') {
+    showEnlarged.value = false
+    showWorkOrderModal.value = false
+  }
 }
-onMounted(() => window.addEventListener('keydown', onKeydown))
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  workOrderStore.fetchExperts()
+  workOrderStore.fetchManagers()
+})
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 const isBatch = computed(() => files.value.length > 1)
@@ -167,6 +193,87 @@ function fileToBase64(file: File): Promise<string> {
   })
 }
 
+// ========== 工单创建逻辑 ==========
+const AUTO_ASSIGN_THRESHOLD = 0.6
+
+/** 根据置信度自动选择负责人：>0.6 选管理员，≤0.6 选专家 */
+function autoAssignee(confidence: number): string {
+  if (confidence > AUTO_ASSIGN_THRESHOLD) {
+    return workOrderStore.managers.length > 0 ? workOrderStore.managers[0].id : ''
+  }
+  return workOrderStore.experts.length > 0 ? workOrderStore.experts[0].id : ''
+}
+
+/** 根据置信度获取推荐角色名 */
+function recommendedRoleLabel(confidence: number): string {
+  return confidence > AUTO_ASSIGN_THRESHOLD ? '管理员' : '专家'
+}
+
+/** 根据置信度推断严重程度 */
+function inferSeverity(confidence: number): string {
+  if (confidence >= 0.8) return 'CRITICAL'
+  if (confidence >= 0.6) return 'HIGH'
+  if (confidence >= 0.4) return 'MEDIUM'
+  return 'LOW'
+}
+
+/** 打开工单创建弹窗 */
+function openWorkOrderModal(det: Detection, detIndex: number, imgIndex: number, pipeline: string) {
+  workOrderDetectionIndex.value = detIndex
+  workOrderImageIndex.value = imgIndex
+  workOrderSuccess.value = false
+  workOrderForm.value = {
+    title: `【${inferSeverity(det.confidence)}】${det.name_cn} 工单`,
+    severity: inferSeverity(det.confidence),
+    type: pipeline,
+    pestName: det.name_cn,
+    confidence: det.confidence,
+    assignedTo: 'auto',
+  }
+  showWorkOrderModal.value = true
+}
+
+/** 提交工单 */
+async function submitWorkOrder() {
+  workOrderSubmitting.value = true
+  try {
+    // 解析负责人：auto 时根据置信度实时选择
+    let assignedTo: string | undefined
+    if (workOrderForm.value.assignedTo === 'auto') {
+      assignedTo = autoAssignee(workOrderForm.value.confidence) || undefined
+    } else {
+      assignedTo = workOrderForm.value.assignedTo || undefined
+    }
+
+    await workOrderStore.addOrder({
+      title: workOrderForm.value.title,
+      severity: workOrderForm.value.severity,
+      type: workOrderForm.value.type,
+      pestName: workOrderForm.value.pestName,
+      confidence: workOrderForm.value.confidence,
+      assignedTo,
+    })
+    workOrderSuccess.value = true
+    setTimeout(() => {
+      showWorkOrderModal.value = false
+      workOrderSuccess.value = false
+    }, 1500)
+  } catch {
+    // error is handled in store
+  } finally {
+    workOrderSubmitting.value = false
+  }
+}
+
+/** 合并专家和管理员列表供下拉选择 */
+const assignableUsers = computed<ExpertVO[]>(() => {
+  const experts = workOrderStore.experts
+  const managers = workOrderStore.managers
+  // 去重（如果有人同时是 EXPERT 和 MANAGER，虽然不太可能）
+  const ids = new Set(experts.map(e => e.id))
+  return [...experts, ...managers.filter(m => !ids.has(m.id))]
+})
+
 function getSeverityColor(confidence: number): string {
   if (confidence >= 0.8) return 'text-[#EF4444]'
   if (confidence >= 0.6) return 'text-[#FF6A00]'
@@ -193,7 +300,26 @@ function totalDetections(item: BatchItem): number {
         <h1 class="text-lg font-bold text-white">图像检测</h1>
         <p class="text-xs text-slate-500 font-mono">AI-POWERED DISEASE & PEST DETECTION</p>
       </div>
-      <div class="flex items-center gap-3">
+      <!-- Mode toggle -->
+      <div class="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+        <button
+          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+          :class="detectionMode === 'detect'
+            ? 'bg-white/10 text-white shadow-sm'
+            : 'text-slate-500 hover:text-slate-300'"
+          @click="detectionMode = 'detect'"
+        >
+          仅检测
+        </button>
+        <button
+          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+          :class="detectionMode === 'workorder'
+            ? 'bg-gradient-to-r from-[#FF6A00]/20 to-[#FFB300]/20 text-[#FF6A00] border border-[#FF6A00]/20 shadow-sm'
+            : 'text-slate-500 hover:text-slate-300'"
+          @click="detectionMode = 'workorder'"
+        >
+          检测并生成工单
+        </button>
       </div>
     </div>
 
@@ -425,10 +551,18 @@ function totalDetections(item: BatchItem): number {
                     <div class="text-sm text-white font-medium truncate">{{ det.name_cn }}</div>
                     <div class="text-[10px] text-slate-500 font-mono">{{ det.class_name }}</div>
                   </div>
-                  <div class="text-right">
+                  <div class="text-right shrink-0">
                     <div class="text-sm font-mono font-bold" :class="getSeverityColor(det.confidence)">{{ (det.confidence * 100).toFixed(1) }}%</div>
                     <div class="text-[10px] text-slate-600 font-mono">{{ det.bbox.width }}x{{ det.bbox.height }}</div>
                   </div>
+                  <button
+                    v-if="detectionMode === 'workorder'"
+                    class="shrink-0 px-2 py-1 rounded-md text-[10px] font-medium border transition-all hover:scale-105"
+                    :class="'bg-[#FF6A00]/10 border-[#FF6A00]/20 text-[#FF6A00] hover:bg-[#FF6A00]/20'"
+                    @click="openWorkOrderModal(det, i, activeIndex, 'disease')"
+                  >
+                    生成工单
+                  </button>
                 </div>
               </div>
             </div>
@@ -448,10 +582,18 @@ function totalDetections(item: BatchItem): number {
                     <div class="text-sm text-white font-medium truncate">{{ det.name_cn }}</div>
                     <div class="text-[10px] text-slate-500 font-mono">{{ det.class_name }}</div>
                   </div>
-                  <div class="text-right">
+                  <div class="text-right shrink-0">
                     <div class="text-sm font-mono font-bold" :class="getSeverityColor(det.confidence)">{{ (det.confidence * 100).toFixed(1) }}%</div>
                     <div class="text-[10px] text-slate-600 font-mono">{{ det.bbox.width }}x{{ det.bbox.height }}</div>
                   </div>
+                  <button
+                    v-if="detectionMode === 'workorder'"
+                    class="shrink-0 px-2 py-1 rounded-md text-[10px] font-medium border transition-all hover:scale-105"
+                    :class="'bg-[#FF6A00]/10 border-[#FF6A00]/20 text-[#FF6A00] hover:bg-[#FF6A00]/20'"
+                    @click="openWorkOrderModal(det, i, activeIndex, 'pest')"
+                  >
+                    生成工单
+                  </button>
                 </div>
               </div>
             </div>
@@ -520,6 +662,120 @@ function totalDetections(item: BatchItem): number {
             <path d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
+      </div>
+    </div>
+
+    <!-- Work Order Creation Modal -->
+    <div
+      v-if="showWorkOrderModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      @mousedown.self="showWorkOrderModal = false"
+    >
+      <div class="w-full max-w-lg mx-4 rounded-2xl bg-[#0F1420] border border-white/10 shadow-2xl overflow-hidden">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-5 py-4 border-b border-white/10">
+          <div>
+            <h3 class="text-sm font-bold text-white">创建工单</h3>
+            <p class="text-[10px] text-slate-500 mt-0.5">
+              置信度 {{ (workOrderForm.confidence * 100).toFixed(1) }}% —
+              {{ workOrderForm.confidence > 0.6 ? '高置信度，推荐分配给管理员' : '低置信度，推荐分配给专家' }}
+            </p>
+          </div>
+          <button
+            class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+            @click="showWorkOrderModal = false"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <!-- Success state -->
+        <div v-if="workOrderSuccess" class="px-5 py-10 text-center">
+          <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-[#4ADE80]/10 border border-[#4ADE80]/20 flex items-center justify-center">
+            <svg class="w-6 h-6 text-[#4ADE80]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5" /></svg>
+          </div>
+          <p class="text-sm text-white font-medium">工单创建成功</p>
+        </div>
+
+        <!-- Form -->
+        <div v-else class="px-5 py-4 space-y-4">
+          <!-- Title -->
+          <div>
+            <label class="block text-[10px] text-slate-500 font-mono uppercase tracking-wider mb-1.5">工单标题</label>
+            <input
+              v-model="workOrderForm.title"
+              class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#FF6A00]/50 transition-colors"
+            />
+          </div>
+
+          <!-- Severity + Type row -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] text-slate-500 font-mono uppercase tracking-wider mb-1.5">严重程度</label>
+              <select
+                v-model="workOrderForm.severity"
+                class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-[#FF6A00]/50 transition-colors appearance-none"
+              >
+                <option value="LOW" class="bg-[#0F1420]">LOW</option>
+                <option value="MEDIUM" class="bg-[#0F1420]">MEDIUM</option>
+                <option value="HIGH" class="bg-[#0F1420]">HIGH</option>
+                <option value="CRITICAL" class="bg-[#0F1420]">CRITICAL</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 font-mono uppercase tracking-wider mb-1.5">病虫害名称</label>
+              <input
+                v-model="workOrderForm.pestName"
+                readonly
+                class="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/10 text-sm text-slate-400 cursor-not-allowed"
+              />
+            </div>
+          </div>
+
+          <!-- Assignee -->
+          <div>
+            <label class="block text-[10px] text-slate-500 font-mono uppercase tracking-wider mb-1.5">
+              指派负责人
+            </label>
+            <select
+              v-model="workOrderForm.assignedTo"
+              class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-[#FF6A00]/50 transition-colors appearance-none"
+            >
+              <option value="auto" class="bg-[#0F1420]">
+                自动分配 ({{ recommendedRoleLabel(workOrderForm.confidence) }})
+              </option>
+              <option
+                v-for="user in assignableUsers"
+                :key="user.id"
+                :value="user.id"
+                class="bg-[#0F1420]"
+              >
+                {{ user.name }} ({{ user.role === 'EXPERT' ? '专家' : '管理员' }})
+              </option>
+            </select>
+          </div>
+
+          <!-- Confidence display -->
+          <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+            <div class="w-2 h-2 rounded-full" :class="workOrderForm.confidence >= 0.8 ? 'bg-[#EF4444]' : workOrderForm.confidence >= 0.6 ? 'bg-[#FF6A00]' : 'bg-[#4ADE80]'" />
+            <span class="text-[10px] text-slate-500 font-mono">检测置信度</span>
+            <span class="text-sm font-mono font-bold ml-auto" :class="getSeverityColor(workOrderForm.confidence)">
+              {{ (workOrderForm.confidence * 100).toFixed(1) }}%
+            </span>
+          </div>
+
+          <!-- Submit -->
+          <button
+            class="w-full py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            :class="workOrderSubmitting
+              ? 'bg-white/5 text-slate-500 border border-white/5'
+              : 'bg-gradient-to-r from-[#FF6A00] to-[#FFB300] text-[#0B0F19] hover:shadow-lg hover:shadow-[#FF6A00]/20 hover:scale-[1.01]'"
+            :disabled="workOrderSubmitting"
+            @click="submitWorkOrder"
+          >
+            {{ workOrderSubmitting ? '创建中...' : '确认创建工单' }}
+          </button>
+        </div>
       </div>
     </div>
   </Teleport>

@@ -7,6 +7,7 @@ import {
   updateWorkOrderSeverity as apiUpdateSeverity,
   deleteWorkOrder as apiDelete,
   fetchExperts as apiFetchExperts,
+  fetchManagers as apiFetchManagers,
   updateWorkOrderAssignee as apiUpdateAssignee,
   type WorkOrderVO,
   type WorkOrderManualCreateDTO,
@@ -78,6 +79,11 @@ export const useWorkOrderStore = defineStore('workorder', () => {
   const experts = ref<ExpertVO[]>([])
   const expertsLoading = ref(false)
   const expertsError = ref<string | null>(null)
+
+  // 管理员列表状态
+  const managers = ref<ExpertVO[]>([])
+  const managersLoading = ref(false)
+  const managersError = ref<string | null>(null)
 
   // 每个网格最高危险等级（未完成且未忽略的工单）
   const gridSeverityMap = computed(() => {
@@ -252,6 +258,21 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     }
   }
 
+  /** 获取管理员列表 */
+  async function fetchManagers() {
+    managersLoading.value = true
+    managersError.value = null
+    try {
+      const list = await apiFetchManagers()
+      managers.value = list
+    } catch (e: any) {
+      managersError.value = e.message || '加载管理员列表失败'
+      console.error('[workorder] fetchManagers error:', e)
+    } finally {
+      managersLoading.value = false
+    }
+  }
+
   /** 更新工单指派专家 */
   async function updateAssignee(id: number, assignedTo: string) {
     error.value = null
@@ -276,6 +297,9 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     experts,
     expertsLoading,
     expertsError,
+    managers,
+    managersLoading,
+    managersError,
     gridSeverityMap,
     alerts,
     getAlerts,
@@ -287,6 +311,7 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     escalateSeverity,
     deescalateSeverity,
     fetchExperts,
+    fetchManagers,
     updateAssignee,
   }
 })
