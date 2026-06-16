@@ -5,6 +5,7 @@ import GlowButton from '../components/GlowButton.vue'
 import { useWorkOrderStore } from '../stores/workorder'
 import { useAuthStore } from '../stores/auth'
 import { fetchExperts, type UserSimpleVO } from '../api/user'
+import { usePageContextProvider } from '../composables/usePageContext'
 
 const woStore = useWorkOrderStore()
 const authStore = useAuthStore()
@@ -114,6 +115,28 @@ const stats = computed(() => ({
   pending: woStore.orders.filter(o => o.status === 'PENDING').length,
   processing: woStore.orders.filter(o => o.status === 'PROCESSING').length,
   done: woStore.orders.filter(o => o.status === 'DONE').length,
+}))
+
+usePageContextProvider(() => ({
+  page: '/workorders',
+  pageName: '工单管理',
+  selectedId: selectedOrder.value?.id?.toString() || undefined,
+  visibleData: {
+    list: filteredOrders.value.slice(0, 5).map(o => ({
+      id: o.id,
+      title: o.title,
+      severity: o.severity,
+      status: o.status,
+      pestName: o.pestName,
+      gridLabel: o.gridLabel,
+      createdAt: o.createdAt,
+    })),
+    stats: stats.value,
+    filters: {
+      status: filterStatus.value,
+      severity: filterSeverity.value,
+    },
+  },
 }))
 
 function getStatusSteps(order: any) {

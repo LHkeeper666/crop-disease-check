@@ -9,6 +9,7 @@ import { useAuthStore } from '../stores/auth'
 import { fetchCameras, type CameraVO } from '../api/camera'
 import { fetchStatisticsOverview, type GridHeatmapItem, type DailyTrend } from '../api/statistics'
 import { fetchGrids, updateGrid, type GridVO } from '../api/grid'
+import { usePageContextProvider } from '../composables/usePageContext'
 
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.userRole === 'ADMIN')
@@ -106,6 +107,31 @@ const confidenceThreshold = ref(0)
 
 // 报警列表（受检测阈值过滤）
 const alerts = computed(() => woStore.getAlerts(confidenceThreshold.value))
+
+usePageContextProvider(() => ({
+  page: '/dashboard',
+  pageName: '遥测总览',
+  visibleData: {
+    stats: {
+      totalWorkOrders: woStore.orders.length,
+      pendingWorkOrders: woStore.orders.filter(o => o.status === 'PENDING').length,
+      processingWorkOrders: woStore.orders.filter(o => o.status === 'PROCESSING').length,
+      criticalAlerts: alerts.value.filter(a => a.severity === 'CRITICAL').length,
+      onlineCameras: cameras.value.length,
+      airTemp: dashSettings.env.airTemp.value,
+      humidity: dashSettings.env.humidity.value,
+      soilMoisture: dashSettings.env.soilMoisture.value,
+    },
+    extra: {
+      recentAlerts: alerts.value.slice(0, 3).map(a => ({
+        severity: a.severity,
+        message: a.message,
+        time: a.time,
+      })),
+      gridCount: gridCells.value.length,
+    },
+  },
+}))
 
 // Heatmap cell detail
 const selectedCell = ref<{ id: string; label: string; severity: string | null; pest: string; score: number; cropType?: string } | null>(null)

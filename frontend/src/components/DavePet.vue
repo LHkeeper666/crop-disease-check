@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import DaveChatDialog from './DaveChatDialog.vue'
 
 // --- State ---
@@ -108,15 +108,36 @@ let bubbleTimer: ReturnType<typeof setTimeout> | null = null
 let idleTimer: ReturnType<typeof setInterval> | null = null
 let returnTimer: ReturnType<typeof setTimeout> | null = null
 
-const currentSrc = computed(() => {
-  return getFramePath(state.value, frame.value)
-})
+// 预加载的图片缓存：state → Image[]
+const frameCache: Record<string, HTMLImageElement[]> = {}
+const petImgRef = ref<HTMLImageElement | null>(null)
+
+function preloadFrames() {
+  for (const s of Object.keys(FRAMES)) {
+    frameCache[s] = []
+    for (let i = 0; i < FRAMES[s]; i++) {
+      const img = new Image()
+      img.src = getFramePath(s, i)
+      frameCache[s].push(img)
+    }
+  }
+}
+
+function showFrame() {
+  const img = petImgRef.value
+  const cached = frameCache[state.value]?.[frame.value]
+  if (img && cached) {
+    img.src = cached.src
+  }
+}
 
 function startAnimation() {
   stopAnimation()
+  showFrame()
   const speed = FRAME_SPEED[state.value]
   animTimer = setInterval(() => {
     frame.value = (frame.value + 1) % FRAMES[state.value]
+    showFrame()
   }, speed)
 }
 
@@ -242,6 +263,7 @@ defineExpose({ triggerThink, triggerSuccess, triggerWarn })
 
 // --- Lifecycle ---
 onMounted(() => {
+  preloadFrames()
   startAnimation()
   startIdleTalk()
 })
@@ -275,7 +297,7 @@ onUnmounted(() => {
       @click="onClick"
     >
       <img
-        :src="currentSrc"
+        ref="petImgRef"
         alt="Dave"
         class="dave-pet-img"
         draggable="false"

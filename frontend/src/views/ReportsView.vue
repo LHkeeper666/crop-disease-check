@@ -13,6 +13,7 @@ import GlowButton from '../components/GlowButton.vue'
 import { fetchStatisticsOverview, type StatisticsOverviewVO } from '../api/statistics'
 import { fetchDailyReports, generateDailyReport, type DailyReportVO } from '../api/dailyReport'
 import { useWorkOrderStore } from '../stores/workorder'
+import { usePageContextProvider } from '../composables/usePageContext'
 
 const router = useRouter()
 const woStore = useWorkOrderStore()
@@ -101,6 +102,30 @@ watch(overview, (ov) => {
     value: (ov as any)[c.key] ?? 0,
   }))
 })
+
+usePageContextProvider(() => ({
+  page: '/reports',
+  pageName: '农情报表',
+  visibleData: {
+    list: reports.value.slice(0, 5).map(r => ({
+      reportDate: r.reportDate,
+      totalDetections: r.summary?.totalDetections ?? 0,
+      diseaseCount: r.summary?.diseaseCount ?? 0,
+      pestCount: r.summary?.pestCount ?? 0,
+    })),
+    stats: overview.value ? {
+      totalReports: (overview.value as any).totalReports ?? 0,
+      todayReports: (overview.value as any).todayReports ?? 0,
+      pendingAudit: (overview.value as any).pendingAudit ?? 0,
+      processed: (overview.value as any).processed ?? 0,
+      highRiskAlerts: (overview.value as any).highRiskAlerts ?? 0,
+    } : {},
+    extra: {
+      todayGenerated: todayGenerated.value,
+      apiAvailable: apiAvailable.value,
+    },
+  },
+}))
 
 const diseaseChartRef = ref<HTMLDivElement>()
 const pestChartRef = ref<HTMLDivElement>()

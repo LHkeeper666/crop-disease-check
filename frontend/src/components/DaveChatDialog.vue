@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
 import MarkdownRenderer from './MarkdownRenderer.vue'
+import { usePageContextInjector } from '../composables/usePageContext'
 
 interface Message {
   id: string
@@ -15,6 +16,8 @@ const isLoading = ref(false)
 const chatContainerRef = ref<HTMLDivElement>()
 const conversationId = ref<string | null>(null)
 const isOpen = ref(false)
+
+const extractContext = usePageContextInjector()
 
 const props = defineProps<{
   onChatStart?: () => void
@@ -84,12 +87,15 @@ async function sendMessage(text?: string) {
   })
 
   try {
+    const context = extractContext?.() || undefined
+
     const res = await fetch('/api/agri-brain/chat', {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({
         message: content,
         conversationId: conversationId.value,
+        context,
       }),
     })
 
