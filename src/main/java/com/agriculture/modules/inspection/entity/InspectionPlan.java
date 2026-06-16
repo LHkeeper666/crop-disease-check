@@ -61,6 +61,12 @@ public class InspectionPlan implements Serializable {
     private Byte isActive;
 
     /**
+     * 所属企业ID
+     */
+    @TableField("company_id")
+    private String companyId;
+
+    /**
      * 创建时间
      */
     @TableField("created_at")

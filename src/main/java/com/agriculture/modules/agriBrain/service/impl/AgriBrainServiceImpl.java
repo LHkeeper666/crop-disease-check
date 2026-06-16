@@ -84,11 +84,14 @@ public class AgriBrainServiceImpl implements AgriBrainService {
 
         executor.submit(() -> {
             try {
+                // 获取用户企业ID
+                String companyId = resolveCompanyId(userId);
+
                 // 获取或创建对话
                 AiConversation conversation;
                 if (conversationId == null || conversationId.isBlank()) {
                     String title = message.length() > 50 ? message.substring(0, 50) + "..." : message;
-                    conversation = conversationService.createConversation(userId, title);
+                    conversation = conversationService.createConversation(userId, title, companyId);
                 } else {
                     conversation = conversationService.getById(conversationId);
                     if (conversation == null) {
@@ -110,20 +113,17 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                 String apiKey = getApiKey();
                 String model = getModel();
 
-                // 获取用户企业ID（用于权限隔离）
-                String companyId = resolveCompanyId(userId);
-
                 // 执行 tool calling 循环
                 StringBuilder fullResponse = new StringBuilder();
                 StringBuilder toolContext = new StringBuilder();
                 executeToolCallingLoop(messages, tools, emitter, fullResponse, toolContext, apiKey, model, userId, companyId);
 
                 // 持久化消息（tool 结果拼接到回答前面，供下轮对话参考）
-                messageService.saveMessage(conversation.getId(), userId, "USER", message);
+                messageService.saveMessage(conversation.getId(), userId, "USER", message, companyId);
                 String assistantContent = toolContext.length() > 0
                         ? toolContext + "\n---\n" + fullResponse
                         : fullResponse.toString();
-                messageService.saveMessage(conversation.getId(), userId, "ASSISTANT", assistantContent);
+                messageService.saveMessage(conversation.getId(), userId, "ASSISTANT", assistantContent, companyId);
                 conversationService.updateUpdatedAt(conversation.getId());
 
                 // 发送完成事件
@@ -153,7 +153,8 @@ public class AgriBrainServiceImpl implements AgriBrainService {
         executor.submit(() -> {
             try {
                 String title = "一键建议 - " + java.time.LocalDate.now();
-                AiConversation conversation = conversationService.createConversation(userId, title);
+                String companyId = resolveCompanyId(userId);
+                AiConversation conversation = conversationService.createConversation(userId, title, companyId);
 
                 String quickAdvicePrompt = templateService.render("quick_advice", null);
 
@@ -167,17 +168,15 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                 String apiKey = getApiKey();
                 String model = getModel();
 
-                String companyId = resolveCompanyId(userId);
-
                 StringBuilder fullResponse = new StringBuilder();
                 StringBuilder toolContext = new StringBuilder();
                 executeToolCallingLoop(messages, tools, emitter, fullResponse, toolContext, apiKey, model, userId, companyId);
 
-                messageService.saveMessage(conversation.getId(), userId, "USER", quickAdvicePrompt);
+                messageService.saveMessage(conversation.getId(), userId, "USER", quickAdvicePrompt, companyId);
                 String assistantContent = toolContext.length() > 0
                         ? toolContext + "\n---\n" + fullResponse
                         : fullResponse.toString();
-                messageService.saveMessage(conversation.getId(), userId, "ASSISTANT", assistantContent);
+                messageService.saveMessage(conversation.getId(), userId, "ASSISTANT", assistantContent, companyId);
 
                 emitter.send(ChatEvent.done(conversation.getId()));
                 emitter.complete();

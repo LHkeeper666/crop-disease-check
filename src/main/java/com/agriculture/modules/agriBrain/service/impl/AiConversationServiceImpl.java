@@ -13,11 +13,12 @@ import java.util.UUID;
 public class AiConversationServiceImpl extends ServiceImpl<AiConversationMapper, AiConversation> implements AiConversationService {
 
     @Override
-    public AiConversation createConversation(String userId, String title) {
+    public AiConversation createConversation(String userId, String title, String companyId) {
         AiConversation conversation = new AiConversation();
         conversation.setId(UUID.randomUUID().toString().replace("-", ""));
         conversation.setUserId(userId);
         conversation.setTitle(title);
+        conversation.setCompanyId(companyId);
         conversation.setCreatedAt(LocalDateTime.now());
         conversation.setUpdatedAt(LocalDateTime.now());
         baseMapper.insert(conversation);

@@ -3,14 +3,15 @@ package com.agriculture.modules.agriBrain.tool.impl;
 import com.agriculture.modules.agriBrain.tool.AiTool;
 import com.agriculture.modules.workorder.entity.WorkOrder;
 import com.agriculture.modules.workorder.mapper.WorkOrderMapper;
+import com.agriculture.modules.workorder.service.WorkOrderService;
+import com.agriculture.modules.workorder.vo.WorkOrderVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -22,6 +23,9 @@ import java.util.stream.Collectors;
 public class WorkOrderTool implements AiTool {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Resource
+    private WorkOrderService workOrderService;
 
     @Resource
     private WorkOrderMapper workOrderMapper;
@@ -104,80 +108,59 @@ public class WorkOrderTool implements AiTool {
         }
     }
 
-    private String executeQuery(Map<String, Object> arguments, String companyId) throws JsonProcessingException {
-        LambdaQueryWrapper<WorkOrder> wrapper = new LambdaQueryWrapper<>();
-
-        // 企业隔离
-        if (StringUtils.hasText(companyId)) {
-            wrapper.eq(WorkOrder::getCompanyId, companyId);
-        }
-
-        // 状态筛选
+    private String executeQuery(Map<String, Object> arguments, String companyId) throws Exception {
+        // 解析参数
         String status = (String) arguments.get("status");
-        if (StringUtils.hasText(status)) {
-            wrapper.eq(WorkOrder::getStatus, status);
-        }
-
-        // 严重程度筛选
         String severity = (String) arguments.get("severity");
-        if (StringUtils.hasText(severity)) {
-            wrapper.eq(WorkOrder::getSeverity, severity);
-        }
-
-        // 类型筛选
         String type = (String) arguments.get("type");
-        if (StringUtils.hasText(type)) {
-            wrapper.eq(WorkOrder::getType, type);
-        }
 
-        // 日期筛选
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        LocalDateTime startDate = null;
+        LocalDateTime endDate = null;
+
         String startDateStr = (String) arguments.get("startDate");
         if (StringUtils.hasText(startDateStr)) {
-            LocalDate startDate = LocalDate.parse(startDateStr, dateFormatter);
-            wrapper.ge(WorkOrder::getCreatedAt, startDate.atStartOfDay());
+            startDate = LocalDate.parse(startDateStr, dateFormatter).atStartOfDay();
         }
 
         String endDateStr = (String) arguments.get("endDate");
         if (StringUtils.hasText(endDateStr)) {
-            LocalDate endDate = LocalDate.parse(endDateStr, dateFormatter);
-            wrapper.le(WorkOrder::getCreatedAt, endDate.atTime(LocalTime.MAX));
+            endDate = LocalDate.parse(endDateStr, dateFormatter).atTime(LocalTime.MAX);
         }
 
-        // 排序和限制
-        wrapper.orderByDesc(WorkOrder::getCreatedAt);
         int limit = 20;
         if (arguments.get("limit") instanceof Number) {
             limit = ((Number) arguments.get("limit")).intValue();
         }
-        wrapper.last("LIMIT " + limit);
 
-        List<WorkOrder> orders = workOrderMapper.selectList(wrapper);
+        // 调用 Service（已包含企业隔离）
+        IPage<WorkOrderVO> page = workOrderService.listWorkOrders(
+                status, severity, startDate, endDate, 1, limit, companyId);
 
-        // 构造返回结果
-        List<Map<String, Object>> orderList = orders.stream().map(order -> {
+        // 转换为 Tool 返回格式
+        List<Map<String, Object>> orderList = page.getRecords().stream().map(vo -> {
             Map<String, Object> item = new LinkedHashMap<>();
-            item.put("id", order.getId());
-            item.put("title", order.getTitle());
-            item.put("status", order.getStatus());
-            item.put("severity", order.getSeverity());
-            item.put("type", order.getType());
-            item.put("grid", order.getGridLabel());
-            item.put("pest", order.getPestName());
-            item.put("confidence", order.getConfidence());
-            item.put("createdAt", order.getCreatedAt() != null ?
-                    order.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : null);
+            item.put("id", vo.getId());
+            item.put("title", vo.getTitle());
+            item.put("status", vo.getStatus());
+            item.put("severity", vo.getSeverity());
+            item.put("type", vo.getType());
+            item.put("grid", vo.getGridLabel());
+            item.put("pest", vo.getPestName());
+            item.put("confidence", vo.getConfidence());
+            item.put("createdAt", vo.getCreatedAt() != null ?
+                    vo.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : null);
             return item;
         }).collect(Collectors.toList());
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("total", orders.size());
+        result.put("total", page.getTotal());
         result.put("orders", orderList);
 
         return objectMapper.writeValueAsString(result);
     }
 
-    private String executeStats(Map<String, Object> arguments, String companyId) throws JsonProcessingException {
+    private String executeStats(Map<String, Object> arguments, String companyId) throws Exception {
         LambdaQueryWrapper<WorkOrder> wrapper = new LambdaQueryWrapper<>();
 
         // 企业隔离

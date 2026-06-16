@@ -13,7 +13,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface AiConversationService extends IService<AiConversation> {
 
-    AiConversation createConversation(String userId, String title);
+    AiConversation createConversation(String userId, String title, String companyId);
 
     void updateUpdatedAt(String id);
 }

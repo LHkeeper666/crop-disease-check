@@ -38,6 +38,12 @@ public class Inference implements Serializable {
     private String reportId;
 
     /**
+     * 所属企业ID
+     */
+    @TableField("company_id")
+    private String companyId;
+
+    /**
      * 病害ID数组 [0,3,15]，JSON格式
      */
     @TableField("disease_ids")

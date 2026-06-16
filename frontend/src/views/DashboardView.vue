@@ -8,7 +8,7 @@ import { useDashboardSettingsStore } from '../stores/dashboardSettings'
 import { useAuthStore } from '../stores/auth'
 import { fetchCameras, type CameraVO } from '../api/camera'
 import { fetchStatisticsOverview, type GridHeatmapItem, type DailyTrend } from '../api/statistics'
-import { fetchGrids, type GridVO } from '../api/grid'
+import { fetchGrids, updateGrid, type GridVO } from '../api/grid'
 
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.userRole === 'ADMIN')
@@ -49,6 +49,7 @@ const gridCells = computed(() => {
       const severity = woStore.gridSeverityMap[g.label]
       const activeOrder = woStore.orders.find(o => o.gridLabel === g.label && (o.status === 'PENDING' || o.status === 'PROCESSING'))
       return {
+        id: g.id,
         label: g.label,
         severity: severity || null,
         pest: activeOrder?.pestName || '',
@@ -63,6 +64,7 @@ const gridCells = computed(() => {
       const severity = woStore.gridSeverityMap[h.gridLabel]
       const activeOrder = woStore.orders.find(o => o.gridLabel === h.gridLabel && (o.status === 'PENDING' || o.status === 'PROCESSING'))
       return {
+        id: h.gridId,
         label: h.gridLabel,
         severity: severity || null,
         pest: activeOrder?.pestName || '',
@@ -106,16 +108,46 @@ const confidenceThreshold = ref(0)
 const alerts = computed(() => woStore.getAlerts(confidenceThreshold.value))
 
 // Heatmap cell detail
-const selectedCell = ref<{ label: string; severity: string | null; pest: string; score: number; cropType?: string } | null>(null)
+const selectedCell = ref<{ id: string; label: string; severity: string | null; pest: string; score: number; cropType?: string } | null>(null)
 
-function selectCell(cell: { label: string; severity: string | null; pest: string; score: number; cropType?: string }) {
+function selectCell(cell: { id: string; label: string; severity: string | null; pest: string; score: number; cropType?: string }) {
   selectedCell.value = cell
+  editingCropType.value = false
+  cropTypeInput.value = cell.cropType || ''
 }
 
 function closeCellDetail() {
   selectedCell.value = null
+  editingCropType.value = false
   stopAutoRotation()
   startAutoRotation()
+}
+
+// Crop type editing
+const editingCropType = ref(false)
+const cropTypeInput = ref('')
+const cropTypeSaving = ref(false)
+
+function startEditCropType() {
+  cropTypeInput.value = selectedCell.value?.cropType || ''
+  editingCropType.value = true
+}
+
+async function saveCropType() {
+  if (!selectedCell.value || !cropTypeInput.value.trim()) return
+  cropTypeSaving.value = true
+  try {
+    await updateGrid(selectedCell.value.id, { cropType: cropTypeInput.value.trim() })
+    selectedCell.value.cropType = cropTypeInput.value.trim()
+    // 同步更新本地网格列表
+    const idx = dbGrids.value.findIndex(g => g.id === selectedCell.value!.id)
+    if (idx !== -1) dbGrids.value[idx].cropType = cropTypeInput.value.trim()
+    editingCropType.value = false
+  } catch (e: any) {
+    console.error('[Dashboard] 更新作物类型失败:', e.message)
+  } finally {
+    cropTypeSaving.value = false
+  }
 }
 
 // Real-time clock
@@ -579,9 +611,34 @@ function renderTrendChart() {
                 {{ getCellLabel(selectedCell.severity) }}
               </span>
             </div>
-            <div v-if="selectedCell.cropType" class="flex justify-between items-center py-2 border-b border-white/5">
+            <div class="flex justify-between items-center py-2 border-b border-white/5">
               <span class="text-xs text-slate-400">作物类型</span>
-              <span class="text-sm font-mono text-white">{{ selectedCell.cropType }}</span>
+              <template v-if="editingCropType">
+                <div class="flex items-center gap-2">
+                  <input
+                    v-model="cropTypeInput"
+                    class="w-28 text-sm font-mono text-white bg-transparent border-b border-cyber-green/50 outline-none"
+                    @keyup.enter="saveCropType()"
+                    @keyup.escape="editingCropType = false"
+                    autofocus
+                  />
+                  <button
+                    class="text-[10px] px-2 py-0.5 rounded bg-cyber-green/20 text-cyber-green border border-cyber-green/30 hover:bg-cyber-green/30 disabled:opacity-50"
+                    :disabled="cropTypeSaving || !cropTypeInput.trim()"
+                    @click="saveCropType()"
+                  >{{ cropTypeSaving ? '...' : '保存' }}</button>
+                </div>
+              </template>
+              <template v-else>
+                <span
+                  class="text-sm font-mono"
+                  :class="[
+                    selectedCell.cropType ? 'text-white' : 'text-slate-600',
+                    isAdmin ? 'cursor-pointer hover:text-cyber-green transition-colors' : ''
+                  ]"
+                  @dblclick="isAdmin && startEditCropType()"
+                >{{ selectedCell.cropType || '双击设置' }}</span>
+              </template>
             </div>
             <div v-if="selectedCell.pest" class="flex justify-between items-center py-2 border-b border-white/5">
               <span class="text-xs text-slate-400">活跃病虫害</span>

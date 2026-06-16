@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
 import GlowButton from '../components/GlowButton.vue'
 import { useWorkOrderStore } from '../stores/workorder'
@@ -27,6 +27,13 @@ async function loadExperts() {
 onMounted(() => {
   woStore.fetchOrders()
   loadExperts()
+  // 添加点击外部关闭选择器的事件监听
+  document.addEventListener('click', handleClickOutside)
+})
+
+// 组件卸载时清理事件监听
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
 })
 
 const filterStatus = ref<string>('ALL')
@@ -39,6 +46,12 @@ const showCreateModal = ref(false)
 const showDetailModal = ref(false)
 const showDeleteConfirm = ref(false)
 const selectedOrder = ref<any>(null)
+
+// 专家选择器状态
+const showAssigneeSelector = ref(false)
+const expertSearchQuery = ref('')
+const assigneeFieldRef = ref<HTMLElement | null>(null)
+const assigneeDropdownStyle = ref({})
 
 // New order form
 const newOrder = ref({
@@ -118,11 +131,81 @@ function getStatusSteps(order: any) {
 function openDetail(order: any) {
   selectedOrder.value = order
   showDetailModal.value = true
+  // 加载专家列表（如果尚未加载）
+  if (woStore.experts.length === 0) {
+    woStore.fetchExperts()
+  }
 }
+
+// 专家列表过滤
+const filteredExperts = computed(() => {
+  if (!expertSearchQuery.value) return woStore.experts
+  const query = expertSearchQuery.value.toLowerCase()
+  return woStore.experts.filter(expert =>
+    expert.name.toLowerCase().includes(query) ||
+    expert.email.toLowerCase().includes(query)
+  )
+})
 
 function closeDetail() {
   showDetailModal.value = false
   selectedOrder.value = null
+  showAssigneeSelector.value = false
+  expertSearchQuery.value = ''
+}
+
+function selectExpert(expert: any) {
+  if (selectedOrder.value) {
+    selectedOrder.value.assignedToName = expert.name
+    selectedOrder.value.assignedToId = expert.id
+  }
+  showAssigneeSelector.value = false
+  expertSearchQuery.value = ''
+}
+
+function toggleAssigneeSelector() {
+  showAssigneeSelector.value = !showAssigneeSelector.value
+  if (showAssigneeSelector.value) {
+    // 计算下拉框位置
+    nextTick(() => {
+      if (assigneeFieldRef.value) {
+        const rect = assigneeFieldRef.value.getBoundingClientRect()
+        assigneeDropdownStyle.value = {
+          position: 'fixed',
+          top: `${rect.bottom + 4}px`,
+          left: `${rect.left}px`,
+          width: `${rect.width}px`,
+          zIndex: 9999,
+        }
+      }
+    })
+  } else {
+    expertSearchQuery.value = ''
+  }
+}
+
+// 点击外部关闭选择器
+function handleClickOutside(event: Event) {
+  const target = event.target as HTMLElement
+  if (!target.closest('.assignee-selector') && !target.closest('.assignee-dropdown')) {
+    showAssigneeSelector.value = false
+    expertSearchQuery.value = ''
+  }
+}
+
+// 确认修改（保存指派专家）
+async function confirmUpdate() {
+  if (!selectedOrder.value || !selectedOrder.value.assignedToId) return
+  try {
+    // 传递专家用户ID
+    await woStore.updateAssignee(selectedOrder.value.id, selectedOrder.value.assignedToId)
+    // 刷新工单列表以获取最新的 assignedToName
+    await woStore.fetchOrders()
+    // 更新选中的工单数据
+    selectedOrder.value = woStore.orders.find(o => o.id === selectedOrder.value.id)
+  } catch {
+    // 错误已在 store 中处理
+  }
 }
 
 function openCreateModal() {
@@ -182,7 +265,7 @@ async function createOrder() {
   }
 }
 
-async function updateOrderStatus(orderId: string, newStatus: string) {
+async function updateOrderStatus(orderId: number, newStatus: string) {
   try {
     await woStore.updateOrderStatus(orderId, newStatus as any)
     // 更新选中的工单
@@ -619,7 +702,7 @@ function closeEmailModal() {
       <div
         v-if="showDetailModal && selectedOrder"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-        @mousedown.self="closeDetail"
+        @click.self="closeDetail"
       >
         <div class="glass rounded-2xl p-6 w-full max-w-[520px] mx-4 shadow-2xl border border-white/10">
           <div class="flex items-center justify-between mb-6">
@@ -678,9 +761,21 @@ function closeEmailModal() {
                 <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">置信度</div>
                 <div class="text-sm font-mono text-white">{{ (selectedOrder.confidence * 100).toFixed(0) }}%</div>
               </div>
-              <div class="glass rounded-lg px-4 py-3">
+              <div class="glass rounded-lg px-4 py-3 assignee-selector" ref="assigneeFieldRef">
                 <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">指派专家</div>
-                <div class="text-sm font-mono text-white">{{ selectedOrder.assignedToName }}</div>
+                <div
+                  v-if="selectedOrder.status !== 'DONE' && selectedOrder.status !== 'IGNORED'"
+                  class="text-sm font-mono text-white cursor-pointer hover:text-cyber-green transition-colors"
+                  @click="toggleAssigneeSelector"
+                >
+                  {{ selectedOrder.assignedToName }}
+                  <svg class="w-3 h-3 inline-block ml-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+                <div v-else class="text-sm font-mono text-white">
+                  {{ selectedOrder.assignedToName }}
+                </div>
               </div>
               <div class="glass rounded-lg px-4 py-3">
                 <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">创建时间</div>
@@ -764,6 +859,15 @@ function closeEmailModal() {
                 降级等级
               </button>
 
+              <!-- 确认修改 -->
+              <button
+                v-if="selectedOrder.status !== 'DONE' && selectedOrder.status !== 'IGNORED'"
+                class="flex-1 min-w-[100px] px-4 py-3 rounded-xl bg-cyber-green/10 border border-cyber-green/20 text-cyber-green text-sm hover:bg-cyber-green/20 transition-colors"
+                @click="confirmUpdate"
+              >
+                确认修改
+              </button>
+
               <!-- 删除工单 -->
               <button
                 class="flex-1 min-w-[100px] px-4 py-3 rounded-xl bg-sakura/10 border border-sakura/20 text-sakura text-sm hover:bg-sakura/20 transition-colors"
@@ -771,15 +875,49 @@ function closeEmailModal() {
               >
                 删除工单
               </button>
-
-              <!-- 关闭 -->
-              <button
-                class="flex-1 min-w-[100px] px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
-                @click="closeDetail"
-              >
-                关闭
-              </button>
             </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Expert Selector Dropdown (Teleported to body) -->
+    <Teleport to="body">
+      <div
+        v-if="showAssigneeSelector"
+        class="fixed bg-slate-800 border border-white/10 rounded-lg shadow-lg assignee-dropdown"
+        :style="assigneeDropdownStyle"
+        @mousedown.stop
+        @click.stop
+      >
+        <div class="p-2">
+          <input
+            v-model="expertSearchQuery"
+            type="text"
+            placeholder="搜索专家..."
+            class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50"
+            @click.stop
+          />
+        </div>
+        <div class="max-h-40 overflow-y-auto">
+          <div v-if="woStore.expertsLoading" class="px-3 py-2 text-slate-500 text-xs">
+            加载中...
+          </div>
+          <div v-else-if="woStore.expertsError" class="px-3 py-2 text-sakura text-xs">
+            {{ woStore.expertsError }}
+          </div>
+          <div v-else-if="filteredExperts.length === 0" class="px-3 py-2 text-slate-500 text-xs">
+            无匹配专家
+          </div>
+          <div
+            v-for="expert in filteredExperts"
+            :key="expert.id"
+            class="px-3 py-2 text-sm text-white hover:bg-white/10 cursor-pointer transition-colors"
+            :class="{ 'bg-cyber-green/10 text-cyber-green': expert.name === selectedOrder?.assignedToName }"
+            @click="selectExpert(expert)"
+          >
+            {{ expert.name }}
+            <span class="text-xs text-slate-500 ml-2">{{ expert.email }}</span>
           </div>
         </div>
       </div>

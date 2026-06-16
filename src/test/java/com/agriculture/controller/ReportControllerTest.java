@@ -9,6 +9,8 @@ import com.agriculture.modules.report.service.ReportService;
 import com.agriculture.modules.report.vo.ReportDetailVO;
 import com.agriculture.modules.report.vo.ReportListVO;
 import com.agriculture.modules.report.vo.ReportUploadVO;
+import com.agriculture.modules.user.entity.SysUser;
+import com.agriculture.modules.user.mapper.SysUserMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +32,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -45,6 +48,9 @@ class ReportControllerTest {
     @Mock
     private ReportService reportService;
 
+    @Mock
+    private SysUserMapper sysUserMapper;
+
     @InjectMocks
     private ReportController reportController;
 
@@ -52,6 +58,11 @@ class ReportControllerTest {
 
     @BeforeEach
     void setUp() {
+        SysUser mockUser = new SysUser();
+        mockUser.setId("user-001");
+        mockUser.setCompanyId("company-001");
+        lenient().when(sysUserMapper.selectById("user-001")).thenReturn(mockUser);
+
         mockMvc = MockMvcBuilders.standaloneSetup(reportController)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(new LocalValidatorFactoryBean())
@@ -73,7 +84,7 @@ class ReportControllerTest {
                     .status("PENDING_RECOGNITION")
                     .build();
 
-            when(reportService.uploadImages(any(), any(ReportUploadDTO.class), anyString()))
+            when(reportService.uploadImages(any(), any(ReportUploadDTO.class), anyString(), anyString()))
                     .thenReturn(vo);
 
             MockMultipartFile image1 = new MockMultipartFile(
@@ -101,7 +112,7 @@ class ReportControllerTest {
         @Test
         @DisplayName("文件格式不支持时返回40040")
         void upload_invalidFormat_returns40040() throws Exception {
-            when(reportService.uploadImages(any(), any(ReportUploadDTO.class), anyString()))
+            when(reportService.uploadImages(any(), any(ReportUploadDTO.class), anyString(), anyString()))
                     .thenThrow(new BusinessException(40040, "图片格式不支持（仅支持JPG/PNG）"));
 
             MockMultipartFile file = new MockMultipartFile(
@@ -121,7 +132,7 @@ class ReportControllerTest {
         @Test
         @DisplayName("图片大小超过限制时返回40041")
         void upload_tooLarge_returns40041() throws Exception {
-            when(reportService.uploadImages(any(), any(ReportUploadDTO.class), anyString()))
+            when(reportService.uploadImages(any(), any(ReportUploadDTO.class), anyString(), anyString()))
                     .thenThrow(new BusinessException(40041, "图片大小超过10MB限制"));
 
             MockMultipartFile file = new MockMultipartFile(
@@ -141,7 +152,7 @@ class ReportControllerTest {
         @Test
         @DisplayName("图片数量超过限制时返回40042")
         void upload_tooManyFiles_returns40042() throws Exception {
-            when(reportService.uploadImages(any(), any(ReportUploadDTO.class), anyString()))
+            when(reportService.uploadImages(any(), any(ReportUploadDTO.class), anyString(), anyString()))
                     .thenThrow(new BusinessException(40042, "单次上传图片数量超过10张"));
 
             MockMultipartFile file = new MockMultipartFile(
@@ -215,7 +226,7 @@ class ReportControllerTest {
             Page<ReportListVO> page = new Page<>(1, 20, 1);
             page.setRecords(List.of(record1));
 
-            when(reportService.getMyReports(any(ReportQueryDTO.class), anyString()))
+            when(reportService.getMyReports(any(ReportQueryDTO.class), anyString(), anyString()))
                     .thenReturn(page);
 
             mockMvc.perform(get("/report/mine")
@@ -237,7 +248,7 @@ class ReportControllerTest {
             Page<ReportListVO> page = new Page<>(1, 20, 0);
             page.setRecords(List.of());
 
-            when(reportService.getMyReports(any(ReportQueryDTO.class), anyString()))
+            when(reportService.getMyReports(any(ReportQueryDTO.class), anyString(), anyString()))
                     .thenReturn(page);
 
             mockMvc.perform(get("/report/mine")
@@ -255,7 +266,7 @@ class ReportControllerTest {
             Page<ReportListVO> page = new Page<>(2, 10, 30);
             page.setRecords(List.of());
 
-            when(reportService.getMyReports(any(ReportQueryDTO.class), anyString()))
+            when(reportService.getMyReports(any(ReportQueryDTO.class), anyString(), anyString()))
                     .thenReturn(page);
 
             mockMvc.perform(get("/report/mine")

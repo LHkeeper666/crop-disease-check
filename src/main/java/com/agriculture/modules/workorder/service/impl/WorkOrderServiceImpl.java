@@ -423,6 +423,27 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
 
     @Override
     @Transactional
+    public void updateAssignee(Long id, String assignedTo) {
+        WorkOrder workOrder = baseMapper.selectById(id);
+        if (workOrder == null) {
+            throw new BusinessException(404, "工单不存在");
+        }
+        // 仅允许在非终态时修改指派专家
+        if ("DONE".equals(workOrder.getStatus()) || "IGNORED".equals(workOrder.getStatus())) {
+            throw new BusinessException("已完成或已忽略的工单不能修改指派专家");
+        }
+        // 校验专家用户是否存在
+        SysUser expert = sysUserMapper.selectById(assignedTo);
+        if (expert == null) {
+            throw new BusinessException("指派的专家用户不存在");
+        }
+        workOrder.setAssignedTo(assignedTo);
+        workOrder.setUpdatedAt(LocalDateTime.now());
+        baseMapper.updateById(workOrder);
+    }
+
+    @Override
+    @Transactional
     public void deleteWorkOrder(Long id) {
         WorkOrder workOrder = baseMapper.selectById(id);
         if (workOrder == null) {

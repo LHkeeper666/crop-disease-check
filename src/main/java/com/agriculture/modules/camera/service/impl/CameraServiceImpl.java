@@ -54,9 +54,12 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
     }
 
     @Override
-    public Page<Camera> listCameras(String status, String keyword, int page, int size) {
+    public Page<Camera> listCameras(String status, String keyword, int page, int size, String companyId) {
         LambdaQueryWrapper<Camera> wrapper = new LambdaQueryWrapper<>();
 
+        if (StringUtils.hasText(companyId)) {
+            wrapper.eq(Camera::getCompanyId, companyId);
+        }
         if (StringUtils.hasText(status)) {
             wrapper.eq(Camera::getStatus, status);
         }
@@ -107,7 +110,7 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
 
     @Override
     @Transactional
-    public String createCamera(CameraCreateRequest request) {
+    public String createCamera(CameraCreateRequest request, String companyId) {
         // 检查名称唯一性
         long count = count(new LambdaQueryWrapper<Camera>()
                 .eq(Camera::getName, request.getName()));
@@ -128,6 +131,7 @@ public class CameraServiceImpl extends ServiceImpl<CameraMapper, Camera> impleme
         camera.setCaptureQuality(request.getCaptureQuality());
         camera.setReconnectInterval(request.getReconnectInterval());
         camera.setStatus("OFFLINE");
+        camera.setCompanyId(companyId);
         camera.setCreatedAt(LocalDateTime.now());
         camera.setUpdatedAt(LocalDateTime.now());
         camera.setDeleted((byte) 0);

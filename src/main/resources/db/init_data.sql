@@ -345,18 +345,18 @@ INSERT INTO report (id, user_id, grid_id, crop_type, image_urls, found_at, descr
 -- 11. 识别结果数据
 -- ========================================
 
-INSERT INTO inference (id, report_id, disease_ids, pest_ids, detections, annotated_image_url, total_elapsed_ms) VALUES
-('inf001', 'r001', '[30]', '[]', '[{"class_id":30,"class_name":"Tomato___Late_blight","name_cn":"番茄晚疫病","confidence":0.9230,"bbox":{"x":120,"y":80,"w":200,"h":180},"pipeline":"DISEASE"}]', '/uploads/annotated/inf001.jpg', 3200.50),
-('inf002', 'r002', '[30]', '[]', '[{"class_id":30,"class_name":"Tomato___Late_blight","name_cn":"番茄晚疫病","confidence":0.8870,"bbox":{"x":50,"y":30,"w":150,"h":120},"pipeline":"DISEASE"}]', '/uploads/annotated/inf002.jpg', 2850.30),
-('inf003', 'r003', '[36]', '[]', '[{"class_id":36,"class_name":"Tomato___Mosaic_virus","name_cn":"番茄花叶病毒病","confidence":0.9510,"bbox":{"x":80,"y":60,"w":180,"h":160},"pipeline":"DISEASE"}]', '/uploads/annotated/inf003.jpg', 3100.80),
-('inf004', 'r004', '[25]', '[]', '[{"class_id":25,"class_name":"Squash___Powdery_mildew","name_cn":"南瓜白粉病","confidence":0.8120,"bbox":{"x":40,"y":20,"w":220,"h":190},"pipeline":"DISEASE"}]', '/uploads/annotated/inf004.jpg', 2950.60),
-('inf005', 'r005', '[30]', '[]', '[{"class_id":30,"class_name":"Tomato___Late_blight","name_cn":"番茄晚疫病","confidence":0.9680,"bbox":{"x":30,"y":150,"w":100,"h":80},"pipeline":"DISEASE"}]', '/uploads/annotated/inf005.jpg', 3400.20),
-('inf006', 'r006', '[]', '[21]', '[{"class_id":21,"class_name":"红蜘蛛","name_cn":"红蜘蛛","confidence":0.7850,"bbox":{"x":90,"y":50,"w":60,"h":40},"pipeline":"PEST"}]', '/uploads/annotated/inf006.jpg', 2750.40),
-('inf007', 'r007', '[25]', '[]', '[{"class_id":25,"class_name":"Squash___Powdery_mildew","name_cn":"南瓜白粉病","confidence":0.9340,"bbox":{"x":60,"y":40,"w":170,"h":140},"pipeline":"DISEASE"}]', '/uploads/annotated/inf007.jpg', 3050.70),
-('inf008', 'r008', '[]', '[24]', '[{"class_id":24,"class_name":"蚜虫","name_cn":"蚜虫","confidence":0.5230,"bbox":{"x":100,"y":70,"w":50,"h":35},"pipeline":"PEST"}]', '/uploads/annotated/inf008.jpg', 2600.90),
-('inf009', 'r009', '[]', '[100]', '[{"class_id":100,"class_name":"棉铃虫","name_cn":"棉铃虫","confidence":0.8920,"bbox":{"x":70,"y":90,"w":110,"h":85},"pipeline":"PEST"}]', '/uploads/annotated/inf009.jpg', 3300.10),
-('inf010', 'r010', '[25]', '[]', '[{"class_id":25,"class_name":"Squash___Powdery_mildew","name_cn":"南瓜白粉病","confidence":0.4510,"bbox":{"x":55,"y":45,"w":90,"h":70},"pipeline":"DISEASE"}]', '/uploads/annotated/inf010.jpg', 2800.50),
-('inf011', 'r011', '[]', '[52]', '[{"class_id":52,"class_name":"蓟马","name_cn":"蓟马","confidence":0.6780,"bbox":{"x":45,"y":25,"w":80,"h":55},"pipeline":"PEST"}]', '/uploads/annotated/inf011.jpg', 2900.30);
+INSERT INTO inference (id, report_id, company_id, disease_ids, pest_ids, detections, annotated_image_url, total_elapsed_ms) VALUES
+('inf001', 'r001', 'comp001', '[30]', '[]', '[{"class_id":30,"class_name":"Tomato___Late_blight","name_cn":"番茄晚疫病","confidence":0.9230,"bbox":{"x":120,"y":80,"w":200,"h":180},"pipeline":"DISEASE"}]', '/uploads/annotated/inf001.jpg', 3200.50),
+('inf002', 'r002', 'comp001', '[30]', '[]', '[{"class_id":30,"class_name":"Tomato___Late_blight","name_cn":"番茄晚疫病","confidence":0.8870,"bbox":{"x":50,"y":30,"w":150,"h":120},"pipeline":"DISEASE"}]', '/uploads/annotated/inf002.jpg', 2850.30),
+('inf003', 'r003', 'comp001', '[36]', '[]', '[{"class_id":36,"class_name":"Tomato___Mosaic_virus","name_cn":"番茄花叶病毒病","confidence":0.9510,"bbox":{"x":80,"y":60,"w":180,"h":160},"pipeline":"DISEASE"}]', '/uploads/annotated/inf003.jpg', 3100.80),
+('inf004', 'r004', 'comp001', '[25]', '[]', '[{"class_id":25,"class_name":"Squash___Powdery_mildew","name_cn":"南瓜白粉病","confidence":0.8120,"bbox":{"x":40,"y":20,"w":220,"h":190},"pipeline":"DISEASE"}]', '/uploads/annotated/inf004.jpg', 2950.60),
+('inf005', 'r005', 'comp001', '[30]', '[]', '[{"class_id":30,"class_name":"Tomato___Late_blight","name_cn":"番茄晚疫病","confidence":0.9680,"bbox":{"x":30,"y":150,"w":100,"h":80},"pipeline":"DISEASE"}]', '/uploads/annotated/inf005.jpg', 3400.20),
+('inf006', 'r006', 'comp001', '[]', '[21]', '[{"class_id":21,"class_name":"红蜘蛛","name_cn":"红蜘蛛","confidence":0.7850,"bbox":{"x":90,"y":50,"w":60,"h":40},"pipeline":"PEST"}]', '/uploads/annotated/inf006.jpg', 2750.40),
+('inf007', 'r007', 'comp001', '[25]', '[]', '[{"class_id":25,"class_name":"Squash___Powdery_mildew","name_cn":"南瓜白粉病","confidence":0.9340,"bbox":{"x":60,"y":40,"w":170,"h":140},"pipeline":"DISEASE"}]', '/uploads/annotated/inf007.jpg', 3050.70),
+('inf008', 'r008', 'comp001', '[]', '[24]', '[{"class_id":24,"class_name":"蚜虫","name_cn":"蚜虫","confidence":0.5230,"bbox":{"x":100,"y":70,"w":50,"h":35},"pipeline":"PEST"}]', '/uploads/annotated/inf008.jpg', 2600.90),
+('inf009', 'r009', 'comp001', '[]', '[100]', '[{"class_id":100,"class_name":"棉铃虫","name_cn":"棉铃虫","confidence":0.8920,"bbox":{"x":70,"y":90,"w":110,"h":85},"pipeline":"PEST"}]', '/uploads/annotated/inf009.jpg', 3300.10),
+('inf010', 'r010', 'comp001', '[25]', '[]', '[{"class_id":25,"class_name":"Squash___Powdery_mildew","name_cn":"南瓜白粉病","confidence":0.4510,"bbox":{"x":55,"y":45,"w":90,"h":70},"pipeline":"DISEASE"}]', '/uploads/annotated/inf010.jpg', 2800.50),
+('inf011', 'r011', 'comp001', '[]', '[52]', '[{"class_id":52,"class_name":"蓟马","name_cn":"蓟马","confidence":0.6780,"bbox":{"x":45,"y":25,"w":80,"h":55},"pipeline":"PEST"}]', '/uploads/annotated/inf011.jpg', 2900.30);
 
 
 -- ========================================
