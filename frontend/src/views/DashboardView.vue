@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import GlassCard from '../components/GlassCard.vue'
 import DataMetric from '../components/DataMetric.vue'
@@ -9,6 +10,7 @@ import { useAuthStore } from '../stores/auth'
 import { fetchCameras, type CameraVO } from '../api/camera'
 import { fetchStatisticsOverview, type GridHeatmapItem, type DailyTrend } from '../api/statistics'
 import { fetchGrids, updateGrid, type GridVO } from '../api/grid'
+import { connectWs, disconnectWs, subscribeTopic } from '../utils/websocket'
 
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.userRole === 'ADMIN')
@@ -18,6 +20,119 @@ const cameras = ref<CameraVO[]>([])
 const gridHeatmap = ref<GridHeatmapItem[]>([])
 const dailyTrend = ref<DailyTrend[]>([])
 const woStore = useWorkOrderStore()
+const router = useRouter()
+
+// 实时探测 & 监控状态
+const monitoredCameraIds = ref<Set<string>>(new Set())
+let probeTimer: ReturnType<typeof setInterval> | null = null
+let wsCallerId: string | null = null
+let heatmapSub: any = null
+let workorderSub: any = null
+
+function handleHeatmapUpdate(data: { gridLabel: string; score: number }) {
+  const idx = gridHeatmap.value.findIndex(h => h.gridLabel === data.gridLabel)
+  if (idx !== -1) {
+    gridHeatmap.value[idx] = { ...gridHeatmap.value[idx], score: data.score }
+  }
+}
+
+async function handleWorkorderChange(data: {
+  workorderId: number; newStatus: string; type?: string; severity?: string
+}) {
+  const existing = woStore.orders.find(o => o.id === data.workorderId)
+  if (existing) {
+    // 已有工单：本地更新 status/severity → 触发 gridSeverityMap 重算
+    woStore.updateOrderLocal(data.workorderId, { status: data.newStatus as any, severity: (data.severity as any) || existing.severity })
+  } else {
+    // 新工单：刷新全量工单列表（比单独 fetch detail 更可靠）
+    woStore.fetchOrders()
+  }
+}
+
+/** 从前端网络探测摄像头 RTSP 端口可达性 */
+function parseRtspHostPort(rtspUrl: string): { host: string; port: number } | null {
+  try {
+    const url = new URL(rtspUrl)
+    return { host: url.hostname, port: parseInt(url.port) || 554 }
+  } catch { return null }
+}
+
+async function probeCameraReachability(cam: CameraVO): Promise<string> {
+  if (!cam.rtspUrl) return 'OFFLINE'
+  const parsed = parseRtspHostPort(cam.rtspUrl)
+  if (!parsed) return 'OFFLINE'
+  try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 3000)
+    await fetch(`http://${parsed.host}:${parsed.port}/`, { mode: 'no-cors', signal: controller.signal })
+    clearTimeout(timer)
+    return 'ONLINE'
+  } catch {
+    return 'OFFLINE'
+  }
+}
+
+async function probeAllCameras() {
+  await Promise.allSettled(
+    cameras.value.map(async cam => {
+      const probed = await probeCameraReachability(cam)
+      const prevStatus = cam.status
+      cam.status = probed as CameraVO['status']
+      if (prevStatus !== 'ONLINE' && probed === 'ONLINE') {
+        startCameraMonitor(cam)
+      }
+    })
+  )
+}
+
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('treeforge_token')
+  return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+}
+
+function startCameraMonitor(cam: CameraVO) {
+  if (monitoredCameraIds.value.has(cam.id)) return
+  fetch(`/api/camera/${cam.id}/monitor`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ enabled: true, intervalSeconds: 5, confidence: 0.5 }),
+  }).then(() => {
+    monitoredCameraIds.value.add(cam.id)
+  }).catch(e => console.warn('[Dashboard] 启动监测失败:', cam.id, e))
+}
+
+function stopAllMonitors() {
+  for (const id of monitoredCameraIds.value) {
+    fetch(`/api/camera/${id}/monitor`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ enabled: false }),
+    }).catch(() => {})
+  }
+  monitoredCameraIds.value.clear()
+}
+
+async function initRealtimeWs() {
+  try {
+    wsCallerId = await connectWs()
+    heatmapSub = subscribeTopic('/topic/heatmap-update', (msg: any) => {
+      if (msg.data) handleHeatmapUpdate(msg.data)
+    })
+    workorderSub = subscribeTopic('/topic/workorder-change', (msg: any) => {
+      if (msg.data) handleWorkorderChange(msg.data)
+    })
+  } catch (e: any) {
+    console.warn('[Dashboard] WebSocket 连接失败:', e?.message)
+    // Token 过期 → 跳转登录页
+    if (e?.message?.includes('Token') || e?.message?.includes('认证')) {
+      auth.logout()
+    }
+  }
+}
+
+function navigateToMonitor(cameraId: string) {
+  router.push({ name: 'Monitor', query: { cameraId } })
+}
 
 // Editable metadata (persisted)
 const meta = dashSettings.meta
@@ -157,23 +272,35 @@ onMounted(() => {
   clockTimer = setInterval(() => { now.value = new Date() }, 1000)
   // 加载工单数据（供热力图、报警面板、趋势图使用）
   woStore.fetchOrders()
-  // 加载摄像头列表
+  // 加载摄像头列表，完成后启动实时监测与状态探测
   fetchCameras({ size: 50 }).then(page => {
     cameras.value = page.records
+    // 对在线摄像头启动后端持续监测（触发推理 → 工单 → 热力图更新）
+    cameras.value.filter(c => c.status === 'ONLINE').forEach(startCameraMonitor)
+    // 前端网络可达性探测（每 5 秒）
+    probeAllCameras()
+    probeTimer = setInterval(() => probeAllCameras(), 5000)
   }).catch(e => console.error('[Dashboard] 加载摄像头失败:', e.message))
   // 加载网格列表（从数据库）
   fetchGrids().then(list => {
     dbGrids.value = list
   }).catch(e => console.error('[Dashboard] 加载网格失败:', e.message))
-  // 加载统计数据（热力图 + 7日趋势）
+  // 加载统计数据（热力图 + 7日趋势，作为基线）
   fetchStatisticsOverview().then(ov => {
     gridHeatmap.value = ov.gridHeatmap || []
     dailyTrend.value = ov.dailyTrend || []
     renderTrendChart()
   }).catch(e => console.error('[Dashboard] 加载统计数据失败:', e.message))
+  // WebSocket 实时推送：热力图分数 + 工单变更
+  initRealtimeWs()
 })
 onUnmounted(() => {
   clearInterval(clockTimer)
+  if (probeTimer) { clearInterval(probeTimer); probeTimer = null }
+  stopAllMonitors()
+  heatmapSub?.unsubscribe()
+  workorderSub?.unsubscribe()
+  disconnectWs(wsCallerId ?? undefined)
 })
 
 // 2.5D Heatmap drag-to-rotate
@@ -534,7 +661,8 @@ function renderTrendChart() {
             <div
               v-for="camera in cameras"
               :key="camera.id"
-              class="glass rounded-lg overflow-hidden flex flex-col"
+              class="glass rounded-lg overflow-hidden flex flex-col cursor-pointer hover:ring-1 hover:ring-[#FF6A00]/30 transition-all"
+              @click="navigateToMonitor(camera.id)"
             >
               <div class="flex-1 min-h-0 relative bg-slate-900/50 flex items-center justify-center">
                 <template v-if="camera.status === 'ONLINE'">

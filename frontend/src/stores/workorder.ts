@@ -174,6 +174,24 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     }
   }
 
+  /** 从 VO 添加工单到本地 store（用于 WebSocket 实时推送） */
+  function addOrderFromVO(vo: WorkOrderVO) {
+    const idx = orders.value.findIndex(o => o.id === vo.id)
+    if (idx === -1) {
+      orders.value.unshift(fromVO(vo))
+    }
+  }
+
+  /** 本地更新工单字段（用于 WebSocket 实时推送） */
+  function updateOrderLocal(id: number, patch: Partial<Pick<WorkOrder, 'status' | 'severity'>>) {
+    const o = orders.value.find(o => o.id === id)
+    if (o) {
+      if (patch.status) o.status = patch.status
+      if (patch.severity) o.severity = patch.severity
+      o.updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+    }
+  }
+
   /** 删除工单 */
   async function removeOrder(id: number) {
     loading.value = true
@@ -306,6 +324,8 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     trendData,
     fetchOrders,
     addOrder,
+    addOrderFromVO,
+    updateOrderLocal,
     removeOrder,
     updateOrderStatus,
     escalateSeverity,

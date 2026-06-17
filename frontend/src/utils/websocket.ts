@@ -26,7 +26,18 @@ export interface InferenceResultMessage {
 }
 
 let client: Client | null = null
+let clientToken = '' // 创建当前 client 时使用的 token
 let connecting = false
+
+/** 检查 JWT 是否已过期（解码 payload 的 exp 字段） */
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()
+  } catch {
+    return true
+  }
+}
 const pendingResolves: Array<() => void> = []
 const pendingRejects: Array<(e: Error) => void> = []
 const callerIds = new Set<string>()
@@ -37,8 +48,23 @@ function newCallerId(): string {
 }
 
 export function getWsClient(): Client {
+  const token = localStorage.getItem('treeforge_token') || ''
+  // token 变化（如刷新后）→ 销毁旧 client，用新 token 重建
+  if (client && clientToken !== token) {
+    console.log('[WS] Token changed, recreating client')
+    try { client.deactivate() } catch { /* ignore */ }
+    client = null
+    connecting = false
+    const err = new Error('Token refreshed, please reconnect')
+    pendingRejects.splice(0).forEach(r => r(err))
+    pendingResolves.splice(0)
+  }
   if (!client) {
-    const token = localStorage.getItem('treeforge_token') || ''
+    // token 已过期 → 不创建无效连接，直接抛错
+    if (!token || isTokenExpired(token)) {
+      throw new Error('Token expired, please login again')
+    }
+    clientToken = token
     console.log('[WS] Creating client, token length:', token.length)
     client = new Client({
       webSocketFactory: () => {
