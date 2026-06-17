@@ -22,7 +22,8 @@ public class StgTemplateService implements TemplateService {
 
     private static final String[] TEMPLATE_DIRS = {
             "templates/agri-brain/",
-            "templates/workorder-email/"
+            "templates/workorder-email/",
+            "templates/ai-review/"
     };
 
     private final Map<String, STGroup> templateGroups = new ConcurrentHashMap<>();
@@ -36,7 +37,8 @@ public class StgTemplateService implements TemplateService {
     private void preloadTemplates() {
         String[][] dirTemplates = {
                 {"system_prompt.stg", "quick_advice.stg"},
-                {"email_prompt.stg"}
+                {"email_prompt.stg"},
+                {"ai_review_prompt.stg"}
         };
 
         for (int i = 0; i < TEMPLATE_DIRS.length; i++) {

@@ -4,6 +4,8 @@ import com.agriculture.common.config.LlmProperties;
 import com.agriculture.common.exception.BusinessException;
 import com.agriculture.common.service.TemplateService;
 import com.agriculture.common.websocket.WebSocketService;
+import com.agriculture.modules.grid.entity.Grid;
+import com.agriculture.modules.grid.mapper.GridMapper;
 import com.agriculture.modules.workorder.entity.WorkOrder;
 import com.agriculture.modules.workorder.entity.WorkOrderHistory;
 import com.agriculture.modules.workorder.mapper.WorkOrderHistoryMapper;
@@ -27,6 +29,7 @@ import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -58,6 +61,9 @@ class WorkOrderServiceTest {
 
     @Mock
     private RestClient llmRestClient;
+
+    @Mock
+    private GridMapper gridMapper;
 
     @InjectMocks
     private WorkOrderServiceImpl workOrderService;
@@ -225,6 +231,75 @@ class WorkOrderServiceTest {
 
             assertNotNull(result);
             assertNull(result.getAssignedToEmail());
+        }
+    }
+
+    // ==================== reviewWorkOrders (AI 审核) ====================
+
+    @Nested
+    @DisplayName("reviewWorkOrders 方法 (AI 审核)")
+    class ReviewWorkOrders {
+
+        private WorkOrder createAiReviewWorkOrder(Long id, String gridLabel, String pestName, double confidence) {
+            WorkOrder wo = new WorkOrder();
+            wo.setId(id);
+            wo.setTitle("【HIGH】Grid-" + gridLabel + " " + pestName + " 自动检测");
+            wo.setSeverity("HIGH");
+            wo.setStatus(WorkOrder.STATUS_AI_REVIEW);
+            wo.setType("disease");
+            wo.setGridLabel(gridLabel);
+            wo.setPestName(pestName);
+            wo.setConfidence(BigDecimal.valueOf(confidence));
+            wo.setCompanyId("company-001");
+            wo.setCreatedAt(LocalDateTime.now());
+            wo.setUpdatedAt(LocalDateTime.now());
+            return wo;
+        }
+
+        @Test
+        @DisplayName("LLM 异常时全部工单默认提升为 PENDING")
+        void reviewWorkOrders_llmException_promotesAllToPending() {
+            WorkOrder wo1 = createAiReviewWorkOrder(10L, "A1", "番茄晚疫病", 0.85);
+            WorkOrder wo2 = createAiReviewWorkOrder(11L, "B2", "稻飞虱", 0.72);
+            List<WorkOrder> workOrders = new ArrayList<>(List.of(wo1, wo2));
+
+            // Grid 查询返回作物类型
+            Grid gridA1 = new Grid();
+            gridA1.setLabel("A1");
+            gridA1.setCropType("番茄");
+            when(gridMapper.selectOne(any(LambdaQueryWrapper.class)))
+                    .thenReturn(gridA1);
+
+            when(templateService.render(eq("ai_review_prompt"), any(Map.class)))
+                    .thenReturn("prompt");
+            when(llmProperties.getModel()).thenReturn("deepseek-chat");
+            // RestClient.post() 会抛异常（final class 无法 mock），触发兜底逻辑
+
+            workOrderService.reviewWorkOrders(workOrders);
+
+            // 两条工单都应被提升为 PENDING
+            verify(workOrderMapper, times(2)).updateById(any(WorkOrder.class));
+            verify(workOrderHistoryMapper, times(2)).insert(any(WorkOrderHistory.class));
+            assertEquals("PENDING", wo1.getStatus());
+            assertEquals("PENDING", wo2.getStatus());
+        }
+
+        @Test
+        @DisplayName("空列表不执行任何操作")
+        void reviewWorkOrders_emptyList_doesNothing() {
+            workOrderService.reviewWorkOrders(new ArrayList<>());
+
+            verify(workOrderMapper, never()).updateById(any(WorkOrder.class));
+            verify(workOrderMapper, never()).deleteById(any(Long.class));
+        }
+
+        @Test
+        @DisplayName("null 列表不执行任何操作")
+        void reviewWorkOrders_nullList_doesNothing() {
+            workOrderService.reviewWorkOrders(null);
+
+            verify(workOrderMapper, never()).updateById(any(WorkOrder.class));
+            verify(workOrderMapper, never()).deleteById(any(Long.class));
         }
     }
 }

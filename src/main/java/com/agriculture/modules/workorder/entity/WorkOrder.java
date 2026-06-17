@@ -25,6 +25,9 @@ public class WorkOrder implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /** AI审核中（自动工单创建后的初始状态，前端不可见） */
+    public static final String STATUS_AI_REVIEW = "AI_REVIEW";
+
     /**
      * 工单ID
      */

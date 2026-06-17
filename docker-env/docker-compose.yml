@@ -15,6 +15,7 @@ services:
     profiles: [infra]
     image: mysql:8.0
     container_name: agri-monitor-mysql
+    runtime: runc
     restart: always
     ports:
       - "3306:3306"
@@ -47,6 +48,7 @@ services:
     profiles: [infra]
     image: redis:7-alpine
     container_name: agri-monitor-redis
+    runtime: runc
     restart: always
     ports:
       - "6379:6379"
@@ -69,6 +71,7 @@ services:
     profiles: [infra]
     image: rabbitmq:3.12-management-alpine
     container_name: agri-monitor-rabbitmq
+    runtime: runc
     restart: always
     ports:
       - "5672:5672"       # AMQP 协议端口
@@ -95,6 +98,7 @@ services:
     profiles: [infra]
     image: elasticsearch:8.13.0
     container_name: agri-monitor-es
+    runtime: runc
     restart: always
     ports:
       - "9200:9200"
@@ -127,6 +131,7 @@ services:
     profiles: [infra]
     image: minio/minio:latest
     container_name: agri-monitor-minio
+    runtime: runc
     restart: always
     ports:
       - "9000:9000"       # S3 API
@@ -189,14 +194,15 @@ services:
         condition: service_healthy
     networks:
       - agri-net
-    # 如果有 GPU, 取消下面注释
-    deploy:
-       resources:
-         reservations:
-           devices:
-             - driver: nvidia
-               count: 1
-               capabilities: [gpu]
+    runtime: runc
+    # 如果有 GPU, 取消下面注释并删除上面的 runtime: runc
+    # deploy:
+    #    resources:
+    #      reservations:
+    #        devices:
+    #          - driver: nvidia
+    #            count: 1
+    #            capabilities: [gpu]
 
   # ----------------------------------------------------------
   # Spring Boot 后端 - 核心业务服务
@@ -209,6 +215,7 @@ services:
       context: ..
       dockerfile: docker-env/backend/Dockerfile
     container_name: agri-monitor-backend
+    runtime: runc
     restart: always
     ports:
       - "8080:8080"
@@ -276,6 +283,7 @@ services:
         - HTTP_PROXY=${DOCKER_BUILD_PROXY:-}
         - HTTPS_PROXY=${DOCKER_BUILD_PROXY:-}
     container_name: agri-monitor-frontend
+    runtime: runc
     restart: always
     ports:
       - "3000:3000"
@@ -294,6 +302,7 @@ services:
     profiles: [app]
     image: nginx:1.25-alpine
     container_name: agri-monitor-nginx
+    runtime: runc
     restart: always
     ports:
       - "80:80"

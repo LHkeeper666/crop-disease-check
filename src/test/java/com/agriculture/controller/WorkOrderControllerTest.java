@@ -2,6 +2,8 @@ package com.agriculture.controller;
 
 import com.agriculture.modules.workorder.controller.WorkOrderController;
 import com.agriculture.modules.workorder.dto.*;
+import com.agriculture.modules.workorder.entity.WorkOrder;
+import com.agriculture.modules.workorder.mapper.WorkOrderMapper;
 import com.agriculture.common.exception.BusinessException;
 import com.agriculture.common.exception.GlobalExceptionHandler;
 import com.agriculture.common.service.EmailService;
@@ -30,6 +32,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -41,6 +44,9 @@ class WorkOrderControllerTest {
 
     @Mock
     private WorkOrderService workOrderService;
+
+    @Mock
+    private WorkOrderMapper workOrderMapper;
 
     @Mock
     private SysUserMapper sysUserMapper;
@@ -86,6 +92,12 @@ class WorkOrderControllerTest {
                 createHistory("PENDING", LocalDateTime.of(2026, 6, 9, 10, 30, 0), "系统"),
                 createHistory("PROCESSING", LocalDateTime.of(2026, 6, 9, 10, 35, 0), "李专家")
         ));
+
+        // mock checkCompanyOwnership 依赖
+        WorkOrder mockWorkOrder = new WorkOrder();
+        mockWorkOrder.setId(1L);
+        mockWorkOrder.setCompanyId("company-001");
+        lenient().when(workOrderMapper.selectById(1L)).thenReturn(mockWorkOrder);
     }
 
     private StatusHistoryVO createHistory(String status, LocalDateTime time, String operator) {
