@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import GlassCard from '../components/GlassCard.vue'
 import CameraMonitor from '../components/CameraMonitor.vue'
 import type { DetectionItem } from '../utils/websocket'
@@ -18,6 +19,7 @@ const selectedCamera = ref<CameraItem | null>(null)
 const columns = ref(2)
 const isLoading = ref(true)
 const fetchError = ref('')
+const route = useRoute()
 
 // 每个摄像头的最新检测结果
 const detectionsMap = ref<Record<string, DetectionItem[]>>({})
@@ -66,6 +68,17 @@ async function fetchCameras() {
     }
     // 获取列表后立即探测所有摄像头状态
     await probeAllCameras()
+    // 从 Dashboard 跳转过来时，自动选中并滚动到目标摄像头
+    const targetCameraId = route.query.cameraId as string
+    if (targetCameraId) {
+      const target = cameras.value.find(c => c.id === targetCameraId)
+      if (target) {
+        selectedCamera.value = target
+        await nextTick()
+        const el = document.querySelector(`[data-camera-id="${targetCameraId}"]`)
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }
   } catch (e: any) {
     fetchError.value = e.message || '加载摄像头失败'
   } finally {
@@ -296,6 +309,7 @@ onUnmounted(() => {
           <div
             v-for="cam in cameras"
             :key="cam.id"
+            :data-camera-id="cam.id"
             class="cursor-pointer rounded-lg transition-all"
             :class="selectedCamera?.id === cam.id
               ? 'ring-2 ring-[#FF6A00]/50'
