@@ -533,7 +533,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
             );
 
             String responseJson = llmRestClient.post()
-                    .uri("/chat/completions")
+                    .uri("/v1/chat/completions")
                     .body(requestBody)
                     .retrieve()
                     .body(String.class);
@@ -619,7 +619,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
             );
 
             String responseJson = llmRestClient.post()
-                    .uri("/chat/completions")
+                    .uri("/v1/chat/completions")
                     .body(requestBody)
                     .retrieve()
                     .body(String.class);
