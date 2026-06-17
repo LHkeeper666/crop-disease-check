@@ -75,7 +75,7 @@ class AgriBrainControllerTest {
         @DisplayName("返回 SseEmitter 并调用 service")
         void chat_returnsSseEmitter() throws Exception {
             SseEmitter mockEmitter = new SseEmitter();
-            when(agriBrainService.chat(eq("番茄晚疫病怎么治？"), isNull(), eq("user-001")))
+            when(agriBrainService.chat(eq("番茄晚疫病怎么治？"), isNull(), eq("user-001"), isNull()))
                     .thenReturn(mockEmitter);
 
             ChatRequest request = new ChatRequest();
@@ -87,14 +87,14 @@ class AgriBrainControllerTest {
                             .requestAttr("userId", "user-001"))
                     .andExpect(status().isOk());
 
-            verify(agriBrainService).chat(eq("番茄晚疫病怎么治？"), isNull(), eq("user-001"));
+            verify(agriBrainService).chat(eq("番茄晚疫病怎么治？"), isNull(), eq("user-001"), isNull());
         }
 
         @Test
         @DisplayName("携带 conversationId 调用 service")
         void chat_withConversationId() throws Exception {
             SseEmitter mockEmitter = new SseEmitter();
-            when(agriBrainService.chat(eq("还有其他方法吗？"), eq("conv-001"), eq("user-001")))
+            when(agriBrainService.chat(eq("还有其他方法吗？"), eq("conv-001"), eq("user-001"), isNull()))
                     .thenReturn(mockEmitter);
 
             ChatRequest request = new ChatRequest();
@@ -107,7 +107,7 @@ class AgriBrainControllerTest {
                             .requestAttr("userId", "user-001"))
                     .andExpect(status().isOk());
 
-            verify(agriBrainService).chat(eq("还有其他方法吗？"), eq("conv-001"), eq("user-001"));
+            verify(agriBrainService).chat(eq("还有其他方法吗？"), eq("conv-001"), eq("user-001"), isNull());
         }
     }
 

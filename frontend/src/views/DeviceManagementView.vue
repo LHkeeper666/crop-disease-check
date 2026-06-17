@@ -4,6 +4,7 @@ import GlassCard from '../components/GlassCard.vue'
 import { useAuthStore } from '../stores/auth'
 import { fetchGrids, updateGrid, type GridVO } from '../api/grid'
 import { fetchUsers, updateUser, updateUserStatus, resetUserPassword, type UserSimpleVO } from '../api/user'
+import { usePageContextProvider } from '../composables/usePageContext'
 
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.userRole === 'ADMIN')
@@ -118,6 +119,32 @@ const filteredCameras = computed(() => {
     cam.name.toLowerCase().includes(keyword)
   )
 })
+
+usePageContextProvider(() => ({
+  page: '/devices',
+  pageName: '设备管理',
+  visibleData: {
+    list: cameras.value.slice(0, 5).map(cam => ({
+      id: cam.id,
+      name: cam.name,
+      status: cam.status,
+      coverageGrids: cam.coverageGrids,
+    })),
+    stats: {
+      totalCameras: cameras.value.length,
+      onlineCameras: cameras.value.filter(c => c.status === 'ONLINE').length,
+      totalGrids: grids.value.length,
+      totalUsers: users.value.length,
+    },
+    extra: {
+      grids: grids.value.slice(0, 5).map(g => ({
+        id: g.id,
+        label: g.label,
+        cropType: g.cropType,
+      })),
+    },
+  },
+}))
 
 // ==================== Camera API ====================
 function getAuthHeaders(): Record<string, string> {

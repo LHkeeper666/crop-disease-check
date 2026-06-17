@@ -69,7 +69,7 @@ docker-compose.override.yml
 # Node (if frontend exists)
 node_modules/
 dist/
-.vite
+.vite/
 
 *.pdf
 *.sh

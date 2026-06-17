@@ -1,5 +1,6 @@
 package com.agriculture.modules.agriBrain.service;
 
+import com.agriculture.modules.agriBrain.dto.PageContext;
 import com.agriculture.modules.agriBrain.vo.ChatEvent;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -9,6 +10,8 @@ import java.util.Map;
 public interface AgriBrainService {
 
     SseEmitter chat(String message, String conversationId, String userId);
+
+    SseEmitter chat(String message, String conversationId, String userId, PageContext context);
 
     SseEmitter quickAdvice(String userId);
 

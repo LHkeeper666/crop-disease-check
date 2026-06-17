@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import GlassCard from '../components/GlassCard.vue'
 import CameraMonitor from '../components/CameraMonitor.vue'
 import type { DetectionItem } from '../utils/websocket'
+import { usePageContextProvider } from '../composables/usePageContext'
 
 interface CameraItem {
   id: string
@@ -42,6 +43,26 @@ const selectedDiseases = computed(() =>
 const selectedPests = computed(() =>
   selectedDetections.value.filter(d => d.type === 'pest')
 )
+
+usePageContextProvider(() => ({
+  page: '/monitor',
+  pageName: '摄像头监控',
+  selectedId: selectedCamera.value?.id || undefined,
+  visibleData: {
+    list: cameras.value.map(cam => ({
+      id: cam.id,
+      name: cam.name,
+      status: cam.status,
+      grid: cam.grid,
+    })),
+    stats: {
+      total: cameras.value.length,
+      online: cameras.value.filter(c => c.status === 'ONLINE').length,
+      offline: cameras.value.filter(c => c.status === 'OFFLINE').length,
+      monitored: monitoredCameraIds.value.size,
+    },
+  },
+}))
 
 async function fetchCameras() {
   isLoading.value = true
