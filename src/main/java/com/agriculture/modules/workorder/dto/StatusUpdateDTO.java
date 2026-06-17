@@ -11,4 +11,6 @@ public class StatusUpdateDTO {
     private String status;
 
     private String comment;
+
+    private String expertComment;
 }

@@ -37,7 +37,7 @@ public interface WorkOrderService extends IService<WorkOrder> {
 
     CallbackResponseVO handleCallback(CallbackDTO dto);
 
-    void updateStatus(Long id, String status, String comment, String operatorId, String operatorName);
+    void updateStatus(Long id, String status, String comment, String expertComment, String operatorId, String operatorName);
 
     void updateSeverity(Long id, String severity);
 

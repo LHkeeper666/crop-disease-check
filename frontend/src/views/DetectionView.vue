@@ -198,17 +198,17 @@ function fileToBase64(file: File): Promise<string> {
 // ========== 工单创建逻辑 ==========
 const AUTO_ASSIGN_THRESHOLD = 0.6
 
-/** 根据置信度自动选择负责人：>0.6 选管理员，≤0.6 选专家 */
+/** 根据置信度自动选择负责人：>0.6 选基层员工，≤0.6 选专家 */
 function autoAssignee(confidence: number): string {
   if (confidence > AUTO_ASSIGN_THRESHOLD) {
-    return workOrderStore.managers.length > 0 ? workOrderStore.managers[0].id : ''
+    return workOrderStore.staffList.length > 0 ? workOrderStore.staffList[0].id : ''
   }
   return workOrderStore.experts.length > 0 ? workOrderStore.experts[0].id : ''
 }
 
 /** 根据置信度获取推荐角色名 */
 function recommendedRoleLabel(confidence: number): string {
-  return confidence > AUTO_ASSIGN_THRESHOLD ? '管理员' : '专家'
+  return confidence > AUTO_ASSIGN_THRESHOLD ? '基层员工' : '专家'
 }
 
 /** 根据置信度推断严重程度 */
@@ -700,7 +700,7 @@ function totalDetections(item: BatchItem): number {
             <h3 class="text-sm font-bold text-white">创建工单</h3>
             <p class="text-[10px] text-slate-500 mt-0.5">
               置信度 {{ (workOrderForm.confidence * 100).toFixed(1) }}% —
-              {{ workOrderForm.confidence > 0.6 ? '高置信度，推荐分配给管理员' : '低置信度，推荐分配给专家' }}
+              {{ workOrderForm.confidence > 0.6 ? '高置信度，推荐分配给基层员工' : '低置信度，推荐分配给专家' }}
             </p>
           </div>
           <button

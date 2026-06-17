@@ -122,7 +122,7 @@ public class WorkOrderController {
         SysUser currentUser = sysUserMapper.selectById(userId);
         String operatorId = userId;
         String operatorName = currentUser != null ? currentUser.getName() : "系统";
-        workOrderService.updateStatus(id, dto.getStatus(), dto.getComment(), operatorId, operatorName);
+        workOrderService.updateStatus(id, dto.getStatus(), dto.getComment(), dto.getExpertComment(), operatorId, operatorName);
         return Result.success("状态更新成功", null);
     }
 

@@ -43,6 +43,7 @@ import jakarta.annotation.Resource;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 /**
@@ -115,6 +116,9 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
 
     @Value("${camera.detect.auto-workorder-confidence:0.5}")
     private float autoWorkOrderConfidence;
+
+    @Value("${workorder.ai-assign-threshold:0.6}")
+    private float aiAssignThreshold;
 
     @Override
     public IPage<WorkOrderVO> listWorkOrders(String status, String severity,
@@ -285,6 +289,15 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         workOrder.setConfidence(dto.getConfidence() != null ? BigDecimal.valueOf(dto.getConfidence()) : null);
         workOrder.setAssignedTo(dto.getAssignedTo());
         workOrder.setImageUrl(dto.getImageUrl());
+        // 根据指派角色设置 expert_comment
+        if (dto.getAssignedTo() != null) {
+            SysUser assignee = sysUserMapper.selectById(dto.getAssignedTo());
+            if (assignee != null && "EXPERT".equals(assignee.getRole())) {
+                workOrder.setExpertComment("请您复查");
+            } else if (assignee != null && "STAFF".equals(assignee.getRole())) {
+                workOrder.setExpertComment(generateMeasureComment(workOrder));
+            }
+        }
         workOrder.setCreatedBy(operatorId);
         workOrder.setCompanyId(companyId);
         workOrder.setCallbackToken(UUID.randomUUID().toString().replace("-", ""));
@@ -393,7 +406,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
 
     @Override
     @Transactional
-    public void updateStatus(Long id, String status, String comment, String operatorId, String operatorName) {
+    public void updateStatus(Long id, String status, String comment, String expertComment, String operatorId, String operatorName) {
         WorkOrder workOrder = baseMapper.selectById(id);
         if (workOrder == null) {
             throw new BusinessException(404, "工单不存在");
@@ -403,6 +416,15 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         String oldStatus = workOrder.getStatus();
         if (!isValidTransition(oldStatus, status)) {
             throw new BusinessException("非法的状态变更: " + oldStatus + " -> " + status);
+        }
+
+        // 专家确认处理时：保存专家评语并自动指派给基层员工
+        SysUser operator = sysUserMapper.selectById(operatorId);
+        if (operator != null && "EXPERT".equals(operator.getRole()) && "PROCESSING".equals(status)) {
+            if (expertComment != null && !expertComment.trim().isEmpty()) {
+                workOrder.setExpertComment(expertComment.trim());
+            }
+            reassignToRandomStaff(workOrder);
         }
 
         workOrder.setStatus(status);
@@ -651,6 +673,10 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
 
                 if (reasonable) {
                     wo.setStatus("PENDING");
+
+                    // 根据置信度随机指派人员
+                    String assigneeName = assignByConfidence(wo);
+
                     wo.setUpdatedAt(LocalDateTime.now());
                     baseMapper.updateById(wo);
 
@@ -671,6 +697,8 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
                         wsData.put("operatorName", "AI审核通过");
                         wsData.put("type", wo.getType());
                         wsData.put("severity", wo.getSeverity());
+                        wsData.put("assignedTo", wo.getAssignedTo());
+                        wsData.put("assignedToName", assigneeName);
                         wsData.put("updatedAt", LocalDateTime.now().toString());
                         webSocketService.sendWorkorderChange(wsData);
                     } catch (Exception ignored) {
@@ -691,6 +719,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         for (WorkOrder wo : workOrders) {
             try {
                 wo.setStatus("PENDING");
+                assignByConfidence(wo);
                 wo.setUpdatedAt(LocalDateTime.now());
                 baseMapper.updateById(wo);
 
@@ -730,6 +759,92 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
             return text.substring(start, end + 1);
         }
         return text;
+    }
+
+    /**
+     * 根据置信度自动指派工单负责人：置信度 >= 阈值 → STAFF，置信度 < 阈值 → EXPERT。
+     * 在同企业内随机选取活跃用户，返回被指派者姓名，未找到合适人选时返回 null。
+     */
+    private String assignByConfidence(WorkOrder wo) {
+        String targetRole = wo.getConfidence() != null
+                && wo.getConfidence().compareTo(BigDecimal.valueOf(aiAssignThreshold)) >= 0
+                ? "STAFF" : "EXPERT";
+
+        // 根据指派角色设置 expert_comment
+        if ("STAFF".equals(targetRole)) {
+            wo.setExpertComment(generateMeasureComment(wo));
+        } else {
+            wo.setExpertComment("请您复查");
+        }
+
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUser::getDeleted, 0)
+               .eq(SysUser::getRole, targetRole)
+               .eq(SysUser::getStatus, "ACTIVE")
+               .eq(StringUtils.hasText(wo.getCompanyId()), SysUser::getCompanyId, wo.getCompanyId());
+
+        List<SysUser> candidates = sysUserMapper.selectList(wrapper);
+        if (candidates.isEmpty()) {
+            log.warn("AI审核指派失败: 企业 {} 内无可用 {}, workOrderId={}", wo.getCompanyId(), targetRole, wo.getId());
+            return null;
+        }
+
+        SysUser assignee = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+        wo.setAssignedTo(assignee.getId());
+        log.info("AI审核指派: workOrderId={}, role={}, assignee={}({}), confidence={}",
+                wo.getId(), targetRole, assignee.getName(), assignee.getId(), wo.getConfidence());
+        return assignee.getName();
+    }
+
+    /**
+     * 专家确认处理后，自动将工单指派给企业内随机一名基层员工
+     */
+    private void reassignToRandomStaff(WorkOrder wo) {
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUser::getDeleted, 0)
+               .eq(SysUser::getRole, "STAFF")
+               .eq(SysUser::getStatus, "ACTIVE")
+               .eq(StringUtils.hasText(wo.getCompanyId()), SysUser::getCompanyId, wo.getCompanyId());
+        List<SysUser> candidates = sysUserMapper.selectList(wrapper);
+        if (!candidates.isEmpty()) {
+            SysUser staff = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+            wo.setAssignedTo(staff.getId());
+            log.info("专家确认后自动指派基层员工: workOrderId={}, newAssignee={}({})", wo.getId(), staff.getName(), staff.getId());
+        } else {
+            log.warn("专家确认后指派失败: 企业 {} 内无可用基层员工, workOrderId={}", wo.getCompanyId(), wo.getId());
+        }
+    }
+
+    /**
+     * 为指派给基层员工的工单生成 AI 防治建议（expert_comment）
+     */
+    private String generateMeasureComment(WorkOrder wo) {
+        try {
+            String pestName = wo.getPestName() != null ? wo.getPestName() : "未知病虫害";
+            String prompt = "针对" + pestName + "，请给出100字以内的简要防治措施建议，直接输出建议内容，不要加标题或前缀。";
+
+            Map<String, Object> requestBody = Map.of(
+                    "model", llmProperties.getModel(),
+                    "messages", List.of(Map.of("role", "user", "content", prompt)),
+                    "stream", false
+            );
+
+            String responseJson = llmRestClient.post()
+                    .uri("/v1/chat/completions")
+                    .body(requestBody)
+                    .retrieve()
+                    .body(String.class);
+
+            JsonNode root = JSON.readTree(responseJson);
+            JsonNode choices = root.get("choices");
+            if (choices != null && choices.size() > 0) {
+                String content = choices.get(0).get("message").get("content").asText();
+                return content.length() > 500 ? content.substring(0, 497) + "..." : content;
+            }
+        } catch (Exception e) {
+            log.warn("AI生成防治建议失败，使用默认内容", e);
+        }
+        return "请根据" + (wo.getPestName() != null ? wo.getPestName() : "病虫害") + "的防治方案，及时采取相应措施处理。";
     }
 
     // ==================== MQ 驱动的智能工单生成 ====================

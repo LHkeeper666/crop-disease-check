@@ -214,10 +214,10 @@ export const useWorkOrderStore = defineStore('workorder', () => {
   }
 
   /** 更新工单状态 */
-  async function updateOrderStatus(id: number, status: WorkOrder['status'], comment?: string) {
+  async function updateOrderStatus(id: number, status: WorkOrder['status'], comment?: string, expertComment?: string) {
     error.value = null
     try {
-      await apiUpdateStatus(id, status, comment)
+      await apiUpdateStatus(id, status, comment, expertComment)
       const o = orders.value.find(o => o.id === id)
       if (o) {
         o.status = status

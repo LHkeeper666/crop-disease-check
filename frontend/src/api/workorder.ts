@@ -153,11 +153,12 @@ export async function createManualWorkOrder(dto: WorkOrderManualCreateDTO): Prom
 export async function updateWorkOrderStatus(
   id: number,
   status: string,
-  comment?: string
+  comment?: string,
+  expertComment?: string
 ): Promise<void> {
   return request<void>(`${BASE}/${id}/status`, {
     method: 'PUT',
-    body: JSON.stringify({ status, comment }),
+    body: JSON.stringify({ status, comment, expertComment }),
   })
 }
 

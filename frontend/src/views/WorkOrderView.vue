@@ -37,6 +37,7 @@ async function loadExperts() {
 onMounted(() => {
   woStore.fetchOrders()
   loadExperts()
+  woStore.fetchStaff()
   // 添加点击外部关闭选择器的事件监听
   document.addEventListener('click', handleClickOutside)
 })
@@ -61,6 +62,8 @@ const selectedOrder = ref<any>(null)
 // 专家选择器状态
 const showAssigneeSelector = ref(false)
 const expertSearchQuery = ref('')
+// 专家评语编辑
+const expertCommentEdit = ref('')
 const assigneeFieldRef = ref<HTMLElement | null>(null)
 const assigneeDropdownStyle = ref({})
 
@@ -160,22 +163,48 @@ function getStatusSteps(order: any) {
   }))
 }
 
-function openDetail(order: any) {
-  selectedOrder.value = order
+async function openDetail(order: any) {
+  // 获取完整详情（含 expertComment）
+  try {
+    const { fetchWorkOrderDetail } = await import('../api/workorder')
+    const detail = await fetchWorkOrderDetail(order.id.toString())
+    selectedOrder.value = { ...order, expertComment: detail.expertComment, assignedToEmail: detail.assignedToEmail }
+  } catch {
+    selectedOrder.value = order
+  }
+  expertCommentEdit.value = selectedOrder.value?.expertComment || ''
   showDetailModal.value = true
-  // 加载专家列表（如果尚未加载）
+  // 加载可指派人员列表（如果尚未加载）
   if (woStore.experts.length === 0) {
     woStore.fetchExperts()
   }
+  if (woStore.staffList.length === 0) {
+    woStore.fetchStaff()
+  }
 }
 
-// 专家列表过滤
-const filteredExperts = computed(() => {
-  if (!expertSearchQuery.value) return woStore.experts
+// 可指派人员列表（专家 + 基层员工）
+const assignableUsers = computed(() => {
+  const experts = woStore.experts
+  const staff = woStore.staffList
+  const ids = new Set(experts.map(e => e.id))
+  const result = [...experts]
+  for (const s of staff) {
+    if (!ids.has(s.id)) {
+      ids.add(s.id)
+      result.push(s)
+    }
+  }
+  return result
+})
+
+// 可指派人员列表过滤
+const filteredAssignableUsers = computed(() => {
+  if (!expertSearchQuery.value) return assignableUsers.value
   const query = expertSearchQuery.value.toLowerCase()
-  return woStore.experts.filter(expert =>
-    expert.name.toLowerCase().includes(query) ||
-    expert.email.toLowerCase().includes(query)
+  return assignableUsers.value.filter(u =>
+    u.name.toLowerCase().includes(query) ||
+    (u.email && u.email.toLowerCase().includes(query))
   )
 })
 
@@ -225,7 +254,7 @@ function handleClickOutside(event: Event) {
   }
 }
 
-// 确认修改（保存指派专家）
+// 确认修改（保存指派工作人员）
 async function confirmUpdate() {
   if (!selectedOrder.value || !selectedOrder.value.assignedToId) return
   try {
@@ -310,7 +339,11 @@ async function createOrder() {
 
 async function updateOrderStatus(orderId: number, newStatus: string) {
   try {
-    await woStore.updateOrderStatus(orderId, newStatus as any)
+    // 专家确认处理时，传递专家评语
+    const expertComment = isExpert.value && newStatus === 'PROCESSING' ? expertCommentEdit.value : undefined
+    await woStore.updateOrderStatus(orderId, newStatus as any, undefined, expertComment)
+    // 刷新工单列表（专家确认后后端会自动指派给基层员工）
+    await woStore.fetchOrders()
     // 更新选中的工单
     if (selectedOrder.value?.id === orderId) {
       selectedOrder.value = woStore.orders.find(o => o.id === orderId)
@@ -698,18 +731,25 @@ function closeEmailModal() {
 
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">指派专家</label>
+                <label class="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">指派工作人员</label>
                 <select
                   v-model="newOrder.assignedTo"
                   class="select-dark w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 text-white text-sm focus:outline-none focus:border-cyber-green/50"
                   :disabled="expertsLoading"
                 >
                   <option value="">未分配</option>
-                  <option v-for="expert in experts" :key="expert.id" :value="expert.id">
-                    {{ expert.name }}
-                  </option>
+                  <optgroup label="专家">
+                    <option v-for="u in woStore.experts" :key="u.id" :value="u.id">
+                      {{ u.name }}
+                    </option>
+                  </optgroup>
+                  <optgroup label="基层员工">
+                    <option v-for="u in woStore.staffList" :key="u.id" :value="u.id">
+                      {{ u.name }}
+                    </option>
+                  </optgroup>
                 </select>
-                <p v-if="expertsLoading" class="text-xs text-slate-500 mt-1">加载专家列表中...</p>
+                <p v-if="expertsLoading" class="text-xs text-slate-500 mt-1">加载人员列表中...</p>
               </div>
             </div>
 
@@ -775,7 +815,7 @@ function closeEmailModal() {
               <button
                 v-if="!isAssigneeOnly"
                 class="w-8 h-8 rounded-lg bg-cyber-green/10 hover:bg-cyber-green/20 flex items-center justify-center text-cyber-green transition-colors"
-                title="发送邮件给专家"
+                title="发送邮件通知"
                 @click="sendEmailToExpert()"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -819,7 +859,7 @@ function closeEmailModal() {
                 <div class="text-sm font-mono text-white">{{ (selectedOrder.confidence * 100).toFixed(0) }}%</div>
               </div>
               <div class="glass rounded-lg px-4 py-3 assignee-selector" ref="assigneeFieldRef">
-                <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">指派专家</div>
+                <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">指派工作人员</div>
                 <div
                   v-if="!isAssigneeOnly && selectedOrder.status !== 'DONE' && selectedOrder.status !== 'IGNORED'"
                   class="text-sm font-mono text-white cursor-pointer hover:text-cyber-green transition-colors"
@@ -862,6 +902,24 @@ function closeEmailModal() {
                   <span class="text-[10px] text-slate-500">{{ step.label }}</span>
                 </div>
               </div>
+            </div>
+
+            <!-- Expert Comment -->
+            <div class="glass rounded-lg px-4 py-3">
+              <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-2">
+                {{ isExpert ? '专家评语（请填写后确认处理）' : '专家评语 / 处理建议' }}
+              </div>
+              <textarea
+                v-if="isExpert && (selectedOrder.status === 'PENDING' || selectedOrder.status === 'PROCESSING')"
+                v-model="expertCommentEdit"
+                rows="3"
+                placeholder="请填写专家评语或处理建议..."
+                class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50 focus:ring-1 focus:ring-cyber-green/20 transition-all resize-none"
+              />
+              <div v-else-if="selectedOrder.expertComment" class="text-sm text-white whitespace-pre-wrap leading-relaxed">
+                {{ selectedOrder.expertComment }}
+              </div>
+              <div v-else class="text-xs text-slate-600">暂无评语</div>
             </div>
 
             <!-- Actions -->
@@ -952,7 +1010,7 @@ function closeEmailModal() {
           <input
             v-model="expertSearchQuery"
             type="text"
-            placeholder="搜索专家..."
+            placeholder="搜索人员..."
             class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-slate-600 text-sm focus:outline-none focus:border-cyber-green/50"
             @click.stop
           />
@@ -964,18 +1022,19 @@ function closeEmailModal() {
           <div v-else-if="woStore.expertsError" class="px-3 py-2 text-sakura text-xs">
             {{ woStore.expertsError }}
           </div>
-          <div v-else-if="filteredExperts.length === 0" class="px-3 py-2 text-slate-500 text-xs">
-            无匹配专家
+          <div v-else-if="filteredAssignableUsers.length === 0" class="px-3 py-2 text-slate-500 text-xs">
+            无匹配人员
           </div>
           <div
-            v-for="expert in filteredExperts"
-            :key="expert.id"
+            v-for="user in filteredAssignableUsers"
+            :key="user.id"
             class="px-3 py-2 text-sm text-white hover:bg-white/10 cursor-pointer transition-colors"
-            :class="{ 'bg-cyber-green/10 text-cyber-green': expert.name === selectedOrder?.assignedToName }"
-            @click="selectExpert(expert)"
+            :class="{ 'bg-cyber-green/10 text-cyber-green': user.name === selectedOrder?.assignedToName }"
+            @click="selectExpert(user)"
           >
-            {{ expert.name }}
-            <span class="text-xs text-slate-500 ml-2">{{ expert.email }}</span>
+            {{ user.name }}
+            <span class="text-xs px-1.5 py-0.5 rounded ml-1" :class="user.role === 'EXPERT' ? 'bg-blue-400/10 text-blue-400' : 'bg-cyber-green/10 text-cyber-green'">{{ user.role === 'EXPERT' ? '专家' : '员工' }}</span>
+            <span class="text-xs text-slate-500 ml-2">{{ user.email }}</span>
           </div>
         </div>
       </div>
