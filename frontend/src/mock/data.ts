@@ -189,5 +189,5 @@ export const mockUsers = [
   { id: 'u-002', username: 'expert_li', name: '李专家', role: 'EXPERT', phone: '13900139000', status: 'ACTIVE', lastLoginAt: '2026-06-09T09:30:00' },
   { id: 'u-003', username: 'expert_wang', name: '王专家', role: 'EXPERT', phone: '13700137000', status: 'ACTIVE', lastLoginAt: '2026-06-09T10:00:00' },
   { id: 'u-004', username: 'manager_zhang', name: '张三', role: 'MANAGER', phone: '13600136000', status: 'ACTIVE', lastLoginAt: '2026-06-09T07:30:00' },
-  { id: 'u-005', username: 'visitor', name: '访客用户', role: 'VISITOR', phone: '13500135000', status: 'DISABLED', lastLoginAt: '2026-06-08T14:00:00' },
+  { id: 'u-005', username: 'staff01', name: '王员工', role: 'STAFF', phone: '13500135000', status: 'ACTIVE', lastLoginAt: '2026-06-08T14:00:00' },
 ]

@@ -97,7 +97,7 @@ public class AuthServiceImpl implements AuthService {
         user.setName(dto.getName());
         user.setPhone(dto.getPhone());
         user.setEmail(dto.getEmail());
-        user.setRole("VISITOR");
+        user.setRole("STAFF");
         user.setStatus("ACTIVE");
         user.setCreatedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());

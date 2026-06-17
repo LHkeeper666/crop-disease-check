@@ -30,9 +30,9 @@ public class AdminUpdateUserDTO {
     private String email;
 
     /**
-     * 角色: ADMIN/EXPERT/MANAGER/VISITOR
+     * 角色: ADMIN/EXPERT/MANAGER/STAFF
      */
-    @Pattern(regexp = "^(ADMIN|EXPERT|MANAGER|VISITOR)$", message = "角色值不正确")
+    @Pattern(regexp = "^(ADMIN|EXPERT|MANAGER|STAFF)$", message = "角色值不正确")
     private String role;
 
     /**

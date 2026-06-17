@@ -17,7 +17,7 @@ CREATE TABLE sys_user (
     username      VARCHAR(64) NOT NULL UNIQUE COMMENT '用户名',
     password      VARCHAR(128) NOT NULL COMMENT '密码(BCrypt)',
     name          VARCHAR(64) COMMENT '真实姓名',
-    role          VARCHAR(20) NOT NULL DEFAULT 'VISITOR' COMMENT '角色: ADMIN/EXPERT/MANAGER/VISITOR',
+    role          VARCHAR(20) NOT NULL DEFAULT 'STAFF' COMMENT '角色: ADMIN/EXPERT/MANAGER/STAFF',
     phone         VARCHAR(20) COMMENT '手机号',
     email         VARCHAR(128) COMMENT '邮箱',
     avatar        VARCHAR(255) COMMENT '用户头像路径',

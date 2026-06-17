@@ -14,7 +14,7 @@
 | username | VARCHAR(50) UNIQUE | 登录用户名 |
 | password_hash | VARCHAR(255) | 密码哈希 |
 | name | VARCHAR(50) | 显示姓名 |
-| role | ENUM('ADMIN','EXPERT','MANAGER','VISITOR') | 角色 |
+| role | ENUM('ADMIN','EXPERT','MANAGER','STAFF') | 角色 |
 | phone | VARCHAR(20) | 手机号 |
 | email | VARCHAR(100) | 邮箱 |
 | avatar | VARCHAR(255) | 头像URL |

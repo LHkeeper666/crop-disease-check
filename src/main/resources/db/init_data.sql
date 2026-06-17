@@ -27,7 +27,7 @@ INSERT INTO sys_user (id, username, password, name, role, phone, email, status, 
 
 -- 示例员工账号
 INSERT INTO sys_user (id, username, password, name, role, phone, status, company_id, approved) VALUES
-('u004', 'staff01', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '王员工', 'VISITOR', '13800138003', 'ACTIVE', 'comp001', 1);
+('u004', 'staff01', '$2a$10$RkSVxya6yBzig7ZSEuni1uWdRhZhvUp3dd6hRlKTu5Zue6XsJ6hCC', '王员工', 'STAFF', '13800138003', 'ACTIVE', 'comp001', 1);
 
 
 -- ========================================
@@ -288,9 +288,9 @@ INSERT INTO sys_user (id, username, password, name, role, phone, email, status, 
 
 -- 更多员工
 INSERT INTO sys_user (id, username, password, name, role, phone, status, company_id, approved) VALUES
-('u008', 'staff02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '刘员工', 'VISITOR', '13800138008', 'ACTIVE', 'comp001', 1),
-('u009', 'staff03', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '陈员工', 'VISITOR', '13800138009', 'ACTIVE', 'comp001', 1),
-('u010', 'staff04', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '杨员工', 'VISITOR', '13800138010', 'DISABLED', 'comp001', 1);
+('u008', 'staff02', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '刘员工', 'STAFF', '13800138008', 'ACTIVE', 'comp001', 1),
+('u009', 'staff03', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '陈员工', 'STAFF', '13800138009', 'ACTIVE', 'comp001', 1),
+('u010', 'staff04', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '杨员工', 'STAFF', '13800138010', 'DISABLED', 'comp001', 1);
 
 
 -- ========================================

@@ -2,16 +2,44 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { validateInviteCode as apiValidateInvite, joinCompany as apiJoinCompany } from '../api/company'
 
+export type UserRole = 'ADMIN' | 'EXPERT' | 'MANAGER' | 'STAFF'
+
 export interface UserInfo {
   id: string
   username: string
   name: string
-  role: 'ADMIN' | 'EXPERT' | 'MANAGER'
+  role: UserRole
   phone: string
   email: string
   avatar?: string
   companyId: string
   approved: boolean
+}
+
+/**
+ * 角色中文名称映射
+ */
+export const roleNameMap: Record<UserRole, string> = {
+  ADMIN: '管理员',
+  EXPERT: '专家',
+  MANAGER: '操作员',
+  STAFF: '基层员工',
+}
+
+/**
+ * 角色可访问的路由路径定义
+ * —— 每个角色只能看到并访问其被授权的页面，其余页面完全不可见
+ *
+ * ADMIN  : 全部功能（用户管理、设备配置、系统设置等）
+ * EXPERT : 侧重检测分析与AI（图像检测、智慧大脑、报表等）
+ * MANAGER: 侧重日常管理（设备、工单、监测、报表等）
+ * STAFF  : 基层执行（工单处理、检测查看、实时监测）
+ */
+export const roleRouteMap: Record<UserRole, string[]> = {
+  ADMIN: ['/dashboard', '/workorders', '/devices', '/reports', '/detection', '/monitor', '/agent', '/handbook'],
+  EXPERT: ['/dashboard', '/workorders', '/reports', '/detection', '/monitor', '/agent', '/handbook'],
+  MANAGER: ['/dashboard', '/workorders', '/devices', '/reports', '/detection', '/monitor', '/handbook'],
+  STAFF: ['/dashboard', '/workorders', '/detection', '/monitor', '/handbook'],
 }
 
 // 企业邀请码 → 企业信息（本地 mock 回退用）
@@ -37,8 +65,17 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isLoggedIn = computed(() => !!token.value)
   const userName = computed(() => userInfo.value?.name || '用户')
-  const userRole = computed(() => userInfo.value?.role || 'MANAGER')
+  const userRole = computed(() => userInfo.value?.role || 'STAFF')
+  const userRoleName = computed(() => roleNameMap[userRole.value] || '基层员工')
   const isApproved = computed(() => userInfo.value?.approved ?? false)
+
+  /** 获取当前角色可访问的路由路径列表 */
+  const accessibleRoutes = computed(() => roleRouteMap[userRole.value] || roleRouteMap.STAFF)
+
+  /** 判断当前角色是否可访问指定路径 */
+  function canAccess(path: string): boolean {
+    return accessibleRoutes.value.includes(path)
+  }
 
   async function login(username: string, password: string): Promise<{ success: boolean; pending?: boolean; message?: string }> {
     if (!username || !password) return { success: false, message: '请输入用户名和密码' }
@@ -97,7 +134,7 @@ export const useAuthStore = defineStore('auth', () => {
       id: 'u-' + Date.now(),
       username,
       name: username,
-      role: 'MANAGER',
+      role: 'STAFF',
       phone: '',
       email: '',
       companyId: '',
@@ -278,7 +315,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    token, userInfo, isLoggedIn, userName, userRole, isApproved,
+    token, userInfo, isLoggedIn, userName, userRole, userRoleName, isApproved,
+    accessibleRoutes, canAccess,
     login, register, validateInviteCode, joinCompany,
     getCompanyUsers, getAllUsers, getPendingUsers, updateUser, toggleUserStatus,
     sendOtp, logout,
