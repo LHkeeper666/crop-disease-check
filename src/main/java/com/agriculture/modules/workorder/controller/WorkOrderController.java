@@ -58,9 +58,9 @@ public class WorkOrderController {
         String companyId = (currentUser != null && currentUser.getCompanyId() != null
                 && !currentUser.getCompanyId().isEmpty()) ? currentUser.getCompanyId() : "";
 
-        // 专家角色只看自己负责的工单
+        // 专家和基层员工只看自己负责的工单
         String assignedTo = null;
-        if (currentUser != null && "EXPERT".equals(currentUser.getRole())) {
+        if (currentUser != null && ("EXPERT".equals(currentUser.getRole()) || "STAFF".equals(currentUser.getRole()))) {
             assignedTo = userId;
         }
 
