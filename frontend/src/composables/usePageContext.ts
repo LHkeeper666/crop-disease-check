@@ -16,7 +16,7 @@ export function usePageContextProvider(extract: ExtractFn) {
   })
 }
 
-/** DaveChatDialog 调用：获取当前页面的上下文提取函数 */
-export function usePageContextInjector(): ExtractFn | null {
-  return activeExtractor
+/** DaveChatDialog 调用：获取当前页面上下文（每次调用实时读取） */
+export function usePageContextInjector(): () => PageContext | null {
+  return () => activeExtractor?.() ?? null
 }

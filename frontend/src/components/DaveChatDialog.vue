@@ -26,7 +26,7 @@ const dragOffsetY = ref(0)
 const panelX = ref(0)
 const panelY = ref(0)
 
-const extractContext = usePageContextInjector()
+const getContext = usePageContextInjector()
 
 const props = defineProps<{
   onChatStart?: () => void
@@ -142,7 +142,7 @@ async function sendMessage(text?: string) {
   })
 
   try {
-    const context = extractContext?.() || undefined
+    const context = getContext() || undefined
 
     const res = await fetch('/api/agri-brain/chat', {
       method: 'POST',

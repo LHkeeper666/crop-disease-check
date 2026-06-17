@@ -101,6 +101,13 @@ public class AgriBrainServiceImpl implements AgriBrainService {
                 // 构建页面上下文
                 String contextText = contextBuilder.buildContext(context, userId, companyId);
 
+                // 如果上下文有实质数据，追加明确标注让 LLM 优先使用
+                if (contextText != null && !contextText.isBlank() && context != null && context.getSelectedId() != null) {
+                    contextText += "\n\n<already_available>\n以上数据已在上下文中，可直接用于回答用户问题，无需重复查询。\n"
+                            + "注意区分：用户问[这个/当前/选中]时，只使用[用户当前选中的资源]部分；用户问[整体/全部/统计]时，才使用可见列表和统计数据。\n"
+                            + "</already_available>";
+                }
+
                 // 获取或创建对话
                 AiConversation conversation;
                 if (conversationId == null || conversationId.isBlank()) {
