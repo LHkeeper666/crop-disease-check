@@ -125,9 +125,9 @@ public class StatisticServiceImpl implements StatisticService {
 
     @Override
     public StatisticsOverviewVO getOverview(Integer days, String companyId) {
-        if (days == null) days = 7;
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime startTime = now.minusDays(days);
+        // days 为 null 时不过滤时间，查全部
+        LocalDateTime startTime = days != null ? now.minusDays(days) : null;
         LocalDate today = LocalDate.now();
         LocalDateTime todayStart = today.atStartOfDay();
         boolean hasCompany = StringUtils.hasText(companyId);
@@ -136,11 +136,13 @@ public class StatisticServiceImpl implements StatisticService {
 
         // ========== 从 work_order 表查询统计数据 ==========
 
-        // 总工单数（时间窗口内，排除 IGNORED）
+        // 总工单数（排除 IGNORED）
         LambdaQueryWrapper<WorkOrder> totalWoWrapper = new LambdaQueryWrapper<>();
-        totalWoWrapper.ge(WorkOrder::getCreatedAt, startTime)
-                      .le(WorkOrder::getCreatedAt, now)
-                      .ne(WorkOrder::getStatus, "IGNORED")
+        if (startTime != null) {
+            totalWoWrapper.ge(WorkOrder::getCreatedAt, startTime)
+                          .le(WorkOrder::getCreatedAt, now);
+        }
+        totalWoWrapper.ne(WorkOrder::getStatus, "IGNORED")
                       .eq(hasCompany, WorkOrder::getCompanyId, companyId);
         vo.setTotalReports(workOrderMapper.selectCount(totalWoWrapper).intValue());
 
@@ -173,11 +175,13 @@ public class StatisticServiceImpl implements StatisticService {
 
         // ========== 从 work_order 表查询数据（报警工单） ==========
 
-        // 查询时间窗口内的工单（排除 IGNORED 状态）
+        // 查询工单（排除 IGNORED 状态）
         LambdaQueryWrapper<WorkOrder> woWrapper = new LambdaQueryWrapper<>();
-        woWrapper.ge(WorkOrder::getCreatedAt, startTime)
-                 .le(WorkOrder::getCreatedAt, now)
-                 .ne(WorkOrder::getStatus, "IGNORED")
+        if (startTime != null) {
+            woWrapper.ge(WorkOrder::getCreatedAt, startTime)
+                     .le(WorkOrder::getCreatedAt, now);
+        }
+        woWrapper.ne(WorkOrder::getStatus, "IGNORED")
                  .eq(hasCompany, WorkOrder::getCompanyId, companyId);
         List<WorkOrder> allOrders = workOrderMapper.selectList(woWrapper);
 
