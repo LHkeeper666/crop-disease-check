@@ -75,8 +75,9 @@ class ModelManager:
     #  图片解码（支持 base64 / url）
     # ------------------------------------------------------------------
 
-    async def _load_image(self, image_input) -> Tuple[np.ndarray, ImageInfo]:
-        """将请求中的图片转为 BGR numpy array。支持 base64 和 url 两种方式。"""
+    async def _load_image(self, image_input) -> Tuple[np.ndarray, ImageInfo, bytes]:
+        """将请求中的图片转为 BGR numpy array。支持 base64 和 url 两种方式。
+        返回: (image_bgr, img_info, raw_bytes)"""
         raw_bytes: bytes
 
         if image_input.type == "base64":
@@ -95,7 +96,7 @@ class ModelManager:
             height=pil_img.height,
             format=pil_img.format or "UNKNOWN",
         )
-        return image_bgr, info
+        return image_bgr, info, raw_bytes
 
     @staticmethod
     async def _download(url: str) -> bytes:
@@ -187,14 +188,28 @@ class ModelManager:
     ):
         """单张图片完整处理：解码 → 推理 → 标注 → 持久化。
         返回: (disease_dets, pest_dets, disease_ms, pest_ms,
-                annotated_path, annotated_url, img_info)
+                annotated_path, annotated_url, original_url, img_info)
         """
-        image_bgr, img_info = await self._load_image(image_input)
+        image_bgr, img_info, raw_bytes = await self._load_image(image_input)
         disease_dets, pest_dets, disease_ms, pest_ms, _ = \
             await self.infer(image_bgr, confidence)
 
         annotated_path: Optional[str] = None
         annotated_url: Optional[str] = None
+        original_url: Optional[str] = None
+
+        # 上传原始图到 MinIO
+        try:
+            from storage import upload_bytes
+            ext = "jpg"
+            if img_info.format and img_info.format.upper() == "PNG":
+                ext = "png"
+            content_type = "image/png" if ext == "png" else "image/jpeg"
+            orig_filename = f"{uuid.uuid4().hex[:8]}.{ext}"
+            object_name = f"original/{orig_filename}"
+            original_url = upload_bytes(raw_bytes, object_name, content_type)
+        except Exception as exc:
+            logger.warning("原始图 MinIO 上传失败: %s", exc)
 
         if return_annotated and (disease_dets or pest_dets):
             from annotator import draw_annotated_image, encode_image_to_jpeg
@@ -222,7 +237,7 @@ class ModelManager:
             self._patch_pest_cn(d)
 
         return disease_dets, pest_dets, disease_ms, pest_ms, \
-            annotated_path, annotated_url, img_info
+            annotated_path, annotated_url, original_url, img_info
 
 
 # ============================================================

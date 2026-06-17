@@ -59,6 +59,12 @@ public class WorkOrder implements Serializable {
     private String inferenceId;
 
     /**
+     * 图片URL（手动创建工单时存储）
+     */
+    @TableField("image_url")
+    private String imageUrl;
+
+    /**
      * 指派给用户ID
      */
     @TableField("assigned_to")

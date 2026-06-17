@@ -25,4 +25,6 @@ public class WorkOrderManualCreateDTO {
     private Double confidence;
 
     private String assignedTo;
+
+    private String imageUrl;
 }

@@ -122,7 +122,7 @@ const filteredCameras = computed(() => {
 
 usePageContextProvider(() => ({
   page: '/devices',
-  pageName: '设备管理',
+  pageName: '系统管理',
   visibleData: {
     list: cameras.value.slice(0, 5).map(cam => ({
       id: cam.id,

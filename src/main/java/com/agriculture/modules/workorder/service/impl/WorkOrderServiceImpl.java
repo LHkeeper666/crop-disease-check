@@ -284,6 +284,7 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         workOrder.setPestName(dto.getPestName());
         workOrder.setConfidence(dto.getConfidence() != null ? BigDecimal.valueOf(dto.getConfidence()) : null);
         workOrder.setAssignedTo(dto.getAssignedTo());
+        workOrder.setImageUrl(dto.getImageUrl());
         workOrder.setCreatedBy(operatorId);
         workOrder.setCompanyId(companyId);
         workOrder.setCallbackToken(UUID.randomUUID().toString().replace("-", ""));
@@ -849,8 +850,10 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
             }
         }
 
-        // 关联查询推理记录的标注图片
-        if (workOrder.getInferenceId() != null) {
+        // 关联查询推理记录的标注图片（优先使用工单自身的 image_url）
+        if (workOrder.getImageUrl() != null) {
+            vo.setImageUrl(workOrder.getImageUrl());
+        } else if (workOrder.getInferenceId() != null) {
             Inference inference = inferenceMapper.selectById(workOrder.getInferenceId());
             if (inference != null) {
                 vo.setImageUrl(inference.getAnnotatedImageUrl());
