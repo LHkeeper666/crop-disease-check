@@ -404,6 +404,30 @@ public class CameraDetectServiceImpl implements CameraDetectService {
         }
     }
 
+    @Override
+    public byte[] captureSnapshot(String cameraId) {
+        Camera camera = cameraMapper.selectById(cameraId);
+        if (camera == null) {
+            throw new BusinessException(40087, "摄像头不存在");
+        }
+
+        String rtspUrl = camera.getRtspUrl();
+        if (rtspUrl == null || rtspUrl.isEmpty()) {
+            throw new BusinessException(40084, "摄像头RTSP地址未配置");
+        }
+
+        try {
+            CapturedFrame captured = captureFrameFromRtsp(cameraId, rtspUrl);
+            return captured.bytes;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException(40080, "抓帧被中断");
+        } catch (Exception e) {
+            log.error("快照抓帧失败: cameraId={}, error={}", cameraId, e.getMessage(), e);
+            throw new BusinessException(40084, "快照抓帧失败: " + e.getMessage());
+        }
+    }
+
     /**
      * 从RTSP流抽帧（JavaCV FFmpegFrameGrabber）。
      * ffmpeg 超时选项 + Future 硬超时双重保障，防止 native 阻塞。

@@ -48,7 +48,7 @@ marked.use({ renderer })
 const renderedContent = computed(() => {
   if (!props.content) return ''
   try {
-    return marked.parse(props.content) as string
+    return marked.parse(props.content.trim()) as string
   } catch {
     return props.content
   }
@@ -105,6 +105,10 @@ const renderedContent = computed(() => {
 
 .markdown-body :deep(p) {
   margin-bottom: 12px;
+}
+
+.markdown-body :deep(p:first-child) {
+  margin-top: 0;
 }
 
 .markdown-body :deep(a) {
