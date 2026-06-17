@@ -15,6 +15,7 @@ interface SingleResult {
   disease: { detections: Detection[]; count: number; elapsed_ms: number }
   pest: { detections: Detection[]; count: number; elapsed_ms: number }
   annotated_url: string | null
+  original_url: string | null
   total_elapsed_ms: number
   error?: string | null
 }
@@ -66,6 +67,7 @@ onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   workOrderStore.fetchExperts()
   workOrderStore.fetchManagers()
+  workOrderStore.fetchStaff()
 })
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
@@ -245,6 +247,18 @@ async function submitWorkOrder() {
       assignedTo = workOrderForm.value.assignedTo || undefined
     }
 
+    // 根据指派角色选择图片：EXPERT 用原始图，其余用标注图
+    let imageUrl: string | undefined
+    if (activeItem.value?.result) {
+      const effectiveUserId = assignedTo
+      const assignedUser = assignableUsers.value.find(u => u.id === effectiveUserId)
+      if (assignedUser?.role === 'EXPERT') {
+        imageUrl = activeItem.value.result.original_url || undefined
+      } else {
+        imageUrl = activeItem.value.result.annotated_url || undefined
+      }
+    }
+
     await workOrderStore.addOrder({
       title: workOrderForm.value.title,
       severity: workOrderForm.value.severity,
@@ -252,6 +266,7 @@ async function submitWorkOrder() {
       pestName: workOrderForm.value.pestName,
       confidence: workOrderForm.value.confidence,
       assignedTo,
+      imageUrl,
     })
     workOrderSuccess.value = true
     setTimeout(() => {
@@ -265,13 +280,20 @@ async function submitWorkOrder() {
   }
 }
 
-/** 合并专家和管理员列表供下拉选择 */
+/** 合并专家、管理员和基层员工列表供下拉选择 */
 const assignableUsers = computed<ExpertVO[]>(() => {
   const experts = workOrderStore.experts
   const managers = workOrderStore.managers
-  // 去重（如果有人同时是 EXPERT 和 MANAGER，虽然不太可能）
+  const staff = workOrderStore.staffList
   const ids = new Set(experts.map(e => e.id))
-  return [...experts, ...managers.filter(m => !ids.has(m.id))]
+  const result = [...experts, ...managers.filter(m => !ids.has(m.id))]
+  for (const s of staff) {
+    if (!ids.has(s.id)) {
+      ids.add(s.id)
+      result.push(s)
+    }
+  }
+  return result
 })
 
 function getSeverityColor(confidence: number): string {
@@ -750,7 +772,7 @@ function totalDetections(item: BatchItem): number {
                 :value="user.id"
                 class="bg-[#0F1420]"
               >
-                {{ user.name }} ({{ user.role === 'EXPERT' ? '专家' : '管理员' }})
+                {{ user.name }} ({{ user.role === 'EXPERT' ? '专家' : user.role === 'STAFF' ? '基层员工' : '管理员' }})
               </option>
             </select>
           </div>

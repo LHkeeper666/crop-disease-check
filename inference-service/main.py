@@ -147,7 +147,7 @@ async def detect_single(req: DetectRequest):
 
     try:
         (disease_dets, pest_dets, disease_ms, pest_ms,
-         anno_path, anno_url, img_info) = await model_manager.process_one(
+         anno_path, anno_url, orig_url, img_info) = await model_manager.process_one(
             req.image, req.confidence, req.return_annotated,
         )
     except ValueError as exc:
@@ -171,6 +171,7 @@ async def detect_single(req: DetectRequest):
             ),
             annotated_path=anno_path,
             annotated_url=anno_url,
+            original_url=orig_url,
             total_elapsed_ms=total_elapsed,
             image_info=img_info,
         ),
@@ -205,7 +206,7 @@ async def detect_batch(req: BatchDetectRequest):
     for idx, image_input in enumerate(req.images):
         try:
             disease_dets, pest_dets, disease_ms, pest_ms, \
-                anno_path, anno_url, img_info = await model_manager.process_one(
+                anno_path, anno_url, orig_url, img_info = await model_manager.process_one(
                     image_input, req.confidence, req.return_annotated,
                 )
             results.append(BatchImageResult(
@@ -222,6 +223,7 @@ async def detect_batch(req: BatchDetectRequest):
                 ),
                 annotated_path=anno_path,
                 annotated_url=anno_url,
+                original_url=orig_url,
                 image_info=img_info,
             ))
             success += 1

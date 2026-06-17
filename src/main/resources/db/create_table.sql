@@ -278,6 +278,7 @@ CREATE TABLE work_order (
     pest_name       VARCHAR(50) COMMENT '病虫害名称',
     confidence      DECIMAL(3,2) COMMENT '检测置信度(0.00-1.00)',
     inference_id    VARCHAR(36) COMMENT '关联识别ID',
+    image_url       VARCHAR(512) COMMENT '图片URL（手动创建工单时存储）',
     assigned_to     VARCHAR(36) COMMENT '指派给用户ID',
     created_by      VARCHAR(36) COMMENT '创建人ID',
     expert_comment  VARCHAR(500) COMMENT '专家备注',

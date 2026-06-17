@@ -83,6 +83,7 @@ export interface WorkOrderManualCreateDTO {
   pestName?: string
   confidence?: number
   assignedTo?: string
+  imageUrl?: string
 }
 
 /** 通用请求头 */
@@ -202,6 +203,11 @@ export async function fetchExperts(): Promise<ExpertVO[]> {
 /** 获取管理员列表（所有登录用户可访问） */
 export async function fetchManagers(): Promise<ExpertVO[]> {
   return request<ExpertVO[]>('/api/users/managers')
+}
+
+/** 获取基层员工列表（所有登录用户可访问） */
+export async function fetchStaff(): Promise<ExpertVO[]> {
+  return request<ExpertVO[]>('/api/users/staff')
 }
 
 /** 更新工单指派专家 */

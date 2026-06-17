@@ -58,6 +58,15 @@ public class UserController {
     }
 
     /**
+     * 获取基层员工列表（登录用户可访问，用于工单指派）
+     */
+    @GetMapping("/staff")
+    public Result<List<UserSimpleVO>> getStaff(@RequestParam(required = false) String keyword) {
+        List<UserSimpleVO> staff = userService.getStaff(keyword);
+        return Result.success(staff);
+    }
+
+    /**
      * 更新当前用户信息（登录用户可访问）
      */
     @PutMapping("/me")
