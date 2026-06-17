@@ -190,13 +190,13 @@ services:
     networks:
       - agri-net
     # 如果有 GPU, 取消下面注释
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+    deploy:
+       resources:
+         reservations:
+           devices:
+             - driver: nvidia
+               count: 1
+               capabilities: [gpu]
 
   # ----------------------------------------------------------
   # Spring Boot 后端 - 核心业务服务

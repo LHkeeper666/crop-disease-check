@@ -16,6 +16,7 @@ import AgentView from './views/AgentView.vue'
 import DetectionView from './views/DetectionView.vue'
 import CameraMonitorView from './views/CameraMonitorView.vue'
 import HandbookView from './views/HandbookView.vue'
+import { useAuthStore, roleRouteMap } from './stores/auth'
 
 const routes = [
   { path: '/login', name: 'Login', component: LoginView, meta: { public: true } },
@@ -66,6 +67,21 @@ router.beforeEach((to) => {
   const isPending = localStorage.getItem(pendingKey) === 'true'
   if (isPending && to.name !== 'Pending') {
     return { name: 'Pending' }
+  }
+
+  // 角色权限校验：检查当前用户角色是否有权访问目标路由
+  // 防止用户通过手动输入URL访问未授权页面
+  const targetPath = '/' + (to.path === '/' ? 'dashboard' : to.path.replace(/^\//, ''))
+  // 找到匹配的子路由路径
+  const childPath = to.matched.length > 1
+    ? '/' + to.path.split('/').filter(Boolean).pop()
+    : targetPath
+  const auth = useAuthStore()
+  const allowedRoutes = roleRouteMap[auth.userRole] || roleRouteMap.STAFF
+  // 只对子路由做权限校验（MainLayout 本身不做限制）
+  if (to.matched.length > 1 && !allowedRoutes.includes(childPath)) {
+    // 无权限，重定向到首页（首页对所有角色开放）
+    return { path: '/dashboard' }
   }
 })
 

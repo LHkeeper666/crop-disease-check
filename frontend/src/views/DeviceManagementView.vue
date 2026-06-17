@@ -395,8 +395,8 @@ const statusColors: Record<string, string> = {
 const roleLabels: Record<string, string> = {
   ADMIN: '管理员',
   EXPERT: '农技专家',
-  MANAGER: '员工',
-  VISITOR: '访客',
+  MANAGER: '操作员',
+  STAFF: '基层员工',
 }
 
 // Edit user modal
@@ -749,8 +749,8 @@ async function toggleUserStatus(user: UserSimpleVO) {
               >
                 <option value="ADMIN">管理员</option>
                 <option value="EXPERT">农技专家</option>
-                <option value="MANAGER">员工</option>
-                <option value="VISITOR">访客</option>
+                <option value="MANAGER">操作员</option>
+                <option value="STAFF">基层员工</option>
               </select>
             </div>
             <div>

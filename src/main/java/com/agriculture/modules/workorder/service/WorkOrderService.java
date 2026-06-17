@@ -1,5 +1,6 @@
 package com.agriculture.modules.workorder.service;
 
+import com.agriculture.common.mq.event.DetectionEvent;
 import com.agriculture.modules.workorder.dto.CallbackDTO;
 import com.agriculture.modules.workorder.dto.WorkOrderCreateDTO;
 import com.agriculture.modules.workorder.dto.WorkOrderManualCreateDTO;
@@ -45,4 +46,7 @@ public interface WorkOrderService extends IService<WorkOrder> {
     void deleteWorkOrder(Long id);
 
     EmailPreviewVO previewEmail(Long workOrderId);
+
+    /** 从 MQ 检测事件创建工单（含去重：同企业+同网格+同病虫害+活跃工单已存在时只更新置信度） */
+    void createFromDetectionEvent(DetectionEvent event);
 }

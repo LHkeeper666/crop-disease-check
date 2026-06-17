@@ -67,4 +67,11 @@ public interface UserService {
      * @return 专家列表
      */
     List<UserSimpleVO> getExperts(String keyword);
+
+    /**
+     * 获取管理员列表（用于工单指派）
+     * @param keyword 模糊搜索关键词（可选）
+     * @return 管理员列表
+     */
+    List<UserSimpleVO> getManagers(String keyword);
 }

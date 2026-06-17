@@ -358,7 +358,7 @@ class AuthControllerTest {
             userVO.setId("user-new-001");
             userVO.setUsername("test");
             userVO.setEmail("2043412933@qq.com");
-            userVO.setRole("VISITOR");
+            userVO.setRole("STAFF");
             userVO.setStatus("ACTIVE");
             userVO.setCreatedAt(LocalDateTime.of(2026, 6, 11, 12, 0, 0));
 
@@ -372,7 +372,7 @@ class AuthControllerTest {
                     .andExpect(jsonPath("$.message").value("注册成功"))
                     .andExpect(jsonPath("$.data.username").value("test"))
                     .andExpect(jsonPath("$.data.email").value("2043412933@qq.com"))
-                    .andExpect(jsonPath("$.data.role").value("VISITOR"))
+                    .andExpect(jsonPath("$.data.role").value("STAFF"))
                     .andExpect(jsonPath("$.data.status").value("ACTIVE"));
 
             verify(authService, times(1)).register(any(RegisterDTO.class));
@@ -457,7 +457,7 @@ class AuthControllerTest {
             userVO.setName("测试用户");
             userVO.setPhone("13800138000");
             userVO.setEmail("2043412933@qq.com");
-            userVO.setRole("VISITOR");
+            userVO.setRole("STAFF");
 
             when(authService.register(any(RegisterDTO.class))).thenReturn(userVO);
 

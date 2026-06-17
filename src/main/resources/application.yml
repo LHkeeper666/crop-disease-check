@@ -29,6 +29,17 @@ spring:
     username: agri
     password: agri_mq_2026
     virtual-host: /agri
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 10
+        retry:
+          enabled: true
+          initial-interval: 3000
+          max-attempts: 3
+          multiplier: 2.0
+    publisher-confirm-type: correlated
+    publisher-returns: true
 
   # 文件上传配置
   servlet:

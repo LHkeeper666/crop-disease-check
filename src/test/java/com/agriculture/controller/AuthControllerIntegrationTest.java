@@ -77,7 +77,7 @@ class AuthControllerIntegrationTest {
         assertNotNull(result.getId(), "用户ID不应为空");
         assertEquals(TEST_USERNAME, result.getUsername());
         assertEquals(TEST_EMAIL, result.getEmail());
-        assertEquals("VISITOR", result.getRole());
+        assertEquals("STAFF", result.getRole());
         assertEquals("ACTIVE", result.getStatus());
 
         // then - 数据库校验
@@ -85,7 +85,7 @@ class AuthControllerIntegrationTest {
         assertNotNull(dbUser, "数据库中应存在该用户");
         assertEquals(TEST_USERNAME, dbUser.getUsername());
         assertEquals(TEST_EMAIL, dbUser.getEmail());
-        assertEquals("VISITOR", dbUser.getRole());
+        assertEquals("STAFF", dbUser.getRole());
         assertEquals("ACTIVE", dbUser.getStatus());
         assertNotNull(dbUser.getPassword(), "密码不应为空");
         assertNotEquals(TEST_PASSWORD, dbUser.getPassword(), "密码应为BCrypt加密存储");

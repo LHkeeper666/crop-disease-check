@@ -11,6 +11,10 @@ const authStore = useAuthStore()
 
 // 是否为专家角色
 const isExpert = computed(() => authStore.userRole === 'EXPERT')
+// 是否为基层员工角色
+const isStaff = computed(() => authStore.userRole === 'STAFF')
+// 专家或基层员工：只能查看分配给自己的工单，操作受限
+const isAssigneeOnly = computed(() => isExpert.value || isStaff.value)
 
 // 专家列表
 const experts = ref<UserSimpleVO[]>([])
@@ -419,18 +423,18 @@ function closeEmailModal() {
         <h1 class="text-lg font-bold text-white">自动事件响应与智能工单流转舱</h1>
         <p class="text-xs text-slate-500 font-mono">EVENT-DRIVEN WORKORDER MANAGEMENT</p>
       </div>
-      <GlowButton v-if="!isExpert" label="+ 手动创建工单" @click="openCreateModal" />
+      <GlowButton v-if="!isAssigneeOnly" label="+ 手动创建工单" @click="openCreateModal" />
     </div>
 
-    <!-- 专家视角提示 -->
-    <div v-if="isExpert" class="shrink-0 glass rounded-xl px-4 py-2.5 flex items-center gap-3 border border-cyber-green/20">
+    <!-- 专家/基层员工视角提示 -->
+    <div v-if="isAssigneeOnly" class="shrink-0 glass rounded-xl px-4 py-2.5 flex items-center gap-3 border border-cyber-green/20">
       <div class="w-8 h-8 rounded-lg bg-cyber-green/10 flex items-center justify-center">
         <svg class="w-4 h-4 text-cyber-green" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
         </svg>
       </div>
       <div>
-        <p class="text-xs text-cyber-green font-medium">专家视图</p>
+        <p class="text-xs text-cyber-green font-medium">{{ isStaff ? '基层员工视图' : '专家视图' }}</p>
         <p class="text-[10px] text-slate-500">当前仅显示指派给您的工单，您可在此处理和更新工单状态</p>
       </div>
     </div>
@@ -746,7 +750,7 @@ function closeEmailModal() {
                 </svg>
               </button>
               <button
-                v-if="!isExpert"
+                v-if="!isAssigneeOnly"
                 class="w-8 h-8 rounded-lg bg-cyber-green/10 hover:bg-cyber-green/20 flex items-center justify-center text-cyber-green transition-colors"
                 title="发送邮件给专家"
                 @click="sendEmailToExpert()"
@@ -794,7 +798,7 @@ function closeEmailModal() {
               <div class="glass rounded-lg px-4 py-3 assignee-selector" ref="assigneeFieldRef">
                 <div class="text-[10px] text-slate-500 uppercase tracking-wider mb-1">指派专家</div>
                 <div
-                  v-if="!isExpert && selectedOrder.status !== 'DONE' && selectedOrder.status !== 'IGNORED'"
+                  v-if="!isAssigneeOnly && selectedOrder.status !== 'DONE' && selectedOrder.status !== 'IGNORED'"
                   class="text-sm font-mono text-white cursor-pointer hover:text-cyber-green transition-colors"
                   @click="toggleAssigneeSelector"
                 >
@@ -873,34 +877,34 @@ function closeEmailModal() {
                 恢复待处理
               </button>
 
-              <!-- 升级/降级等级（仅管理员可用） -->
+              <!-- 升级/降级等级（仅管理员/操作员可用） -->
               <button
-                v-if="!isExpert && (selectedOrder.status === 'PENDING' || selectedOrder.status === 'PROCESSING') && severityConfig[selectedOrder.severity]?.level < 4"
+                v-if="!isAssigneeOnly && (selectedOrder.status === 'PENDING' || selectedOrder.status === 'PROCESSING') && severityConfig[selectedOrder.severity]?.level < 4"
                 class="flex-1 min-w-[100px] px-4 py-3 rounded-xl bg-orange-400/10 border border-orange-400/20 text-orange-400 text-sm hover:bg-orange-400/20 transition-colors"
                 @click="async () => { try { await woStore.escalateSeverity(selectedOrder.id); selectedOrder.value = woStore.orders.find(o => o.id === selectedOrder.id) } catch {} }"
               >
                 升级等级
               </button>
               <button
-                v-if="!isExpert && (selectedOrder.status === 'PENDING' || selectedOrder.status === 'PROCESSING') && severityConfig[selectedOrder.severity]?.level > 1"
+                v-if="!isAssigneeOnly && (selectedOrder.status === 'PENDING' || selectedOrder.status === 'PROCESSING') && severityConfig[selectedOrder.severity]?.level > 1"
                 class="flex-1 min-w-[100px] px-4 py-3 rounded-xl bg-slate-400/10 border border-slate-400/20 text-slate-400 text-sm hover:bg-slate-400/20 transition-colors"
                 @click="async () => { try { await woStore.deescalateSeverity(selectedOrder.id); selectedOrder.value = woStore.orders.find(o => o.id === selectedOrder.id) } catch {} }"
               >
                 降级等级
               </button>
 
-              <!-- 确认修改（仅管理员可用） -->
+              <!-- 确认修改（仅管理员/操作员可用） -->
               <button
-                v-if="!isExpert && selectedOrder.status !== 'DONE' && selectedOrder.status !== 'IGNORED'"
+                v-if="!isAssigneeOnly && selectedOrder.status !== 'DONE' && selectedOrder.status !== 'IGNORED'"
                 class="flex-1 min-w-[100px] px-4 py-3 rounded-xl bg-cyber-green/10 border border-cyber-green/20 text-cyber-green text-sm hover:bg-cyber-green/20 transition-colors"
                 @click="confirmUpdate"
               >
                 确认修改
               </button>
 
-              <!-- 删除工单（仅管理员可用） -->
+              <!-- 删除工单（仅管理员/操作员可用） -->
               <button
-                v-if="!isExpert"
+                v-if="!isAssigneeOnly"
                 class="flex-1 min-w-[100px] px-4 py-3 rounded-xl bg-sakura/10 border border-sakura/20 text-sakura text-sm hover:bg-sakura/20 transition-colors"
                 @click="openDeleteConfirm(selectedOrder)"
               >

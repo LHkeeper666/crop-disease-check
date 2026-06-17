@@ -49,7 +49,7 @@ public class SysUser implements Serializable {
     private String name;
 
     /**
-     * 角色: ADMIN/EXPERT/MANAGER/VISITOR
+     * 角色: ADMIN/EXPERT/MANAGER/STAFF
      */
     @TableField("role")
     private String role;

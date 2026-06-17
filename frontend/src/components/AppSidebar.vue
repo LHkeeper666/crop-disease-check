@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
@@ -6,7 +7,8 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
-const navItems = [
+/** 全部导航项定义（含所需角色） */
+const allNavItems = [
   {
     path: '/dashboard', label: '遥测总览',
     icon: 'M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.148 2.148A12.061 12.061 0 0116.5 7.605',
@@ -40,6 +42,14 @@ const navItems = [
     icon: 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25',
   },
 ]
+
+/**
+ * 根据当前用户角色动态过滤导航项
+ * —— 只展示该角色被授权访问的菜单，未授权的完全隐藏
+ */
+const navItems = computed(() =>
+  allNavItems.filter(item => auth.canAccess(item.path))
+)
 
 function handleLogout() {
   auth.logout()
@@ -87,7 +97,7 @@ function handleLogout() {
         </div>
         <div class="hidden xl:block flex-1 min-w-0">
           <div class="text-sm text-white truncate">{{ auth.userName }}</div>
-          <div class="text-[10px] text-slate-500 font-mono">{{ auth.userRole }}</div>
+          <div class="text-[10px] text-slate-500 font-mono">{{ auth.userRoleName }}</div>
         </div>
       </div>
       <button

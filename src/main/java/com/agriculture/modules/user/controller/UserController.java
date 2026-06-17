@@ -49,6 +49,15 @@ public class UserController {
     }
 
     /**
+     * 获取管理员列表（登录用户可访问，用于工单指派）
+     */
+    @GetMapping("/managers")
+    public Result<List<UserSimpleVO>> getManagers(@RequestParam(required = false) String keyword) {
+        List<UserSimpleVO> managers = userService.getManagers(keyword);
+        return Result.success(managers);
+    }
+
+    /**
      * 更新当前用户信息（登录用户可访问）
      */
     @PutMapping("/me")

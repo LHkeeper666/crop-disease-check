@@ -62,6 +62,12 @@ export async function fetchExperts(keyword?: string): Promise<UserSimpleVO[]> {
   return request<UserSimpleVO[]>(`${BASE}/experts${query}`)
 }
 
+/** 获取管理员列表（用于工单指派，所有登录用户可访问） */
+export async function fetchManagers(keyword?: string): Promise<UserSimpleVO[]> {
+  const query = keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''
+  return request<UserSimpleVO[]>(`${BASE}/managers${query}`)
+}
+
 /** 获取当前用户信息 */
 export async function fetchCurrentUser(): Promise<UserVO> {
   return request<UserVO>(`${BASE}/me`)

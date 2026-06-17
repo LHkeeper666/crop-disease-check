@@ -7,6 +7,7 @@ import {
   updateWorkOrderSeverity as apiUpdateSeverity,
   deleteWorkOrder as apiDelete,
   fetchExperts as apiFetchExperts,
+  fetchManagers as apiFetchManagers,
   updateWorkOrderAssignee as apiUpdateAssignee,
   type WorkOrderVO,
   type WorkOrderManualCreateDTO,
@@ -78,6 +79,11 @@ export const useWorkOrderStore = defineStore('workorder', () => {
   const experts = ref<ExpertVO[]>([])
   const expertsLoading = ref(false)
   const expertsError = ref<string | null>(null)
+
+  // 管理员列表状态
+  const managers = ref<ExpertVO[]>([])
+  const managersLoading = ref(false)
+  const managersError = ref<string | null>(null)
 
   // 每个网格最高危险等级（未完成且未忽略的工单）
   const gridSeverityMap = computed(() => {
@@ -168,6 +174,24 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     }
   }
 
+  /** 从 VO 添加工单到本地 store（用于 WebSocket 实时推送） */
+  function addOrderFromVO(vo: WorkOrderVO) {
+    const idx = orders.value.findIndex(o => o.id === vo.id)
+    if (idx === -1) {
+      orders.value.unshift(fromVO(vo))
+    }
+  }
+
+  /** 本地更新工单字段（用于 WebSocket 实时推送） */
+  function updateOrderLocal(id: number, patch: Partial<Pick<WorkOrder, 'status' | 'severity'>>) {
+    const o = orders.value.find(o => o.id === id)
+    if (o) {
+      if (patch.status) o.status = patch.status
+      if (patch.severity) o.severity = patch.severity
+      o.updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19)
+    }
+  }
+
   /** 删除工单 */
   async function removeOrder(id: number) {
     loading.value = true
@@ -242,13 +266,28 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     expertsLoading.value = true
     expertsError.value = null
     try {
-      const page = await apiFetchExperts()
-      experts.value = page.records
+      const list = await apiFetchExperts()
+      experts.value = list
     } catch (e: any) {
       expertsError.value = e.message || '加载专家列表失败'
       console.error('[workorder] fetchExperts error:', e)
     } finally {
       expertsLoading.value = false
+    }
+  }
+
+  /** 获取管理员列表 */
+  async function fetchManagers() {
+    managersLoading.value = true
+    managersError.value = null
+    try {
+      const list = await apiFetchManagers()
+      managers.value = list
+    } catch (e: any) {
+      managersError.value = e.message || '加载管理员列表失败'
+      console.error('[workorder] fetchManagers error:', e)
+    } finally {
+      managersLoading.value = false
     }
   }
 
@@ -276,17 +315,23 @@ export const useWorkOrderStore = defineStore('workorder', () => {
     experts,
     expertsLoading,
     expertsError,
+    managers,
+    managersLoading,
+    managersError,
     gridSeverityMap,
     alerts,
     getAlerts,
     trendData,
     fetchOrders,
     addOrder,
+    addOrderFromVO,
+    updateOrderLocal,
     removeOrder,
     updateOrderStatus,
     escalateSeverity,
     deescalateSeverity,
     fetchExperts,
+    fetchManagers,
     updateAssignee,
   }
 })
