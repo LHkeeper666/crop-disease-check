@@ -8,17 +8,17 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api/v1/detect': {
-        target: 'http://localhost:8000',
+        target: process.env.VITE_API_BASE || 'http://localhost:8000',
         changeOrigin: true,
       },
       '/ws': {
-        target: 'http://localhost:8080',
+        target: process.env.VITE_API_BASE || 'http://localhost:8080',
         ws: true,
         changeOrigin: true,
         rewrite: (path) => '/api' + path,
       },
       '/api/agri-brain/chat': {
-        target: 'http://localhost:8080',
+        target: process.env.VITE_API_BASE || 'http://localhost:8080',
         changeOrigin: true,
         // SSE 需要禁用缓冲
         configure: (proxy) => {
@@ -28,7 +28,7 @@ export default defineConfig({
         },
       },
       '/api': {
-        target: 'http://localhost:8080',
+        target: process.env.VITE_API_BASE || 'http://localhost:8080',
         changeOrigin: true,
       },
       '/proxy/deepseek': {
