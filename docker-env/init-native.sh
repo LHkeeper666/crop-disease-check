@@ -184,9 +184,50 @@ nohup minio server "$DATA_DIR/minio" --address ":9000" --console-address ":9001"
 echo -e "${GREEN}MinIO 启动完成${NC}"
 
 # ============================================================
+# ============================================================
+echo ""
+echo -e "${CYAN}=== 7. 安装 Maven 并构建后端 ===${NC}"
+
+PROJECT_DIR="$SCRIPT_DIR/.."
+
+if ! command -v mvn &>/dev/null; then
+    apt install -y maven
+fi
+
+echo "构建后端项目..."
+cd "$PROJECT_DIR"
+mvn clean package -DskipTests -q
+echo -e "${GREEN}后端构建完成${NC}"
+
+# ============================================================
+echo ""
+echo -e "${CYAN}=== 8. 启动后端服务 ===${NC}"
+
+# 获取服务器公网 IP
+PUBLIC_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s ip.sb 2>/dev/null || echo "localhost")
+
+# 后台启动 Spring Boot
+nohup java -jar target/*.jar --spring.profiles.active=prod > /tmp/agri-backend.log 2>&1 &
+BACKEND_PID=$!
+echo "后端启动中，PID: $BACKEND_PID"
+
+# 等待后端就绪
+echo "等待后端服务就绪..."
+for i in $(seq 1 60); do
+    if curl -s http://localhost:8080/api/doc.html >/dev/null 2>&1; then
+        echo -e "${GREEN}后端服务已就绪${NC}"
+        break
+    fi
+    if [ "$i" -eq 60 ]; then
+        echo -e "${YELLOW}后端启动较慢，请检查日志: tail -f /tmp/agri-backend.log${NC}"
+    fi
+    sleep 2
+done
+
+# ============================================================
 echo ""
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}  安装完成！${NC}"
+echo -e "${GREEN}  部署完成！${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 echo "服务列表:"
@@ -195,10 +236,11 @@ echo "  Redis:        localhost:6379"
 echo "  RabbitMQ:     localhost:5672 (管理界面: 15672)"
 echo "  Elasticsearch: localhost:9200"
 echo "  MinIO:        localhost:9000 (控制台: 9001)"
+echo "  后端 API:     http://$PUBLIC_IP:8080/api"
+echo "  API 文档:     http://$PUBLIC_IP:8080/api/doc.html"
 echo ""
 echo "MinIO 登录:"
 echo "  用户名: minioadmin"
 echo "  密码:   minioadmin"
 echo ""
-echo -e "${YELLOW}下一步: 在 IDEA 中启动后端项目 (端口 8080)${NC}"
-echo -e "${YELLOW}前端: cd frontend && npm run dev (端口 3000)${NC}"
+echo -e "${YELLOW}如需启动前端: cd $PROJECT_DIR/frontend && npm run dev${NC}"
