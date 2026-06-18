@@ -97,7 +97,7 @@ echo -e "${CYAN}=== 3. 配置并启动 Redis ===${NC}"
 # 备份原配置
 cp /etc/redis/redis.conf /etc/redis/redis.conf.bak 2>/dev/null || true
 
-# 配置 Redis
+# 配置 Redis（无密码，与 application-prod.yml 匹配）
 cat > /etc/redis/redis.conf << 'EOF'
 bind 0.0.0.0
 protected-mode no
@@ -122,10 +122,12 @@ sleep 5
 # 启用管理插件
 rabbitmq-plugins enable rabbitmq_management 2>/dev/null || true
 
-# 创建用户和虚拟主机
-rabbitmqctl add_user agri agri_pass_2026 2>/dev/null || true
+# 创建用户和虚拟主机（与 application-prod.yml 匹配）
+rabbitmqctl add_user agri agri_mq_2026 2>/dev/null || true
 rabbitmqctl set_user_tags agri administrator 2>/dev/null || true
+rabbitmqctl add_vhost /agri 2>/dev/null || true
 rabbitmqctl set_permissions -p / agri ".*" ".*" ".*" 2>/dev/null || true
+rabbitmqctl set_permissions -p /agri agri ".*" ".*" ".*" 2>/dev/null || true
 
 echo -e "${GREEN}RabbitMQ 启动完成${NC}"
 echo "  管理界面: http://localhost:15672 (guest/guest)"
@@ -181,6 +183,17 @@ MINIO_ROOT_PASSWORD=minioadmin
 export MINIO_ROOT_USER MINIO_ROOT_PASSWORD
 
 nohup minio server "$DATA_DIR/minio" --address ":9000" --console-address ":9001" > /tmp/minio.log 2>&1 &
+sleep 3
+
+# 创建 bucket
+if command -v mc &>/dev/null; then
+    mc alias set local http://localhost:9000 minioadmin minioadmin
+    mc mb local/agri-monitor 2>/dev/null || true
+else
+    echo -e "${YELLOW}提示: 安装 mc 命令行工具可自动创建 bucket${NC}"
+    echo "  或在 MinIO 控制台 http://localhost:9001 手动创建 bucket: agri-monitor"
+fi
+
 echo -e "${GREEN}MinIO 启动完成${NC}"
 
 # ============================================================
