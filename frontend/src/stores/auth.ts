@@ -36,8 +36,8 @@ export const roleNameMap: Record<UserRole, string> = {
  * STAFF  : 基层执行（工单处理、检测查看、实时监测）
  */
 export const roleRouteMap: Record<UserRole, string[]> = {
-  ADMIN: ['/dashboard', '/workorders', '/devices', '/reports', '/detection', '/monitor', '/agent', '/handbook'],
-  EXPERT: ['/dashboard', '/workorders', '/reports', '/detection', '/monitor', '/agent', '/handbook'],
+  ADMIN: ['/dashboard', '/workorders', '/devices', '/reports', '/detection', '/monitor', '/agent', '/handbook', '/annotation'],
+  EXPERT: ['/dashboard', '/workorders', '/reports', '/detection', '/monitor', '/agent', '/handbook', '/annotation'],
   MANAGER: ['/dashboard', '/workorders', '/devices', '/reports', '/detection', '/monitor', '/handbook'],
   STAFF: ['/dashboard', '/workorders', '/detection', '/monitor', '/handbook'],
 }

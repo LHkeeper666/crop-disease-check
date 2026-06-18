@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import GlassCard from '../components/GlassCard.vue'
 import GlowButton from '../components/GlowButton.vue'
 import { useWorkOrderStore } from '../stores/workorder'
@@ -9,6 +10,8 @@ import { usePageContextProvider } from '../composables/usePageContext'
 
 const woStore = useWorkOrderStore()
 const authStore = useAuthStore()
+const router = useRouter()
+const route = useRoute()
 
 // 是否为专家角色
 const isExpert = computed(() => authStore.userRole === 'EXPERT')
@@ -34,12 +37,23 @@ async function loadExperts() {
 }
 
 // 页面加载时从后端拉取工单数据和专家列表
-onMounted(() => {
-  woStore.fetchOrders()
+onMounted(async () => {
+  await woStore.fetchOrders()
   loadExperts()
   woStore.fetchStaff()
   // 添加点击外部关闭选择器的事件监听
   document.addEventListener('click', handleClickOutside)
+
+  // 从标注页面返回时，自动打开工单详情
+  const openId = route.query.open
+  if (openId) {
+    const target = woStore.orders.find(o => o.id === Number(openId))
+    if (target) {
+      openDetail(target)
+    }
+    // 清除 query 参数，避免刷新重复打开
+    router.replace({ name: 'WorkOrders' })
+  }
 })
 
 // 组件卸载时清理事件监听
@@ -1000,6 +1014,15 @@ function closeEmailModal() {
                 @click="openDeleteConfirm(selectedOrder)"
               >
                 删除工单
+              </button>
+
+              <!-- 专家标注（仅专家可见） -->
+              <button
+                v-if="isExpert && displayImageUrl"
+                class="flex-1 min-w-[100px] px-4 py-3 rounded-xl bg-blue-400/10 border border-blue-400/20 text-blue-400 text-sm hover:bg-blue-400/20 transition-colors"
+                @click="router.push({ name: 'Annotation', params: { id: selectedOrder.id } })"
+              >
+                开始标注
               </button>
             </div>
           </div>
