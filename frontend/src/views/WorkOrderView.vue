@@ -164,11 +164,11 @@ function getStatusSteps(order: any) {
 }
 
 async function openDetail(order: any) {
-  // 获取完整详情（含 expertComment）
+  // 获取完整详情（含 expertComment、originalImageUrl）
   try {
     const { fetchWorkOrderDetail } = await import('../api/workorder')
     const detail = await fetchWorkOrderDetail(order.id.toString())
-    selectedOrder.value = { ...order, expertComment: detail.expertComment, assignedToEmail: detail.assignedToEmail }
+    selectedOrder.value = { ...order, expertComment: detail.expertComment, assignedToEmail: detail.assignedToEmail, originalImageUrl: detail.originalImageUrl }
   } catch {
     selectedOrder.value = order
   }
@@ -206,6 +206,16 @@ const filteredAssignableUsers = computed(() => {
     u.name.toLowerCase().includes(query) ||
     (u.email && u.email.toLowerCase().includes(query))
   )
+})
+
+// 根据指派人角色选择展示的图片：EXPERT 看原始图，其他角色看标注图
+const displayImageUrl = computed(() => {
+  if (!selectedOrder.value) return null
+  const assignee = assignableUsers.value.find(u => u.id === selectedOrder.value.assignedToId)
+  if (assignee?.role === 'EXPERT') {
+    return selectedOrder.value.originalImageUrl || selectedOrder.value.imageUrl
+  }
+  return selectedOrder.value.imageUrl || selectedOrder.value.originalImageUrl
 })
 
 function closeDetail() {
@@ -803,7 +813,7 @@ function closeEmailModal() {
             </div>
             <div class="flex gap-2">
               <button
-                v-if="selectedOrder.imageUrl"
+                v-if="displayImageUrl"
                 class="w-8 h-8 rounded-lg bg-blue-400/10 hover:bg-blue-400/20 flex items-center justify-center text-blue-400 transition-colors"
                 title="查看图片"
                 @click="showImageModal = true"
@@ -1181,7 +1191,7 @@ function closeEmailModal() {
     <!-- Image Viewer Modal -->
     <Teleport to="body">
       <div
-        v-if="showImageModal && selectedOrder?.imageUrl"
+        v-if="showImageModal && displayImageUrl"
         class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm"
         @click.self="showImageModal = false"
       >
@@ -1195,7 +1205,7 @@ function closeEmailModal() {
             </svg>
           </button>
           <img
-            :src="selectedOrder.imageUrl"
+            :src="displayImageUrl"
             :alt="selectedOrder.title"
             class="max-w-[90vw] max-h-[85vh] rounded-xl object-contain shadow-2xl border border-white/10"
           />

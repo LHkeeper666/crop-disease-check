@@ -205,6 +205,7 @@ CREATE TABLE inference (
     pest_ids            JSON COMMENT '虫害ID数组 [22,45]，对应 pest_info.id',
     detections          JSON COMMENT '完整检测结果数组(含class_id/class_name/name_cn/confidence/bbox/pipeline)',
     annotated_image_url VARCHAR(512) COMMENT '标注图存储路径/URL',
+    original_image_url  VARCHAR(512) COMMENT '原始图存储路径/URL（未标注）',
     total_elapsed_ms    DECIMAL(10,2) COMMENT '双模型总推理耗时(ms)',
     source_type         VARCHAR(20) NOT NULL DEFAULT 'REPORT' COMMENT '数据来源: REPORT(用户上报) / CAMERA(摄像头自动检测)',
     camera_id           VARCHAR(64) NULL COMMENT '来源摄像头ID（仅 source_type=CAMERA 时有值）',

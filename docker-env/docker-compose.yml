@@ -196,13 +196,13 @@ services:
       - agri-net
     runtime: runc
     # 如果有 GPU, 取消下面注释并删除上面的 runtime: runc
-    # deploy:
-    #    resources:
-    #      reservations:
-    #        devices:
-    #          - driver: nvidia
-    #            count: 1
-    #            capabilities: [gpu]
+    deploy:
+        resources:
+          reservations:
+            devices:
+              - driver: nvidia
+                count: 1
+                capabilities: [gpu]
 
   # ----------------------------------------------------------
   # Spring Boot 后端 - 核心业务服务

@@ -312,6 +312,7 @@ public class InferenceServiceImpl extends ServiceImpl<InferenceMapper, Inference
             item.put("pestIds", inf.getPestIds());
             item.put("detections", inf.getDetections());
             item.put("annotatedImageUrl", inf.getAnnotatedImageUrl());
+            item.put("originalImageUrl", inf.getOriginalImageUrl());
             item.put("totalElapsedMs", inf.getTotalElapsedMs());
             item.put("createdAt", inf.getCreatedAt() != null ?
                     inf.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : null);

@@ -296,14 +296,13 @@ public class CameraDetectServiceImpl implements CameraDetectService {
             captureUrl = saveCaptureImage(cameraId, captured.bytes);
         }
 
-        // 3. 调用推理服务（不返回标注图，只返回bbox坐标）
+        // 3. 调用推理服务（返回标注图+原始图URL，用于工单图片展示）
         float confidence = request.getConfidence() != null ? request.getConfidence() : 0.5f;
 
         JsonNode inferenceResult;
         try {
             String base64Image = Base64.getEncoder().encodeToString(captured.bytes);
-            // 关键：returnAnnotatedImage = false，节省带宽
-            inferenceResult = inferenceClient.detectByBase64(base64Image, confidence, false);
+            inferenceResult = inferenceClient.detectByBase64(base64Image, confidence, true);
         } catch (Exception e) {
             if (Thread.currentThread().isInterrupted()) {
                 throw new RuntimeException("检测被中断", e);
@@ -312,8 +311,21 @@ public class CameraDetectServiceImpl implements CameraDetectService {
             throw new BusinessException(40088, "推理服务不可用: " + e.getMessage());
         }
 
-        // 4. 解析推理结果（只有detections，没有annotatedImage）
+        // 4. 解析推理结果
         CameraDetectResponse.InferenceResult parsedResult = parseInferenceResult(inferenceResult);
+
+        // 提取图片URL（CV服务返回的原始图和标注图MinIO地址）
+        String annotatedImageUrl = null;
+        String originalImageUrl = null;
+        JsonNode dataNode = inferenceResult.get("data");
+        if (dataNode != null) {
+            if (dataNode.has("annotated_url") && !dataNode.get("annotated_url").isNull()) {
+                annotatedImageUrl = dataNode.get("annotated_url").asText();
+            }
+            if (dataNode.has("original_url") && !dataNode.get("original_url").isNull()) {
+                originalImageUrl = dataNode.get("original_url").asText();
+            }
+        }
 
         // 5. 变更检测：只在状态发生变化时持久化
         List<CameraDetectResponse.DetectionItem> allDetections = mergeAllDetections(parsedResult);
@@ -323,7 +335,7 @@ public class CameraDetectServiceImpl implements CameraDetectService {
 
         if (shouldPersist(snapshot, allDetections)) {
             // 持久化到 inference 表
-            String inferenceId = persistInference(cameraId, parsedResult, gridLabels, companyId);
+            String inferenceId = persistInference(cameraId, parsedResult, gridLabels, companyId, annotatedImageUrl, originalImageUrl);
 
             // 发送检测事件到 RabbitMQ（工单生成 + 热力图更新由消费者异步处理）
             DetectionEvent event = buildDetectionEvent(inferenceId, cameraId, parsedResult, gridLabels, companyId);
@@ -671,7 +683,8 @@ public class CameraDetectServiceImpl implements CameraDetectService {
      * 持久化检测结果到 inference 表，返回 inferenceId
      */
     private String persistInference(String cameraId, CameraDetectResponse.InferenceResult result,
-                                     List<String> gridLabels, String companyId) {
+                                     List<String> gridLabels, String companyId,
+                                     String annotatedImageUrl, String originalImageUrl) {
         try {
             // 构建 detections JSON
             List<Map<String, Object>> detectionsList = new ArrayList<>();
@@ -702,6 +715,8 @@ public class CameraDetectServiceImpl implements CameraDetectService {
             inference.setTotalElapsedMs(result.getTotalElapsedMs() != null
                     ? BigDecimal.valueOf(result.getTotalElapsedMs()) : null);
             inference.setCompanyId(companyId);
+            inference.setAnnotatedImageUrl(annotatedImageUrl);
+            inference.setOriginalImageUrl(originalImageUrl);
             inference.setCreatedAt(LocalDateTime.now());
 
             inferenceMapper.insert(inference);
