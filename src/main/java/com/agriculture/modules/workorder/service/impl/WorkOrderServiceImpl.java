@@ -161,13 +161,19 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
                                               int page, int size, String companyId, String assignedTo) {
         LambdaQueryWrapper<WorkOrder> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(StringUtils.hasText(companyId), WorkOrder::getCompanyId, companyId)
-               .eq(StringUtils.hasText(assignedTo), WorkOrder::getAssignedTo, assignedTo)
                .eq(StringUtils.hasText(status), WorkOrder::getStatus, status)
                .ne(!StringUtils.hasText(status), WorkOrder::getStatus, WorkOrder.STATUS_AI_REVIEW)
                .eq(StringUtils.hasText(severity), WorkOrder::getSeverity, severity)
                .ge(startDate != null, WorkOrder::getCreatedAt, startDate)
                .le(endDate != null, WorkOrder::getCreatedAt, endDate)
                .orderByDesc(WorkOrder::getCreatedAt);
+
+        // 专家/基层员工：显示当前指派给自己 + 自己曾操作过的工单
+        if (StringUtils.hasText(assignedTo)) {
+            String historySubQuery = "SELECT workorder_id FROM work_order_history WHERE operator_id = '" + assignedTo + "'";
+            wrapper.and(w -> w.eq(WorkOrder::getAssignedTo, assignedTo)
+                    .or().inSql(WorkOrder::getId, historySubQuery));
+        }
 
         Page<WorkOrder> pageParam = new Page<>(page, size);
         Page<WorkOrder> result = baseMapper.selectPage(pageParam, wrapper);
