@@ -398,7 +398,7 @@ class WorkOrderControllerTest {
             dto.setStatus("DONE");
 
             org.mockito.Mockito.doThrow(new BusinessException("非法的状态变更: PENDING -> DONE"))
-                    .when(workOrderService).updateStatus(eq(1L), eq("DONE"), isNull(), eq("u-001"), eq("系统管理员"));
+                    .when(workOrderService).updateStatus(eq(1L), eq("DONE"), isNull(), isNull(), eq("u-001"), eq("系统管理员"));
 
             mockMvc.perform(put("/workorder/1/status")
                             .requestAttr("userId", "u-001")

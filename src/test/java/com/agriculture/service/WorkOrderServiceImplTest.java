@@ -252,7 +252,7 @@ class WorkOrderServiceImplTest {
             when(workOrderMapper.updateById(any(WorkOrder.class))).thenReturn(1);
             when(historyMapper.insert(any(WorkOrderHistory.class))).thenReturn(1);
 
-            service.updateStatus(1L, "PROCESSING", null, "u-001", "管理员");
+            service.updateStatus(1L, "PROCESSING", null, null, "u-001", "管理员");
 
             assertEquals("PROCESSING", sampleOrder.getStatus());
             verify(workOrderMapper).updateById(sampleOrder);
@@ -266,7 +266,7 @@ class WorkOrderServiceImplTest {
             when(workOrderMapper.updateById(any(WorkOrder.class))).thenReturn(1);
             when(historyMapper.insert(any(WorkOrderHistory.class))).thenReturn(1);
 
-            service.updateStatus(1L, "DONE", "已处理", "u-001", "管理员");
+            service.updateStatus(1L, "DONE", "已处理", null, "u-001", "管理员");
 
             assertEquals("DONE", sampleOrder.getStatus());
         }
@@ -279,7 +279,7 @@ class WorkOrderServiceImplTest {
             when(workOrderMapper.updateById(any(WorkOrder.class))).thenReturn(1);
             when(historyMapper.insert(any(WorkOrderHistory.class))).thenReturn(1);
 
-            service.updateStatus(1L, "IGNORED", "误报", "u-001", "管理员");
+            service.updateStatus(1L, "IGNORED", "误报", null, "u-001", "管理员");
 
             assertEquals("IGNORED", sampleOrder.getStatus());
         }
@@ -292,7 +292,7 @@ class WorkOrderServiceImplTest {
             when(workOrderMapper.updateById(any(WorkOrder.class))).thenReturn(1);
             when(historyMapper.insert(any(WorkOrderHistory.class))).thenReturn(1);
 
-            service.updateStatus(1L, "PENDING", null, "u-001", "管理员");
+            service.updateStatus(1L, "PENDING", null, null, "u-001", "管理员");
 
             assertEquals("PENDING", sampleOrder.getStatus());
         }
@@ -304,7 +304,7 @@ class WorkOrderServiceImplTest {
             when(workOrderMapper.selectById(1L)).thenReturn(sampleOrder);
 
             BusinessException ex = assertThrows(BusinessException.class,
-                    () -> service.updateStatus(1L, "DONE", null, "u-001", "管理员"));
+                    () -> service.updateStatus(1L, "DONE", null, null, "u-001", "管理员"));
             assertTrue(ex.getMessage().contains("非法的状态变更"));
         }
 
@@ -315,7 +315,7 @@ class WorkOrderServiceImplTest {
             when(workOrderMapper.selectById(1L)).thenReturn(sampleOrder);
 
             assertThrows(BusinessException.class,
-                    () -> service.updateStatus(1L, "PENDING", null, "u-001", "管理员"));
+                    () -> service.updateStatus(1L, "PENDING", null, null, "u-001", "管理员"));
         }
 
         @Test
@@ -324,7 +324,7 @@ class WorkOrderServiceImplTest {
             when(workOrderMapper.selectById(999L)).thenReturn(null);
 
             assertThrows(BusinessException.class,
-                    () -> service.updateStatus(999L, "PROCESSING", null, "u-001", "管理员"));
+                    () -> service.updateStatus(999L, "PROCESSING", null, null, "u-001", "管理员"));
         }
     }
 
