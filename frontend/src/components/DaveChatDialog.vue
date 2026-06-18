@@ -298,10 +298,11 @@ defineExpose({ open, close, isLoading })
             <div
               class="max-w-[80%] px-3 py-2 rounded-xl text-xs leading-relaxed"
               :class="msg.role === 'user'
-                ? 'bg-cyber-green/10 border border-cyber-green/20 text-white whitespace-pre-wrap'
+                ? 'bg-cyber-green/10 border border-cyber-green/20 text-white'
                 : 'bg-white/5 border border-white/10 text-slate-300'"
             >
-              <MarkdownRenderer :content="msg.content" />
+              <template v-if="msg.role === 'user'">{{ msg.content }}</template>
+              <MarkdownRenderer v-else :content="msg.content" />
             </div>
           </div>
 
