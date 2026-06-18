@@ -123,9 +123,9 @@ sleep 5
 rabbitmq-plugins enable rabbitmq_management 2>/dev/null || true
 
 # 创建用户和虚拟主机
-rabbitmqctl add_user agri_user agri_pass_2026 2>/dev/null || true
-rabbitmqctl set_user_tags agri_user administrator 2>/dev/null || true
-rabbitmqctl set_permissions -p / agri_user ".*" ".*" ".*" 2>/dev/null || true
+rabbitmqctl add_user agri agri_pass_2026 2>/dev/null || true
+rabbitmqctl set_user_tags agri administrator 2>/dev/null || true
+rabbitmqctl set_permissions -p / agri ".*" ".*" ".*" 2>/dev/null || true
 
 echo -e "${GREEN}RabbitMQ 启动完成${NC}"
 echo "  管理界面: http://localhost:15672 (guest/guest)"
