@@ -23,12 +23,30 @@ CHARSET="utf8mb4"
 CREATE_TABLE_SQL="../src/main/resources/db/create_table.sql"
 INIT_DATA_SQL="../src/main/resources/db/init_data.sql"
 
+# 检测 docker compose 命令 (V2 插件 或 V1 独立程序)
+if docker compose version &>/dev/null; then
+    COMPOSE="docker compose"
+    PROFILE_FLAG="--profile"
+else
+    COMPOSE="docker-compose"
+    PROFILE_FLAG=""
+    export COMPOSE_PROFILES="infra"
+fi
+
 echo -e "${CYAN}=== 0. 停止现有服务 ===${NC}"
-docker compose --profile infra --profile app down
+if [ -n "$PROFILE_FLAG" ]; then
+    $COMPOSE --profile infra --profile app down
+else
+    COMPOSE_PROFILES="infra,app" $COMPOSE down
+fi
 
 echo ""
 echo -e "${CYAN}=== 1. 启动中间件 (Docker Compose --profile infra) ===${NC}"
-docker compose --profile infra up -d
+if [ -n "$PROFILE_FLAG" ]; then
+    $COMPOSE --profile infra up -d
+else
+    COMPOSE_PROFILES="infra" $COMPOSE up -d
+fi
 
 echo ""
 echo -e "${CYAN}=== 2. 等待 MySQL 就绪 ===${NC}"
@@ -75,7 +93,11 @@ docker exec "$CONTAINER_NAME" \
 
 echo ""
 echo -e "${CYAN}=== 6. 构建 CV 推理服务镜像 ===${NC}"
-docker compose --profile infra --profile app build cv-inference
+if [ -n "$PROFILE_FLAG" ]; then
+    $COMPOSE --profile infra --profile app build cv-inference
+else
+    COMPOSE_PROFILES="infra,app" $COMPOSE build cv-inference
+fi
 if [ $? -ne 0 ]; then
     echo -e "${RED}CV 推理服务镜像构建失败!${NC}"
     exit 1
@@ -84,7 +106,11 @@ echo -e "${GREEN}镜像构建完成${NC}"
 
 echo ""
 echo -e "${CYAN}=== 7. 启动 CV 推理服务 ===${NC}"
-docker compose --profile infra --profile app up -d cv-inference
+if [ -n "$PROFILE_FLAG" ]; then
+    $COMPOSE --profile infra --profile app up -d cv-inference
+else
+    COMPOSE_PROFILES="infra,app" $COMPOSE up -d cv-inference
+fi
 
 echo ""
 echo -e "${CYAN}=== 8. 等待推理服务就绪 ===${NC}"
