@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import GlassCard from '../components/GlassCard.vue'
 import GlowButton from '../components/GlowButton.vue'
 import { useWorkOrderStore } from '../stores/workorder'
@@ -9,6 +10,8 @@ import { usePageContextProvider } from '../composables/usePageContext'
 
 const woStore = useWorkOrderStore()
 const authStore = useAuthStore()
+const router = useRouter()
+const route = useRoute()
 
 // 是否为专家角色
 const isExpert = computed(() => authStore.userRole === 'EXPERT')
@@ -34,12 +37,23 @@ async function loadExperts() {
 }
 
 // 页面加载时从后端拉取工单数据和专家列表
-onMounted(() => {
-  woStore.fetchOrders()
+onMounted(async () => {
+  await woStore.fetchOrders()
   loadExperts()
   woStore.fetchStaff()
   // 添加点击外部关闭选择器的事件监听
   document.addEventListener('click', handleClickOutside)
+
+  // 从标注页面返回时，自动打开工单详情
+  const openId = route.query.open
+  if (openId) {
+    const target = woStore.orders.find(o => o.id === Number(openId))
+    if (target) {
+      openDetail(target)
+    }
+    // 清除 query 参数，避免刷新重复打开
+    router.replace({ name: 'WorkOrders' })
+  }
 })
 
 // 组件卸载时清理事件监听
@@ -164,11 +178,11 @@ function getStatusSteps(order: any) {
 }
 
 async function openDetail(order: any) {
-  // 获取完整详情（含 expertComment）
+  // 获取完整详情（含 expertComment、originalImageUrl）
   try {
     const { fetchWorkOrderDetail } = await import('../api/workorder')
     const detail = await fetchWorkOrderDetail(order.id.toString())
-    selectedOrder.value = { ...order, expertComment: detail.expertComment, assignedToEmail: detail.assignedToEmail }
+    selectedOrder.value = { ...order, expertComment: detail.expertComment, assignedToEmail: detail.assignedToEmail, originalImageUrl: detail.originalImageUrl }
   } catch {
     selectedOrder.value = order
   }
@@ -206,6 +220,16 @@ const filteredAssignableUsers = computed(() => {
     u.name.toLowerCase().includes(query) ||
     (u.email && u.email.toLowerCase().includes(query))
   )
+})
+
+// 根据指派人角色选择展示的图片：EXPERT 看原始图，其他角色看标注图
+const displayImageUrl = computed(() => {
+  if (!selectedOrder.value) return null
+  const assignee = assignableUsers.value.find(u => u.id === selectedOrder.value.assignedToId)
+  if (assignee?.role === 'EXPERT') {
+    return selectedOrder.value.originalImageUrl || selectedOrder.value.imageUrl
+  }
+  return selectedOrder.value.imageUrl || selectedOrder.value.originalImageUrl
 })
 
 function closeDetail() {
@@ -803,7 +827,7 @@ function closeEmailModal() {
             </div>
             <div class="flex gap-2">
               <button
-                v-if="selectedOrder.imageUrl"
+                v-if="displayImageUrl"
                 class="w-8 h-8 rounded-lg bg-blue-400/10 hover:bg-blue-400/20 flex items-center justify-center text-blue-400 transition-colors"
                 title="查看图片"
                 @click="showImageModal = true"
@@ -990,6 +1014,15 @@ function closeEmailModal() {
                 @click="openDeleteConfirm(selectedOrder)"
               >
                 删除工单
+              </button>
+
+              <!-- 专家标注（仅专家可见） -->
+              <button
+                v-if="isExpert && displayImageUrl"
+                class="flex-1 min-w-[100px] px-4 py-3 rounded-xl bg-blue-400/10 border border-blue-400/20 text-blue-400 text-sm hover:bg-blue-400/20 transition-colors"
+                @click="router.push({ name: 'Annotation', params: { id: selectedOrder.id } })"
+              >
+                开始标注
               </button>
             </div>
           </div>
@@ -1181,7 +1214,7 @@ function closeEmailModal() {
     <!-- Image Viewer Modal -->
     <Teleport to="body">
       <div
-        v-if="showImageModal && selectedOrder?.imageUrl"
+        v-if="showImageModal && displayImageUrl"
         class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm"
         @click.self="showImageModal = false"
       >
@@ -1195,7 +1228,7 @@ function closeEmailModal() {
             </svg>
           </button>
           <img
-            :src="selectedOrder.imageUrl"
+            :src="displayImageUrl"
             :alt="selectedOrder.title"
             class="max-w-[90vw] max-h-[85vh] rounded-xl object-contain shadow-2xl border border-white/10"
           />

@@ -26,6 +26,7 @@ export interface WorkOrder {
   pestName: string
   confidence: number
   imageUrl: string | null
+  originalImageUrl: string | null
   assignedToId: string
   assignedToName: string
   createdAt: string
@@ -64,6 +65,7 @@ function fromVO(vo: WorkOrderVO): WorkOrder {
     pestName: vo.pestName,
     confidence: vo.confidence,
     imageUrl: vo.imageUrl || null,
+    originalImageUrl: vo.originalImageUrl || null,
     assignedToId: vo.assignedTo || '',
     assignedToName: vo.assignedToName || '未分配',
     createdAt: vo.createdAt,

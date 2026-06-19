@@ -161,13 +161,19 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
                                               int page, int size, String companyId, String assignedTo) {
         LambdaQueryWrapper<WorkOrder> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(StringUtils.hasText(companyId), WorkOrder::getCompanyId, companyId)
-               .eq(StringUtils.hasText(assignedTo), WorkOrder::getAssignedTo, assignedTo)
                .eq(StringUtils.hasText(status), WorkOrder::getStatus, status)
                .ne(!StringUtils.hasText(status), WorkOrder::getStatus, WorkOrder.STATUS_AI_REVIEW)
                .eq(StringUtils.hasText(severity), WorkOrder::getSeverity, severity)
                .ge(startDate != null, WorkOrder::getCreatedAt, startDate)
                .le(endDate != null, WorkOrder::getCreatedAt, endDate)
                .orderByDesc(WorkOrder::getCreatedAt);
+
+        // 专家/基层员工：显示当前指派给自己 + 自己曾操作过的工单
+        if (StringUtils.hasText(assignedTo)) {
+            String historySubQuery = "SELECT workorder_id FROM work_order_history WHERE operator_id = '" + assignedTo + "'";
+            wrapper.and(w -> w.eq(WorkOrder::getAssignedTo, assignedTo)
+                    .or().inSql(WorkOrder::getId, historySubQuery));
+        }
 
         Page<WorkOrder> pageParam = new Page<>(page, size);
         Page<WorkOrder> result = baseMapper.selectPage(pageParam, wrapper);
@@ -289,6 +295,19 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         workOrder.setConfidence(dto.getConfidence() != null ? BigDecimal.valueOf(dto.getConfidence()) : null);
         workOrder.setAssignedTo(dto.getAssignedTo());
         workOrder.setImageUrl(dto.getImageUrl());
+
+        // 如果有原始图URL，创建 inference 记录存储两张图片，供前端按角色展示
+        if (dto.getOriginalImageUrl() != null && dto.getImageUrl() != null) {
+            Inference imgInference = new Inference();
+            imgInference.setId(UUID.randomUUID().toString());
+            imgInference.setAnnotatedImageUrl(dto.getImageUrl());
+            imgInference.setOriginalImageUrl(dto.getOriginalImageUrl());
+            imgInference.setCompanyId(companyId);
+            imgInference.setSourceType("REPORT");
+            imgInference.setCreatedAt(LocalDateTime.now());
+            inferenceMapper.insert(imgInference);
+            workOrder.setInferenceId(imgInference.getId());
+        }
         // 根据指派角色设置 expert_comment
         if (dto.getAssignedTo() != null) {
             SysUser assignee = sysUserMapper.selectById(dto.getAssignedTo());
@@ -965,13 +984,18 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
             }
         }
 
-        // 关联查询推理记录的标注图片（优先使用工单自身的 image_url）
+        // 关联查询推理记录的图片
+        // image_url 优先使用工单自身的值，original_image_url 始终从 inference 表获取
         if (workOrder.getImageUrl() != null) {
             vo.setImageUrl(workOrder.getImageUrl());
-        } else if (workOrder.getInferenceId() != null) {
+        }
+        if (workOrder.getInferenceId() != null) {
             Inference inference = inferenceMapper.selectById(workOrder.getInferenceId());
             if (inference != null) {
-                vo.setImageUrl(inference.getAnnotatedImageUrl());
+                if (vo.getImageUrl() == null) {
+                    vo.setImageUrl(inference.getAnnotatedImageUrl());
+                }
+                vo.setOriginalImageUrl(inference.getOriginalImageUrl());
             }
         }
 

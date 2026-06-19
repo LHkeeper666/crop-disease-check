@@ -27,4 +27,6 @@ public class WorkOrderManualCreateDTO {
     private String assignedTo;
 
     private String imageUrl;
+
+    private String originalImageUrl;
 }

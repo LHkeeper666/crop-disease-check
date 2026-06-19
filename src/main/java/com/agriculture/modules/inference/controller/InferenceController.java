@@ -2,6 +2,8 @@ package com.agriculture.modules.inference.controller;
 
 import com.agriculture.modules.pestDiseaseInfo.dto.AuditDTO;
 import com.agriculture.modules.pestDiseaseInfo.dto.PreventionPlanDTO;
+import com.agriculture.modules.inference.entity.Inference;
+import com.agriculture.modules.inference.mapper.InferenceMapper;
 import com.agriculture.modules.inference.service.InferenceService;
 import com.agriculture.modules.pestDiseaseInfo.vo.PendingAuditVO;
 import com.agriculture.modules.pestDiseaseInfo.vo.PendingReviewVO;
@@ -29,6 +31,9 @@ public class InferenceController {
     @Resource
     private InferenceService inferenceService;
 
+    @Resource
+    private InferenceMapper inferenceMapper;
+
     /**
      * 7.1 待复核列表（专家）
      * GET /inference/pending-review
@@ -39,6 +44,15 @@ public class InferenceController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
         return Result.success(inferenceService.listPendingReview(sortByConfidence, page, size));
+    }
+
+    /**
+     * 获取推理结果详情（含 detections JSON）
+     */
+    @GetMapping("/{id}")
+    public Result<Inference> getInference(@PathVariable String id) {
+        Inference inference = inferenceMapper.selectById(id);
+        return Result.success(inference);
     }
 
     /**

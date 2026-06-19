@@ -205,6 +205,7 @@ CREATE TABLE inference (
     pest_ids            JSON COMMENT '虫害ID数组 [22,45]，对应 pest_info.id',
     detections          JSON COMMENT '完整检测结果数组(含class_id/class_name/name_cn/confidence/bbox/pipeline)',
     annotated_image_url VARCHAR(512) COMMENT '标注图存储路径/URL',
+    original_image_url  VARCHAR(512) COMMENT '原始图存储路径/URL（未标注）',
     total_elapsed_ms    DECIMAL(10,2) COMMENT '双模型总推理耗时(ms)',
     source_type         VARCHAR(20) NOT NULL DEFAULT 'REPORT' COMMENT '数据来源: REPORT(用户上报) / CAMERA(摄像头自动检测)',
     camera_id           VARCHAR(64) NULL COMMENT '来源摄像头ID（仅 source_type=CAMERA 时有值）',
@@ -480,3 +481,41 @@ CREATE TABLE environment_record (
     INDEX idx_greenhouse_time (greenhouse_id, recorded_at),
     INDEX idx_company (company_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='环境数据记录表';
+
+
+-- ========================================
+-- 13. 专家标注模块
+-- ========================================
+
+-- 专家标注记录表
+DROP TABLE IF EXISTS annotation;
+CREATE TABLE annotation (
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '标注ID',
+    work_order_id   BIGINT NOT NULL COMMENT '关联工单ID',
+    image_url       VARCHAR(512) NOT NULL COMMENT '标注源图URL（原始图）',
+    pipeline        VARCHAR(20) COMMENT '标注类型: disease/pest',
+    created_by      VARCHAR(36) NOT NULL COMMENT '标注人ID',
+    company_id      VARCHAR(36) COMMENT '所属企业ID',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted         TINYINT DEFAULT 0 COMMENT '逻辑删除',
+    INDEX idx_work_order (work_order_id),
+    INDEX idx_company (company_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='专家标注记录表';
+
+
+-- 标注框表 (坐标为YOLO归一化格式: center_x, center_y, width, height, 范围0-1)
+DROP TABLE IF EXISTS annotation_box;
+CREATE TABLE annotation_box (
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '标注框ID',
+    annotation_id   BIGINT NOT NULL COMMENT '关联标注记录ID',
+    class_id        INT NOT NULL COMMENT '类别ID（对应disease_info.id或pest_info.id）',
+    class_name      VARCHAR(128) COMMENT '类别英文名',
+    name_cn         VARCHAR(128) COMMENT '类别中文名',
+    x               DOUBLE NOT NULL COMMENT '中心点X（归一化0-1）',
+    y               DOUBLE NOT NULL COMMENT '中心点Y（归一化0-1）',
+    width           DOUBLE NOT NULL COMMENT '宽度（归一化0-1）',
+    height          DOUBLE NOT NULL COMMENT '高度（归一化0-1）',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_annotation (annotation_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='标注框表';

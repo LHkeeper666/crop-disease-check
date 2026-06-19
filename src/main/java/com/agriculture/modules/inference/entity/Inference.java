@@ -69,6 +69,12 @@ public class Inference implements Serializable {
     private String annotatedImageUrl;
 
     /**
+     * 原始图存储路径/URL（未标注）
+     */
+    @TableField("original_image_url")
+    private String originalImageUrl;
+
+    /**
      * 双模型总推理耗时(ms)
      */
     @TableField("total_elapsed_ms")

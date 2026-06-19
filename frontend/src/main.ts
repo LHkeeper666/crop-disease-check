@@ -16,6 +16,7 @@ import AgentView from './views/AgentView.vue'
 import DetectionView from './views/DetectionView.vue'
 import CameraMonitorView from './views/CameraMonitorView.vue'
 import HandbookView from './views/HandbookView.vue'
+import AnnotationView from './views/AnnotationView.vue'
 import { useAuthStore, roleRouteMap } from './stores/auth'
 
 const routes = [
@@ -34,6 +35,7 @@ const routes = [
       { path: 'monitor', name: 'Monitor', component: CameraMonitorView },
       { path: 'agent', name: 'Agent', component: AgentView },
       { path: 'handbook', name: 'Handbook', component: HandbookView },
+      { path: 'annotation/:id', name: 'Annotation', component: AnnotationView },
     ],
   },
 ]
@@ -74,7 +76,7 @@ router.beforeEach((to) => {
   const targetPath = '/' + (to.path === '/' ? 'dashboard' : to.path.replace(/^\//, ''))
   // 找到匹配的子路由路径
   const childPath = to.matched.length > 1
-    ? '/' + to.path.split('/').filter(Boolean).pop()
+    ? '/' + to.path.split('/').filter(Boolean).shift()
     : targetPath
   const auth = useAuthStore()
   const allowedRoutes = roleRouteMap[auth.userRole] || roleRouteMap.STAFF

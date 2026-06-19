@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
 import { useWorkOrderStore } from '../stores/workorder'
 import type { ExpertVO } from '../api/workorder'
@@ -41,6 +41,13 @@ const uploadProgress = ref({ done: 0, total: 0 })
 const showEnlarged = ref(false)
 const detectionMode = ref<'detect' | 'workorder'>('detect')
 
+// ========== 摄像头拍照 ==========
+const showCamera = ref(false)
+const cameraStream = ref<MediaStream | null>(null)
+const videoRef = ref<HTMLVideoElement>()
+const canvasRef = ref<HTMLCanvasElement>()
+const cameraError = ref('')
+
 // ========== 工单创建 ==========
 const workOrderStore = useWorkOrderStore()
 const showWorkOrderModal = ref(false)
@@ -61,6 +68,7 @@ function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
     showEnlarged.value = false
     showWorkOrderModal.value = false
+    if (showCamera.value) closeCamera()
   }
 }
 onMounted(() => {
@@ -69,7 +77,10 @@ onMounted(() => {
   workOrderStore.fetchManagers()
   workOrderStore.fetchStaff()
 })
-onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+  closeCamera()
+})
 
 const isBatch = computed(() => files.value.length > 1)
 const activeItem = computed(() => files.value[activeIndex.value] || null)
@@ -133,6 +144,59 @@ function clearAll() {
   activeIndex.value = 0
   error.value = ''
   uploadProgress.value = { done: 0, total: 0 }
+}
+
+// ========== 摄像头拍照 ==========
+async function openCamera() {
+  cameraError.value = ''
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false,
+    })
+    cameraStream.value = stream
+    showCamera.value = true
+    // 等 DOM 更新后绑定 stream
+    await nextTick()
+    if (videoRef.value) {
+      videoRef.value.srcObject = stream
+    }
+  } catch (err: any) {
+    if (err.name === 'NotAllowedError') {
+      cameraError.value = '摄像头权限被拒绝，请在浏览器设置中允许访问摄像头'
+    } else if (err.name === 'NotFoundError') {
+      cameraError.value = '未检测到摄像头设备'
+    } else {
+      cameraError.value = `摄像头打开失败: ${err.message}`
+    }
+  }
+}
+
+function capturePhoto() {
+  const video = videoRef.value
+  const canvas = canvasRef.value
+  if (!video || !canvas) return
+
+  canvas.width = video.videoWidth
+  canvas.height = video.videoHeight
+  const ctx = canvas.getContext('2d')!
+  ctx.drawImage(video, 0, 0)
+
+  canvas.toBlob((blob) => {
+    if (!blob) return
+    const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' })
+    addFiles([file])
+    closeCamera()
+  }, 'image/jpeg', 0.92)
+}
+
+function closeCamera() {
+  if (cameraStream.value) {
+    cameraStream.value.getTracks().forEach(t => t.stop())
+    cameraStream.value = null
+  }
+  showCamera.value = false
+  cameraError.value = ''
 }
 
 // ========== 单张检测 ==========
@@ -247,11 +311,14 @@ async function submitWorkOrder() {
       assignedTo = workOrderForm.value.assignedTo || undefined
     }
 
-    // 根据指派角色选择图片：EXPERT 用原始图，其余用标注图
+    // 根据指派角色选择主图：EXPERT 用原始图，其余用标注图
+    // 同时传递两张图片URL，后端创建 inference 记录存储，前端按角色动态切换
     let imageUrl: string | undefined
+    let originalImageUrl: string | undefined
     if (activeItem.value?.result) {
       const effectiveUserId = assignedTo
       const assignedUser = assignableUsers.value.find(u => u.id === effectiveUserId)
+      originalImageUrl = activeItem.value.result.original_url || undefined
       if (assignedUser?.role === 'EXPERT') {
         imageUrl = activeItem.value.result.original_url || undefined
       } else {
@@ -267,6 +334,7 @@ async function submitWorkOrder() {
       confidence: workOrderForm.value.confidence,
       assignedTo,
       imageUrl,
+      originalImageUrl,
     })
     workOrderSuccess.value = true
     setTimeout(() => {
@@ -360,6 +428,16 @@ function totalDetections(item: BatchItem): number {
               @click="clearAll"
             >
               清空
+            </button>
+            <button
+              class="text-[10px] text-slate-500 hover:text-white transition-colors flex items-center gap-1"
+              @click="openCamera"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                <path d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+              </svg>
+              拍照
             </button>
           </div>
         </div>
@@ -663,6 +741,52 @@ function totalDetections(item: BatchItem): number {
       </GlassCard>
     </div>
   </div>
+
+  <!-- Camera Modal -->
+  <Teleport to="body">
+    <div
+      v-if="showCamera"
+      class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm"
+    >
+      <!-- Close button -->
+      <button
+        class="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+        @click="closeCamera"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+
+      <!-- Camera error -->
+      <div v-if="cameraError" class="absolute top-16 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/20 text-[#EF4444] text-sm max-w-md text-center">
+        {{ cameraError }}
+      </div>
+
+      <!-- Video preview -->
+      <video
+        ref="videoRef"
+        autoplay
+        playsinline
+        muted
+        class="max-h-[75vh] max-w-[90vw] rounded-2xl shadow-2xl object-contain bg-black"
+      />
+
+      <!-- Capture button -->
+      <div class="mt-6 flex items-center gap-4">
+        <button
+          class="w-16 h-16 rounded-full bg-white/10 border-4 border-white/40 hover:border-white/60 hover:bg-white/20 flex items-center justify-center transition-all active:scale-90"
+          @click="capturePhoto"
+        >
+          <div class="w-12 h-12 rounded-full bg-white" />
+        </button>
+      </div>
+      <p class="mt-3 text-xs text-slate-500">点击圆形按钮拍照</p>
+
+      <!-- Hidden canvas for capture -->
+      <canvas ref="canvasRef" class="hidden" />
+    </div>
+  </Teleport>
 
   <!-- Enlarged image overlay -->
   <Teleport to="body">

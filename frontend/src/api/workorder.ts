@@ -32,6 +32,7 @@ export interface WorkOrderVO {
   pestName: string
   confidence: number
   imageUrl: string | null
+  originalImageUrl: string | null
   assignedTo: string
   assignedToName: string
   createdAt: string
@@ -42,6 +43,7 @@ export interface WorkOrderVO {
 export interface WorkOrderDetailVO extends WorkOrderVO {
   inferenceId: string
   expertComment: string | null
+  assignedToEmail: string | null
   statusHistory: StatusHistoryVO[]
 }
 
@@ -84,6 +86,7 @@ export interface WorkOrderManualCreateDTO {
   confidence?: number
   assignedTo?: string
   imageUrl?: string
+  originalImageUrl?: string
 }
 
 /** 通用请求头 */
