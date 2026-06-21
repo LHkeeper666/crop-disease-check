@@ -37,7 +37,7 @@ public class StgTemplateService implements TemplateService {
     private void preloadTemplates() {
         String[][] dirTemplates = {
                 {"system_prompt.stg", "quick_advice.stg"},
-                {"email_prompt.stg"},
+                {"email_prompt.stg", "measure_comment.stg"},
                 {"ai_review_prompt.stg"}
         };
 

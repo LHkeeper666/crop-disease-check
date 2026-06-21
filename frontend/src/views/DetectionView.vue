@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import GlassCard from '../components/GlassCard.vue'
 import { useWorkOrderStore } from '../stores/workorder'
 import type { ExpertVO } from '../api/workorder'
+import { fetchGrids, type GridVO } from '../api/grid'
 
 interface Detection {
   class_name: string
@@ -60,9 +61,11 @@ const workOrderForm = ref({
   pestName: '' as string,
   confidence: 0,
   assignedTo: '' as string,
+  gridLabel: '' as string,
 })
 const workOrderDetectionIndex = ref(-1) // 当前正在创建工单的检测项索引
 const workOrderImageIndex = ref(-1) // 当前正在创建工单的图片索引
+const grids = ref<GridVO[]>([])
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
@@ -76,6 +79,7 @@ onMounted(() => {
   workOrderStore.fetchExperts()
   workOrderStore.fetchManagers()
   workOrderStore.fetchStaff()
+  fetchGrids().then(list => { grids.value = list }).catch(() => {})
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
@@ -295,6 +299,7 @@ function openWorkOrderModal(det: Detection, detIndex: number, imgIndex: number, 
     pestName: det.name_cn,
     confidence: det.confidence,
     assignedTo: 'auto',
+    gridLabel: '',
   }
   showWorkOrderModal.value = true
 }
@@ -330,6 +335,7 @@ async function submitWorkOrder() {
       title: workOrderForm.value.title,
       severity: workOrderForm.value.severity,
       type: workOrderForm.value.type,
+      gridLabel: workOrderForm.value.gridLabel || undefined,
       pestName: workOrderForm.value.pestName,
       confidence: workOrderForm.value.confidence,
       assignedTo,
@@ -876,6 +882,27 @@ function totalDetections(item: BatchItem): number {
                 class="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/10 text-sm text-slate-400 cursor-not-allowed"
               />
             </div>
+          </div>
+
+          <!-- Grid selection -->
+          <div>
+            <label class="block text-[10px] text-slate-500 font-mono uppercase tracking-wider mb-1.5">
+              发生网格
+            </label>
+            <select
+              v-model="workOrderForm.gridLabel"
+              class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-[#FF6A00]/50 transition-colors appearance-none"
+            >
+              <option value="" class="bg-[#0F1420]">请选择网格</option>
+              <option
+                v-for="grid in grids"
+                :key="grid.id"
+                :value="grid.label"
+                class="bg-[#0F1420]"
+              >
+                {{ grid.label }}{{ grid.cropType ? ` (${grid.cropType})` : '' }}
+              </option>
+            </select>
           </div>
 
           <!-- Assignee -->

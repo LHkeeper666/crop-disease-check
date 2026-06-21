@@ -606,17 +606,17 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
     // ==================== AI 审核逻辑 ====================
 
     /**
-     * 异步批量审核 AI_REVIEW 状态的工单，判断季节-作物-病虫害是否匹配。
-     * 合理的工单提升为 PENDING，不合理的工单硬删除。LLM 异常时默认全部通过。
+     * 审核候选工单列表，过滤不合理的检测结果。
+     * 流程：确定性前缀过滤 → LLM 审核 → 返回通过审核的候选列表。
+     * 不操作数据库，仅做纯过滤。LLM 异常时默认全部通过。
      */
-    @Async
-    public void reviewWorkOrders(List<WorkOrder> workOrders) {
-        if (workOrders == null || workOrders.isEmpty()) return;
+    private List<WorkOrder> reviewWorkOrders(List<WorkOrder> candidates) {
+        if (candidates == null || candidates.isEmpty()) return Collections.emptyList();
 
         try {
-            // 1. 获取每个工单对应网格的作物类型
+            // 1. 获取每个候选对应网格的作物类型
             Map<Long, String> cropTypeMap = new HashMap<>();
-            for (WorkOrder wo : workOrders) {
+            for (WorkOrder wo : candidates) {
                 String cropType = "未知";
                 if (wo.getGridLabel() != null) {
                     LambdaQueryWrapper<Grid> gw = new LambdaQueryWrapper<>();
@@ -629,30 +629,60 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
                 cropTypeMap.put(wo.getId(), cropType);
             }
 
-            // 2. 确定当前季节
+            // 2. 确定性过滤：用 Grid 作物类型匹配病虫害名称前缀
+            Set<String> allCropTypes = new HashSet<>();
+            LambdaQueryWrapper<Grid> cropQuery = new LambdaQueryWrapper<>();
+            cropQuery.select(Grid::getCropType).isNotNull(Grid::getCropType);
+            for (Grid g : gridMapper.selectList(cropQuery)) {
+                allCropTypes.add(g.getCropType());
+            }
+            Iterator<WorkOrder> it = candidates.iterator();
+            while (it.hasNext()) {
+                WorkOrder wo = it.next();
+                String pestName = wo.getPestName();
+                String gridCrop = cropTypeMap.get(wo.getId());
+                if (pestName == null || gridCrop == null || "未知".equals(gridCrop)) continue;
+
+                String matchedCrop = null;
+                for (String crop : allCropTypes) {
+                    if (pestName.startsWith(crop)) {
+                        matchedCrop = crop;
+                        break;
+                    }
+                }
+
+                if (matchedCrop != null && !matchedCrop.equals(gridCrop)) {
+                    log.info("前缀匹配过滤: pestName={}, gridCrop={}, 匹配到作物前缀={}, 过滤跨物种候选",
+                            pestName, gridCrop, matchedCrop);
+                    it.remove();
+                    cropTypeMap.remove(wo.getId());
+                }
+            }
+            if (candidates.isEmpty()) return Collections.emptyList();
+
+            // 3. 确定当前季节
             int month = LocalDateTime.now().getMonthValue();
             String season = getSeason(month);
 
-            // 3. 构建候选列表字符串
-            StringBuilder candidates = new StringBuilder();
-            for (int i = 0; i < workOrders.size(); i++) {
-                WorkOrder wo = workOrders.get(i);
+            // 4. 构建候选列表字符串
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < candidates.size(); i++) {
+                WorkOrder wo = candidates.get(i);
                 String cropType = cropTypeMap.get(wo.getId());
                 int pct = wo.getConfidence() != null
                         ? wo.getConfidence().multiply(new BigDecimal(100)).intValue() : 0;
-                candidates.append(String.format("[%d] 网格%s / 作物：%s / 病虫害：%s / 置信度：%d%%",
+                sb.append(String.format("[%d] 网格%s / 作物：%s / 病虫害：%s / 置信度：%d%%",
                         i + 1, wo.getGridLabel(), cropType, wo.getPestName(), pct));
-                if (i < workOrders.size() - 1) candidates.append("\n");
+                if (i < candidates.size() - 1) sb.append("\n");
             }
 
-            // 4. 渲染 prompt
+            // 5. 渲染 prompt + 调用 LLM
             Map<String, Object> attrs = new HashMap<>();
             attrs.put("month", month);
             attrs.put("season", season);
-            attrs.put("candidates", candidates.toString());
+            attrs.put("candidates", sb.toString());
             String prompt = templateService.render("ai_review_prompt", attrs);
 
-            // 5. 调用 LLM
             Map<String, Object> requestBody = Map.of(
                     "model", llmProperties.getModel(),
                     "messages", List.of(Map.of("role", "user", "content", prompt)),
@@ -669,88 +699,35 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
             JsonNode root = JSON.readTree(responseJson);
             JsonNode choices = root.get("choices");
             if (choices == null || choices.isEmpty()) {
-                promoteAllToPending(workOrders);
-                return;
+                return candidates;
             }
 
             String content = choices.get(0).get("message").get("content").asText();
-            // 提取 JSON 数组（LLM 可能会包裹在 markdown 代码块中）
             content = extractJsonArray(content);
 
             JsonNode results = JSON.readTree(content);
-            if (!results.isArray() || results.size() != workOrders.size()) {
-                // 数量不匹配，全部通过
-                promoteAllToPending(workOrders);
-                return;
+            if (!results.isArray() || results.size() != candidates.size()) {
+                return candidates;
             }
 
-            // 7. 按审核结果处理
-            for (int i = 0; i < workOrders.size(); i++) {
-                WorkOrder wo = workOrders.get(i);
+            // 7. 按审核结果过滤
+            List<WorkOrder> approved = new ArrayList<>();
+            for (int i = 0; i < candidates.size(); i++) {
                 JsonNode result = results.get(i);
                 boolean reasonable = result.has("reasonable") && result.get("reasonable").asBoolean(true);
-
                 if (reasonable) {
-                    wo.setStatus("PENDING");
-
-                    // 根据置信度随机指派人员
-                    String assigneeName = assignByConfidence(wo);
-
-                    wo.setUpdatedAt(LocalDateTime.now());
-                    baseMapper.updateById(wo);
-
-                    // 记录状态历史
-                    WorkOrderHistory history = new WorkOrderHistory();
-                    history.setWorkorderId(wo.getId());
-                    history.setStatus("PENDING");
-                    history.setOperatorName("AI审核通过");
-                    history.setCreatedAt(LocalDateTime.now());
-                    workOrderHistoryMapper.insert(history);
-
-                    // 推送 WebSocket
-                    try {
-                        Map<String, Object> wsData = new HashMap<>();
-                        wsData.put("workorderId", wo.getId());
-                        wsData.put("oldStatus", WorkOrder.STATUS_AI_REVIEW);
-                        wsData.put("newStatus", "PENDING");
-                        wsData.put("operatorName", "AI审核通过");
-                        wsData.put("type", wo.getType());
-                        wsData.put("severity", wo.getSeverity());
-                        wsData.put("assignedTo", wo.getAssignedTo());
-                        wsData.put("assignedToName", assigneeName);
-                        wsData.put("updatedAt", LocalDateTime.now().toString());
-                        webSocketService.sendWorkorderChange(wsData);
-                    } catch (Exception ignored) {
-                    }
+                    approved.add(candidates.get(i));
                 } else {
-                    // 不合理，硬删除
-                    baseMapper.deleteById(wo.getId());
+                    log.info("LLM审核不通过: pestName={}, reason={}",
+                            candidates.get(i).getPestName(),
+                            result.has("reason") ? result.get("reason").asText() : "无");
                 }
             }
+            return approved;
 
         } catch (Exception e) {
-            log.error("AI 审核工单异常，默认全部通过", e);
-            promoteAllToPending(workOrders);
-        }
-    }
-
-    private void promoteAllToPending(List<WorkOrder> workOrders) {
-        for (WorkOrder wo : workOrders) {
-            try {
-                wo.setStatus("PENDING");
-                assignByConfidence(wo);
-                wo.setUpdatedAt(LocalDateTime.now());
-                baseMapper.updateById(wo);
-
-                WorkOrderHistory history = new WorkOrderHistory();
-                history.setWorkorderId(wo.getId());
-                history.setStatus("PENDING");
-                history.setOperatorName("AI审核(兜底通过)");
-                history.setCreatedAt(LocalDateTime.now());
-                workOrderHistoryMapper.insert(history);
-            } catch (Exception ex) {
-                log.error("兜底提升工单为PENDING失败, id={}", wo.getId(), ex);
-            }
+            log.error("AI 审核异常，已通过前缀过滤的候选保留，其余丢弃", e);
+            return Collections.emptyList();
         }
     }
 
@@ -840,7 +817,17 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
     private String generateMeasureComment(WorkOrder wo) {
         try {
             String pestName = wo.getPestName() != null ? wo.getPestName() : "未知病虫害";
-            String prompt = "针对" + pestName + "，请给出100字以内的简要防治措施建议，直接输出建议内容，不要加标题或前缀。";
+            String gridLabel = wo.getGridLabel() != null ? wo.getGridLabel() : "未知地块";
+            String severity = wo.getSeverity() != null ? wo.getSeverity() : "未知";
+            String confidence = wo.getConfidence() != null
+                    ? wo.getConfidence().multiply(new BigDecimal(100)).stripTrailingZeros().toPlainString() + "%" : "未知";
+
+            Map<String, Object> attrs = new HashMap<>();
+            attrs.put("pestName", pestName);
+            attrs.put("gridLabel", gridLabel);
+            attrs.put("severity", severity);
+            attrs.put("confidence", confidence);
+            String prompt = templateService.render("measure_comment", attrs);
 
             Map<String, Object> requestBody = Map.of(
                     "model", llmProperties.getModel(),
@@ -863,7 +850,8 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
         } catch (Exception e) {
             log.warn("AI生成防治建议失败，使用默认内容", e);
         }
-        return "请根据" + (wo.getPestName() != null ? wo.getPestName() : "病虫害") + "的防治方案，及时采取相应措施处理。";
+        String pest = wo.getPestName() != null ? wo.getPestName() : "病虫害";
+        return "现场确认" + pest + "症状，及时采取物理或化学防治措施，并加强田间巡查预防复发。";
     }
 
     // ==================== MQ 驱动的智能工单生成 ====================
@@ -889,71 +877,98 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
     }
 
     @Override
-    @Transactional
     public void createFromDetectionEvent(DetectionEvent event) {
-        List<WorkOrder> pendingReview = new ArrayList<>();
+        // 1. 收集候选对象（不入库），同时处理去重
+        List<WorkOrder> candidates = new ArrayList<>();
 
         for (String gridLabel : event.getGridLabels()) {
             for (DetectionEvent.PestDetection det : event.getDetections()) {
                 if (det.getConfidence() < autoWorkOrderConfidence) continue;
 
                 try {
-                    // 去重：同企业 + 同网格 + 同病虫害 + 活跃工单（含 AI_REVIEW）
+                    // 去重：同企业 + 同网格 + 同病虫害 + 活跃工单
                     LambdaQueryWrapper<WorkOrder> wrapper = new LambdaQueryWrapper<>();
                     wrapper.eq(WorkOrder::getCompanyId, event.getCompanyId())
                            .eq(WorkOrder::getGridLabel, gridLabel)
                            .eq(WorkOrder::getPestName, det.getNameCn())
-                           .in(WorkOrder::getStatus, WorkOrder.STATUS_AI_REVIEW, "PENDING", "PROCESSING");
+                           .in(WorkOrder::getStatus, "PENDING", "PROCESSING");
                     WorkOrder existing = baseMapper.selectOne(wrapper);
 
                     if (existing != null) {
-                        // 更新置信度（取较高值）
+                        // 已有活跃工单，仅更新置信度
                         if (BigDecimal.valueOf(det.getConfidence()).compareTo(existing.getConfidence()) > 0) {
                             existing.setConfidence(BigDecimal.valueOf(det.getConfidence()));
                             existing.setUpdatedAt(LocalDateTime.now());
                             baseMapper.updateById(existing);
                         }
                     } else {
-                        // 创建新工单（AI_REVIEW 状态，等待 AI 审核）
+                        // 构建候选对象（暂不入库）
                         SeverityLevel level = SeverityLevel.fromConfidence(det.getConfidence());
-                        WorkOrder workOrder = new WorkOrder();
-                        workOrder.setTitle("【" + level.toWorkOrderSeverity() + "】Grid-" + gridLabel
+                        WorkOrder wo = new WorkOrder();
+                        wo.setTitle("【" + level.toWorkOrderSeverity() + "】Grid-" + gridLabel
                                 + " " + det.getNameCn() + " 自动检测");
-                        workOrder.setSeverity(level.toWorkOrderSeverity());
-                        workOrder.setStatus(WorkOrder.STATUS_AI_REVIEW);
-                        workOrder.setType(det.getType());
-                        workOrder.setInferenceId(event.getInferenceId());
-                        workOrder.setGridLabel(gridLabel);
-                        workOrder.setPestName(det.getNameCn());
-                        workOrder.setConfidence(BigDecimal.valueOf(det.getConfidence()));
-                        workOrder.setCompanyId(event.getCompanyId());
-                        workOrder.setCallbackToken(UUID.randomUUID().toString().replace("-", ""));
-                        workOrder.setTokenExpireAt(LocalDateTime.now().plusDays(7));
-                        workOrder.setTokenUsed((byte) 0);
-                        workOrder.setCreatedAt(LocalDateTime.now());
-                        workOrder.setUpdatedAt(LocalDateTime.now());
-                        baseMapper.insert(workOrder);
-
-                        // 记录状态历史
-                        WorkOrderHistory history = new WorkOrderHistory();
-                        history.setWorkorderId(workOrder.getId());
-                        history.setStatus(WorkOrder.STATUS_AI_REVIEW);
-                        history.setOperatorName("系统自动");
-                        history.setCreatedAt(LocalDateTime.now());
-                        workOrderHistoryMapper.insert(history);
-
-                        pendingReview.add(workOrder);
+                        wo.setSeverity(level.toWorkOrderSeverity());
+                        wo.setStatus("PENDING");
+                        wo.setType(det.getType());
+                        wo.setInferenceId(event.getInferenceId());
+                        wo.setGridLabel(gridLabel);
+                        wo.setPestName(det.getNameCn());
+                        wo.setConfidence(BigDecimal.valueOf(det.getConfidence()));
+                        wo.setCompanyId(event.getCompanyId());
+                        wo.setCallbackToken(UUID.randomUUID().toString().replace("-", ""));
+                        wo.setTokenExpireAt(LocalDateTime.now().plusDays(7));
+                        wo.setTokenUsed((byte) 0);
+                        wo.setCreatedAt(LocalDateTime.now());
+                        wo.setUpdatedAt(LocalDateTime.now());
+                        candidates.add(wo);
                     }
                 } catch (Exception e) {
-                    // 单条失败不影响其他工单的创建
+                    log.warn("收集检测候选失败: gridLabel={}, det={}", gridLabel, det.getNameCn(), e);
                 }
             }
         }
 
-        // 异步 AI 审核（不阻塞 MQ 消费主流程）
-        if (!pendingReview.isEmpty()) {
-            reviewWorkOrders(pendingReview);
+        if (candidates.isEmpty()) return;
+
+        // 2. AI 审核：前缀过滤 + LLM 审核，只返回通过的候选
+        List<WorkOrder> approved = reviewWorkOrders(candidates);
+
+        // 3. 只为通过审核的候选入库
+        for (WorkOrder wo : approved) {
+            try {
+                // 指派负责人
+                String assigneeName = assignByConfidence(wo);
+
+                baseMapper.insert(wo);
+
+                WorkOrderHistory history = new WorkOrderHistory();
+                history.setWorkorderId(wo.getId());
+                history.setStatus("PENDING");
+                history.setOperatorName("AI审核通过");
+                history.setCreatedAt(LocalDateTime.now());
+                workOrderHistoryMapper.insert(history);
+
+                try {
+                    Map<String, Object> wsData = new HashMap<>();
+                    wsData.put("workorderId", wo.getId());
+                    wsData.put("oldStatus", null);
+                    wsData.put("newStatus", "PENDING");
+                    wsData.put("operatorName", "AI审核通过");
+                    wsData.put("type", wo.getType());
+                    wsData.put("severity", wo.getSeverity());
+                    wsData.put("assignedTo", wo.getAssignedTo());
+                    wsData.put("assignedToName", assigneeName);
+                    wsData.put("updatedAt", LocalDateTime.now().toString());
+                    webSocketService.sendWorkorderChange(wsData);
+                } catch (Exception ignored) {
+                }
+            } catch (Exception e) {
+                log.error("审核通过工单入库失败: pestName={}", wo.getPestName(), e);
+            }
         }
+
+        log.info("智能工单生成完成: 候选{}条, 通过{}条, 过滤{}条",
+                candidates.size(), approved.size(), candidates.size() - approved.size());
     }
 
     /**
